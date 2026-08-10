@@ -2,10 +2,27 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, CheckCircle2, Loader2, Rocket, Save, Send, ShieldCheck } from "lucide-react";
+import {
+  Archive,
+  BookOpenText,
+  CheckCircle2,
+  ImageIcon,
+  Loader2,
+  Rocket,
+  Send,
+  Settings2,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
+import { FormActions } from "@/components/forms/form-actions";
+import { FormField } from "@/components/forms/form-field";
+import { FormRow } from "@/components/forms/form-row";
+import { FormSection } from "@/components/forms/form-section";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { ContentStatus, getContentStatusLabel } from "@/lib/constants/content-status";
 import { PermissionGuard } from "@/security/permission-guard";
 import { PERMISSIONS } from "@/constants/permission.constants";
@@ -52,7 +69,7 @@ function toRequest(form: CreateLessonRequest): CreateLessonRequest {
 
 export function LessonEditor({ lessonId }: LessonEditorProps) {
   const router = useRouter();
-  const editing = Boolean(lessonId);
+  const editing = Number.isSafeInteger(lessonId) && Number(lessonId) > 0;
 
   const [detail, setDetail] = useState<AdminLessonDetail | null>(null);
   const [form, setForm] = useState<CreateLessonRequest>(EMPTY_FORM);
@@ -62,7 +79,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!lessonId) return;
+    if (!editing || !lessonId) return;
 
     let active = true;
 
@@ -97,14 +114,28 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
     return () => {
       active = false;
     };
-  }, [lessonId]);
+  }, [editing, lessonId]);
 
   const canSubmit = useMemo(
-    () => form.titleVi.trim().length > 0 && form.slug.trim().length > 0 && form.hskLevelId > 0,
-    [form.hskLevelId, form.slug, form.titleVi],
+    () =>
+      form.titleVi.trim().length > 0 &&
+      form.slug.trim().length > 0 &&
+      Number.isSafeInteger(form.hskLevelId) &&
+      form.hskLevelId > 0 &&
+      Number.isInteger(form.sortOrder) &&
+      form.sortOrder >= 0 &&
+      Number.isInteger(form.estimatedMinutes) &&
+      form.estimatedMinutes > 0 &&
+      Number.isInteger(form.difficulty) &&
+      form.difficulty >= 1 &&
+      form.difficulty <= 5,
+    [form],
   );
 
-  function setField<K extends keyof CreateLessonRequest>(key: K, value: CreateLessonRequest[K]) {
+  function setField<K extends keyof CreateLessonRequest>(
+    key: K,
+    value: CreateLessonRequest[K],
+  ) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -152,9 +183,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
     }
   }
 
-  async function workflow(
-    action: "review" | "approve" | "publish" | "archive",
-  ) {
+  async function workflow(action: "review" | "approve" | "publish" | "archive") {
     if (!lessonId || !detail || workflowLoading) return;
     setWorkflowLoading(action);
 
@@ -180,8 +209,8 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
 
   if (loading) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-zinc-200 bg-white">
-        <Loader2 className="animate-spin text-zinc-500" size={22} />
+      <div className="flex min-h-[320px] items-center justify-center rounded-[11px] border border-[#e8e3dc] bg-white">
+        <Loader2 className="animate-spin text-[#777]" size={22} />
       </div>
     );
   }
@@ -189,251 +218,281 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
       <form onSubmit={save} className="space-y-5">
-        <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <div className="mb-5">
-            <h2 className="text-[15px] font-semibold text-zinc-900">Thông tin bài giảng</h2>
-            <p className="mt-1 text-[12px] text-zinc-500">Thông tin cơ bản dùng cho danh sách, tìm kiếm và hiển thị bài học.</p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Tên bài giảng" required className="md:col-span-2">
-              <input
+        <FormSection
+          title="Thông tin bài giảng"
+          description="Thông tin định danh, phân loại và nội dung mô tả của Lesson."
+          icon={<BookOpenText size={18} />}
+        >
+          <FormRow columns={1}>
+            <FormField label="Tên bài giảng" required>
+              <Input
                 value={form.titleVi}
                 onChange={(event) => setField("titleVi", event.target.value)}
-                className={inputClass}
                 placeholder="Ví dụ: Chào hỏi cơ bản"
               />
-            </Field>
+            </FormField>
+          </FormRow>
 
-            <Field label="Slug" required>
-              <input
+          <FormRow columns={2}>
+            <FormField label="Slug" required>
+              <Input
                 value={form.slug}
                 onChange={(event) => setField("slug", event.target.value)}
-                className={inputClass}
                 placeholder="chao-hoi-co-ban"
               />
-            </Field>
+            </FormField>
 
-            <Field label="HSK Level ID" required>
-              <input
+            <FormField
+              label="HSK Level ID"
+              required
+              description="Backend sử dụng long HskLevelId."
+            >
+              <Input
                 type="number"
                 min={1}
+                step={1}
                 value={form.hskLevelId}
                 onChange={(event) => setField("hskLevelId", Number(event.target.value))}
-                className={inputClass}
               />
-            </Field>
+            </FormField>
+          </FormRow>
 
-            <Field label="Course Chapter ID">
-              <input
+          <FormRow columns={2}>
+            <FormField
+              label="Course Chapter ID"
+              description="long CourseChapterId, để trống nếu bài giảng chưa thuộc chương."
+            >
+              <Input
                 type="number"
                 min={1}
+                step={1}
                 value={form.courseChapterId ?? ""}
-                onChange={(event) => setField("courseChapterId", event.target.value ? Number(event.target.value) : null)}
-                className={inputClass}
+                onChange={(event) =>
+                  setField(
+                    "courseChapterId",
+                    event.target.value ? Number(event.target.value) : null,
+                  )
+                }
                 placeholder="Không bắt buộc"
               />
-            </Field>
+            </FormField>
 
-            <Field label="Topic ID">
-              <input
+            <FormField
+              label="Topic ID"
+              description="long TopicId, để trống nếu chưa phân loại topic."
+            >
+              <Input
                 type="number"
                 min={1}
+                step={1}
                 value={form.topicId ?? ""}
-                onChange={(event) => setField("topicId", event.target.value ? Number(event.target.value) : null)}
-                className={inputClass}
+                onChange={(event) =>
+                  setField("topicId", event.target.value ? Number(event.target.value) : null)
+                }
                 placeholder="Không bắt buộc"
               />
-            </Field>
+            </FormField>
+          </FormRow>
 
-            <Field label="Mô tả ngắn" className="md:col-span-2">
-              <textarea
-                value={form.shortDescriptionVi ?? ""}
-                onChange={(event) => setField("shortDescriptionVi", event.target.value)}
-                className={`${inputClass} min-h-[80px] py-2.5`}
-              />
-            </Field>
+          <FormField label="Mô tả ngắn">
+            <Textarea
+              value={form.shortDescriptionVi ?? ""}
+              onChange={(event) => setField("shortDescriptionVi", event.target.value)}
+              rows={3}
+            />
+          </FormField>
 
-            <Field label="Mục tiêu bài học" className="md:col-span-2">
-              <textarea
-                value={form.objectiveVi ?? ""}
-                onChange={(event) => setField("objectiveVi", event.target.value)}
-                className={`${inputClass} min-h-[100px] py-2.5`}
-              />
-            </Field>
+          <FormField label="Mục tiêu bài học">
+            <Textarea
+              value={form.objectiveVi ?? ""}
+              onChange={(event) => setField("objectiveVi", event.target.value)}
+              rows={4}
+            />
+          </FormField>
 
-            <Field label="Mô tả chi tiết" className="md:col-span-2">
-              <textarea
-                value={form.descriptionVi ?? ""}
-                onChange={(event) => setField("descriptionVi", event.target.value)}
-                className={`${inputClass} min-h-[130px] py-2.5`}
-              />
-            </Field>
+          <FormField label="Mô tả chi tiết">
+            <Textarea
+              value={form.descriptionVi ?? ""}
+              onChange={(event) => setField("descriptionVi", event.target.value)}
+              rows={6}
+            />
+          </FormField>
+        </FormSection>
 
-            <Field label="Ảnh bìa URL" className="md:col-span-2">
-              <input
-                value={form.coverImageUrl ?? ""}
-                onChange={(event) => setField("coverImageUrl", event.target.value)}
-                className={inputClass}
-                placeholder="https://..."
-              />
-            </Field>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-[15px] font-semibold text-zinc-900">Thiết lập học tập</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Thứ tự">
-              <input
+        <FormSection
+          title="Thiết lập học tập"
+          description="Thứ tự, thời lượng, độ khó và trạng thái nổi bật."
+          icon={<Settings2 size={18} />}
+        >
+          <FormRow columns={3}>
+            <FormField label="Thứ tự" required>
+              <Input
                 type="number"
                 min={0}
+                step={1}
                 value={form.sortOrder}
                 onChange={(event) => setField("sortOrder", Number(event.target.value))}
-                className={inputClass}
               />
-            </Field>
-            <Field label="Thời lượng (phút)">
-              <input
+            </FormField>
+
+            <FormField label="Thời lượng (phút)" required>
+              <Input
                 type="number"
                 min={1}
+                step={1}
                 value={form.estimatedMinutes}
                 onChange={(event) => setField("estimatedMinutes", Number(event.target.value))}
-                className={inputClass}
               />
-            </Field>
-            <Field label="Độ khó">
-              <input
+            </FormField>
+
+            <FormField label="Độ khó" required description="Giá trị từ 1 đến 5.">
+              <Input
                 type="number"
                 min={1}
                 max={5}
+                step={1}
                 value={form.difficulty}
                 onChange={(event) => setField("difficulty", Number(event.target.value))}
-                className={inputClass}
               />
-            </Field>
-          </div>
+            </FormField>
+          </FormRow>
 
-          <label className="mt-4 inline-flex cursor-pointer items-center gap-2 text-[13px] text-zinc-700">
-            <input
-              type="checkbox"
+          <FormField label="Nổi bật">
+            <Switch
               checked={form.isFeatured}
-              onChange={(event) => setField("isFeatured", event.target.checked)}
-              className="h-4 w-4 rounded border-zinc-300"
+              onCheckedChange={(value) => setField("isFeatured", value)}
+              label={form.isFeatured ? "Bài giảng nổi bật" : "Bài giảng thường"}
+              description="Đánh dấu để ưu tiên bài giảng trong các khu vực nổi bật."
             />
-            Đánh dấu bài giảng nổi bật
-          </label>
-        </section>
+          </FormField>
+        </FormSection>
 
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => router.push("/bai-giang")}>
-            Hủy
-          </Button>
-          <PermissionGuard
-            permission={editing ? PERMISSIONS.LESSONS.UPDATE : PERMISSIONS.LESSONS.CREATE}
-            fallback={null}
-          >
-            <Button type="submit" disabled={!canSubmit || saving} className="gap-2">
-              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              {editing ? "Lưu thay đổi" : "Tạo bài giảng"}
-            </Button>
-          </PermissionGuard>
-        </div>
+        <FormSection
+          title="Ảnh bìa"
+          description="URL ảnh được lưu trong CoverImageUrl của Lesson."
+          icon={<ImageIcon size={18} />}
+        >
+          <FormField label="URL ảnh bìa">
+            <Input
+              type="url"
+              value={form.coverImageUrl ?? ""}
+              onChange={(event) => setField("coverImageUrl", event.target.value)}
+              placeholder="https://..."
+            />
+          </FormField>
+        </FormSection>
+
+        <PermissionGuard
+          permission={editing ? PERMISSIONS.LESSONS.UPDATE : PERMISSIONS.LESSONS.CREATE}
+          fallback={null}
+        >
+          <FormActions
+            loading={saving}
+            disabled={!canSubmit}
+            submitText={editing ? "Lưu thay đổi" : "Tạo bài giảng"}
+            onCancel={() => router.push(editing && lessonId ? `/bai-giang/${lessonId}` : "/bai-giang")}
+          />
+        </PermissionGuard>
       </form>
 
       <aside className="space-y-4">
         {detail ? (
-          <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Trạng thái</p>
-            <p className="mt-2 text-[15px] font-semibold text-zinc-900">{getContentStatusLabel(detail.status)}</p>
-            <p className="mt-1 text-[12px] text-zinc-500">Phiên bản v{detail.version}</p>
+          <FormSection title="Trạng thái bài giảng">
+            <div className="text-[15px] font-semibold text-[#292929]">
+              {getContentStatusLabel(detail.status)}
+            </div>
+            <div className="text-[11px] text-[#888]">
+              Phiên bản v{detail.version} · PublicId {detail.publicId}
+            </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2 text-[12px]">
+            <div className="grid grid-cols-2 gap-2 text-[12px]">
               <Metric label="Nội dung" value={detail.sectionCount} />
               <Metric label="Từ vựng" value={detail.vocabularyCount} />
               <Metric label="Tài liệu" value={detail.assetCount} />
               <Metric label="Tiên quyết" value={detail.prerequisiteCount} />
             </div>
-          </section>
+          </FormSection>
         ) : null}
 
         {detail ? (
-          <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <h3 className="text-[13px] font-semibold text-zinc-900">Quy trình xuất bản</h3>
-            <div className="mt-3 space-y-2">
-              <Button variant="outline" className="w-full justify-start gap-2 text-[12px]" onClick={() => void validateLesson()} disabled={Boolean(workflowLoading)}>
+          <FormSection title="Quy trình xuất bản">
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2 text-[12px]"
+                onClick={() => void validateLesson()}
+                disabled={Boolean(workflowLoading)}
+              >
                 <ShieldCheck size={15} /> Kiểm tra hợp lệ
               </Button>
 
               {detail.status === ContentStatus.Draft ? (
-                <Button variant="outline" className="w-full justify-start gap-2 text-[12px]" onClick={() => void workflow("review")} disabled={Boolean(workflowLoading)}>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 text-[12px]"
+                  onClick={() => void workflow("review")}
+                  disabled={Boolean(workflowLoading)}
+                >
                   <Send size={15} /> Gửi duyệt
                 </Button>
               ) : null}
 
               {detail.status === ContentStatus.Review ? (
-                <Button variant="outline" className="w-full justify-start gap-2 text-[12px]" onClick={() => void workflow("approve")} disabled={Boolean(workflowLoading)}>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 text-[12px]"
+                  onClick={() => void workflow("approve")}
+                  disabled={Boolean(workflowLoading)}
+                >
                   <CheckCircle2 size={15} /> Duyệt bài giảng
                 </Button>
               ) : null}
 
               {detail.status === ContentStatus.Approved ? (
                 <PermissionGuard permission={PERMISSIONS.LESSONS.PUBLISH} fallback={null}>
-                  <Button className="w-full justify-start gap-2 text-[12px]" onClick={() => void workflow("publish")} disabled={Boolean(workflowLoading)}>
+                  <Button
+                    className="w-full justify-start gap-2 text-[12px]"
+                    onClick={() => void workflow("publish")}
+                    disabled={Boolean(workflowLoading)}
+                  >
                     <Rocket size={15} /> Xuất bản
                   </Button>
                 </PermissionGuard>
               ) : null}
 
               {detail.status === ContentStatus.Published ? (
-                <Button variant="outline" className="w-full justify-start gap-2 text-[12px]" onClick={() => void workflow("archive")} disabled={Boolean(workflowLoading)}>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 text-[12px]"
+                  onClick={() => void workflow("archive")}
+                  disabled={Boolean(workflowLoading)}
+                >
                   <Archive size={15} /> Lưu trữ
                 </Button>
               ) : null}
             </div>
 
             {validationMessages.length > 0 ? (
-              <div className="mt-3 rounded-lg bg-amber-50 p-3 text-[12px] text-amber-800">
+              <div className="rounded-[7px] bg-[#fff7e4] p-3 text-[11px] text-[#9b6811]">
                 <ul className="list-disc space-y-1 pl-4">
-                  {validationMessages.map((message, index) => <li key={`${message}-${index}`}>{message}</li>)}
+                  {validationMessages.map((message, index) => (
+                    <li key={`${message}-${index}`}>{message}</li>
+                  ))}
                 </ul>
               </div>
             ) : null}
-          </section>
+          </FormSection>
         ) : null}
       </aside>
     </div>
   );
 }
 
-const inputClass = "h-[38px] w-full rounded-md border border-zinc-200 bg-white px-3 text-[13px] text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100";
-
-function Field({
-  label,
-  required,
-  className = "",
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-[12px] font-medium text-zinc-700">
-        {label}{required ? <span className="ml-1 text-red-500">*</span> : null}
-      </span>
-      {children}
-    </label>
-  );
-}
-
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg bg-zinc-50 px-3 py-2.5">
-      <div className="font-semibold text-zinc-900">{value}</div>
-      <div className="mt-0.5 text-[11px] text-zinc-500">{label}</div>
+    <div className="rounded-[7px] bg-[#faf9f7] px-3 py-2.5">
+      <div className="font-semibold text-[#292929]">{value}</div>
+      <div className="mt-0.5 text-[10px] text-[#888]">{label}</div>
     </div>
   );
 }
