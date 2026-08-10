@@ -2,7 +2,7 @@ import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { PermissionGuard } from "@/security/permission-guard";
 import { PERMISSIONS } from "@/constants/permission.constants";
-import { LessonEditor } from "@/features/bai-giang/components/lesson-editor";
+import { LessonEditor } from "@/features/lesson/components/lesson-editor";
 
 export default function CreateLessonPage() {
   return (
