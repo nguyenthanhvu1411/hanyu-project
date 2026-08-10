@@ -1,5 +1,6 @@
 import { ContentStatus } from "@/lib/constants/content-status";
 
+/** Backend long IDs map to number; backend Guid/PublicId values map to string. */
 export interface AdminCourseListItem {
   id: number;
   publicId: string;
@@ -21,6 +22,7 @@ export interface AdminCourseListItem {
   updatedAt: string;
 }
 
+/** Shape embedded in AdminCourseDetailDto. */
 export interface AdminCourseChapter {
   id: number;
   publicId: string;
@@ -29,7 +31,6 @@ export interface AdminCourseChapter {
   sortOrder: number;
   isActive: boolean;
   lessonCount: number;
-  concurrencyToken: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,7 +43,6 @@ export interface AdminCoursePrerequisite {
   requiredCourseTitleVi: string;
   isRequired: boolean;
   sortOrder: number;
-  concurrencyToken?: string;
 }
 
 export interface AdminCourseDetail {
