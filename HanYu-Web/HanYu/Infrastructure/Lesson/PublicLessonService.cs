@@ -16,22 +16,24 @@ public sealed class PublicLessonService : IPublicLessonService
         _dbContext = dbContext;
     }
 
-    // ============================================================
-    // DETAIL
-    // ============================================================
-
     public async Task<Result<PublicLessonDetailDto>> GetAccessibleLessonAsync(
         Guid publicId,
         CancellationToken cancellationToken = default)
     {
         if (publicId == Guid.Empty)
         {
-            return Result.Failure<PublicLessonDetailDto>(Error.Failure("Lesson.InvalidPublicId", "Lesson PublicId không hợp lệ."));
+            return Result.Failure<PublicLessonDetailDto>(
+                Error.Validation(
+                    "Lesson.InvalidPublicId",
+                    "Lesson PublicId không hợp lệ."));
         }
 
         var lesson = await _dbContext.Lessons
             .AsNoTracking()
-            .Where(x => x.PublicId == publicId && x.Status == ContentStatus.Published && x.DeletedAt == null)
+            .Where(x =>
+                x.PublicId == publicId &&
+                x.Status == ContentStatus.Published &&
+                x.DeletedAt == null)
             .Select(x => new
             {
                 x.PublicId,
@@ -72,26 +74,27 @@ public sealed class PublicLessonService : IPublicLessonService
 
         if (lesson is null)
         {
-            return Result.Failure<PublicLessonDetailDto>(Error.Failure("Lesson.NotFound", "Không tìm thấy Lesson."));
+            return Result.Failure<PublicLessonDetailDto>(
+                Error.NotFound(
+                    "Lesson.NotFound",
+                    "Không tìm thấy Lesson."));
         }
 
-        // ========================================================
-        // COURSE-AWARE ACCESS
-        // ========================================================
-
-        if (lesson.CoursePublicId.HasValue)
+        if (lesson.CoursePublicId.HasValue &&
+            (lesson.CourseDeleted.HasValue ||
+             !lesson.CourseActive ||
+             lesson.CourseStatus != ContentStatus.Published ||
+             lesson.ChapterDeleted.HasValue ||
+             !lesson.ChapterActive))
         {
-            if (lesson.CourseDeleted.HasValue ||
-                !lesson.CourseActive ||
-                lesson.CourseStatus != ContentStatus.Published ||
-                lesson.ChapterDeleted.HasValue ||
-                !lesson.ChapterActive)
-            {
-                return Result.Failure<PublicLessonDetailDto>(Error.Failure("Lesson.NotAvailable", "Lesson hiện không khả dụng."));
-            }
+            return Result.Failure<PublicLessonDetailDto>(
+                Error.NotFound(
+                    "Lesson.NotAvailable",
+                    "Lesson hiện không khả dụng."));
         }
 
         PublicLessonContextDto? context = null;
+
         if (lesson.CoursePublicId.HasValue && lesson.ChapterPublicId.HasValue)
         {
             context = new PublicLessonContextDto(
@@ -119,31 +122,21 @@ public sealed class PublicLessonService : IPublicLessonService
                 lesson.Sections));
     }
 
-    // ============================================================
-    // START
-    // ============================================================
-
     public async Task<Result> StartAsync(
         Guid publicId,
         CancellationToken cancellationToken = default)
     {
-        var accessible = await GetAccessibleLessonAsync(publicId, cancellationToken);
+        var accessible = await GetAccessibleLessonAsync(
+            publicId,
+            cancellationToken);
+
         if (!accessible.IsSuccess)
         {
             return Result.Failure(accessible.Error);
         }
 
-        /*
-         * TODO: nối LearningActivity / learning session.
-         * Không fake ghi progress ở đây.
-         */
-
         return Result.Success();
     }
-
-    // ============================================================
-    // COMPLETE
-    // ============================================================
 
     public async Task<Result> CompleteAsync(
         Guid publicId,
@@ -152,22 +145,24 @@ public sealed class PublicLessonService : IPublicLessonService
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey))
         {
-            return Result.Failure(Error.Failure("Lesson.IdempotencyKeyRequired", "Idempotency-Key là bắt buộc."));
+            return Result.Failure(
+                Error.Validation(
+                    "Lesson.IdempotencyKeyRequired",
+                    "Idempotency-Key là bắt buộc."));
         }
 
-        var accessible = await GetAccessibleLessonAsync(publicId, cancellationToken);
+        var accessible = await GetAccessibleLessonAsync(
+            publicId,
+            cancellationToken);
+
         if (!accessible.IsSuccess)
         {
             return Result.Failure(accessible.Error);
         }
 
-        /*
-         * Không giả lập completion ở đây.
-         * Bước Progress cần transaction:
-         * UserLessonProgress + LearningActivity + OutboxEvent LessonCompleted
-         * trong cùng transaction.
-         */
-
-        return Result.Failure(Error.Failure("Lesson.ProgressNotConfigured", "Lesson completion chưa được nối với Progress/Outbox."));
+        return Result.Failure(
+            Error.Failure(
+                "Lesson.ProgressNotConfigured",
+                "Lesson completion chưa được nối với Progress/Outbox."));
     }
 }
