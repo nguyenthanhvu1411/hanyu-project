@@ -1,7 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using HanYu.Domain.Entities.Course;
-using HanYu.Domain.Entities.Lesson;
 using HanYu.Domain.Entities.Vocabulary;
 using Microsoft.EntityFrameworkCore;
 
@@ -160,6 +158,7 @@ public sealed class CourseChapterIntegrationTests : IntegrationTestBase
 
         var reorderedResponse = await client.GetAsync(
             $"/api/v1/admin/courses/{seed.CourseId}/chapters/{chapterOne}/lessons");
+        reorderedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var reordered = await ReadArrayAsync(reorderedResponse);
         reordered[0].GetProperty("id").GetInt64().Should().Be(seed.LessonTwoId);
         reordered[0].GetProperty("sortOrder").GetInt32().Should().Be(0);
@@ -171,11 +170,13 @@ public sealed class CourseChapterIntegrationTests : IntegrationTestBase
 
         var sourceResponse = await client.GetAsync(
             $"/api/v1/admin/courses/{seed.CourseId}/chapters/{chapterOne}/lessons");
+        sourceResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var sourceLessons = await ReadArrayAsync(sourceResponse);
         sourceLessons.Should().NotContain(x => x.GetProperty("id").GetInt64() == seed.LessonTwoId);
 
         var targetResponse = await client.GetAsync(
             $"/api/v1/admin/courses/{seed.CourseId}/chapters/{chapterTwo}/lessons");
+        targetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var targetLessons = await ReadArrayAsync(targetResponse);
         targetLessons.Should().ContainSingle(x => x.GetProperty("id").GetInt64() == seed.LessonTwoId);
 
@@ -185,6 +186,7 @@ public sealed class CourseChapterIntegrationTests : IntegrationTestBase
 
         var afterRemoveResponse = await client.GetAsync(
             $"/api/v1/admin/courses/{seed.CourseId}/chapters/{chapterTwo}/lessons");
+        afterRemoveResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var afterRemove = await ReadArrayAsync(afterRemoveResponse);
         afterRemove.Should().BeEmpty();
     }
@@ -258,14 +260,14 @@ public sealed class CourseChapterIntegrationTests : IntegrationTestBase
 
     private static async Task<JsonElement> ReadObjectAsync(HttpResponseMessage response)
     {
-        var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return document.RootElement.Clone();
     }
 
-    private static async Task<JsonElement.ArrayEnumerator> ReadArrayAsync(HttpResponseMessage response)
+    private static async Task<JsonElement[]> ReadArrayAsync(HttpResponseMessage response)
     {
-        var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        return document.RootElement.Clone().EnumerateArray();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return document.RootElement.EnumerateArray().Select(x => x.Clone()).ToArray();
     }
 
     private sealed record CourseSeed(long CourseId, long LessonOneId, long LessonTwoId);
