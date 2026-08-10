@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { khoaHocApi } from "@/features/khoa-hoc/api/khoa-hoc.api";
+import { courseApi } from "@/features/course/api/course.api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,16 +12,15 @@ import { ReactNode } from "react";
 import { getContentStatusLabel } from "@/lib/constants/content-status";
 
 export function CourseDetailLayout({ children }: { children: ReactNode }) {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const pathname = usePathname();
-  
   const courseId = Number(params.id);
 
   const { data: course, isLoading } = useQuery({
     queryKey: ["course", courseId],
-    queryFn: () => khoaHocApi.chiTiet(courseId),
-    enabled: !!courseId,
+    queryFn: () => courseApi.chiTiet(courseId),
+    enabled: Number.isSafeInteger(courseId) && courseId > 0,
   });
 
   if (isLoading) {
@@ -35,16 +34,16 @@ export function CourseDetailLayout({ children }: { children: ReactNode }) {
   }
 
   if (!course) {
-    return <div className="p-6">Course not found</div>;
+    return <div className="p-6">Không tìm thấy khóa học.</div>;
   }
 
-  const currentTab = pathname.includes("/noi-dung") ? "noi-dung" :
-                     pathname.includes("/tien-quyet") ? "tien-quyet" :
-                     pathname.includes("/lich-su") ? "lich-su" : "tong-quan";
-
-  const handleTabChange = (value: string) => {
-    router.push(`/khoa-hoc/${courseId}/${value}`);
-  };
+  const currentTab = pathname.includes("/noi-dung")
+    ? "noi-dung"
+    : pathname.includes("/tien-quyet")
+      ? "tien-quyet"
+      : pathname.includes("/lich-su")
+        ? "lich-su"
+        : "tong-quan";
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -53,23 +52,19 @@ export function CourseDetailLayout({ children }: { children: ReactNode }) {
           <h1 className="text-2xl font-bold tracking-tight">{course.titleVi}</h1>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Badge variant="primary">{course.hskCode || "Chưa có HSK"}</Badge>
-            <Badge variant="info">
-              {getContentStatusLabel(course.status)}
-            </Badge>
+            <Badge variant="info">{getContentStatusLabel(course.status)}</Badge>
           </div>
         </div>
-        
-        <div className="flex items-center gap-2">
-          {course.status === 0 && ( // Draft
-            <Button variant="primary" size="sm">
-              <SendHorizontal className="mr-2 h-4 w-4" />
-              Gửi duyệt
-            </Button>
-          )}
-        </div>
+
+        {course.status === 0 && (
+          <Button variant="primary" size="sm">
+            <SendHorizontal className="mr-2 h-4 w-4" />
+            Gửi duyệt
+          </Button>
+        )}
       </div>
 
-      <Tabs value={currentTab} onValueChange={handleTabChange}>
+      <Tabs value={currentTab} onValueChange={(value) => router.push(`/khoa-hoc/${courseId}/${value}`)}>
         <TabsList className="mb-4">
           <TabsTrigger value="tong-quan">Tổng quan</TabsTrigger>
           <TabsTrigger value="noi-dung">Nội dung</TabsTrigger>
@@ -78,9 +73,7 @@ export function CourseDetailLayout({ children }: { children: ReactNode }) {
         </TabsList>
       </Tabs>
 
-      <div className="flex-1 rounded-lg border bg-card p-6 shadow-sm">
-        {children}
-      </div>
+      <div className="flex-1 rounded-lg border bg-card p-6 shadow-sm">{children}</div>
     </div>
   );
 }
