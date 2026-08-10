@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { BookOpen, ImageIcon, Settings2 } from "lucide-react";
 
 import { ErrorState } from "@/components/common/error-state";
+import { CoverImageField } from "@/components/forms/cover-image-field";
 import { FormActions } from "@/components/forms/form-actions";
 import { FormField } from "@/components/forms/form-field";
 import { FormRow } from "@/components/forms/form-row";
@@ -333,17 +334,14 @@ export function CourseForm({ courseId }: CourseFormProps) {
 
       <FormSection
         title="Ảnh bìa"
-        description="URL ảnh được backend lưu trong CoverImageUrl."
+        description="Nhập URL hoặc tải file ảnh; hệ thống lưu URL cuối cùng vào CoverImageUrl."
         icon={<ImageIcon size={18} />}
       >
-        <FormField label="URL ảnh bìa">
-          <Input
-            type="url"
-            value={form.coverImageUrl ?? ""}
-            onChange={(e) => setField("coverImageUrl", e.target.value)}
-            placeholder="https://..."
-          />
-        </FormField>
+        <CoverImageField
+          value={form.coverImageUrl}
+          onChange={(value) => setField("coverImageUrl", value)}
+          disabled={saving}
+        />
       </FormSection>
 
       <FormActions
