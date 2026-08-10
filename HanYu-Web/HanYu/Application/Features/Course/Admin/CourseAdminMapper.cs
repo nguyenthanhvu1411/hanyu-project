@@ -20,7 +20,8 @@ public static class CourseAdminMapper
             Slug: course.Slug,
             TitleVi: course.TitleVi,
 
-            HskLevelId: course.HskLevelId,
+            HskLevelId:
+                course.HskLevelId,
 
             HskCode:
                 course.HskLevel?.Code,
@@ -182,6 +183,9 @@ public static class CourseAdminMapper
             PublicId:
                 chapter.PublicId,
 
+            CourseId:
+                chapter.CourseId,
+
             TitleVi:
                 chapter.TitleVi,
 
@@ -195,13 +199,22 @@ public static class CourseAdminMapper
                 chapter.IsActive,
 
             LessonCount:
-                0, // TODO: Update when Lessons are fully mapped
+                chapter.Lessons.Count,
+
+            ConcurrencyToken:
+                chapter.ConcurrencyToken,
 
             CreatedAt:
                 chapter.CreatedAt,
 
             UpdatedAt:
-                chapter.UpdatedAt);
+                chapter.UpdatedAt,
+
+            DeletedAt:
+                chapter.DeletedAt,
+
+            DeletedById:
+                chapter.DeletedById);
     }
 
     public static AdminCoursePrerequisiteDto ToPrerequisiteDto(
