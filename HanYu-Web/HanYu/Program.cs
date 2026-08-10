@@ -114,8 +114,12 @@ try
     // 6. Global error handling (after security headers so headers still appear on 500s)
     app.UseExceptionHandler();
 
-    // 7. Rate limiting
-    app.UseRateLimiter();
+    // 7. Rate limiting. Integration tests exercise business/API behavior separately
+    //    and must not share production per-IP limiter state across test cases.
+    if (!app.Environment.IsEnvironment("IntegrationTest"))
+    {
+        app.UseRateLimiter();
+    }
 
     // 8. Auth
     app.UseAuthentication();
