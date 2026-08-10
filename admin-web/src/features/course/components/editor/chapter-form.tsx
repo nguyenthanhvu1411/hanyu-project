@@ -1,8 +1,17 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { BookOpenText } from "lucide-react";
+
+import { FormActions } from "@/components/forms/form-actions";
+import { FormField } from "@/components/forms/form-field";
+import { FormRow } from "@/components/forms/form-row";
+import { FormSection } from "@/components/forms/form-section";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+
 import type { CreateChapterRequest } from "../../types/curriculum.types";
-import { Button } from "@/components/ui/button";
 
 interface Props {
   initial?: CreateChapterRequest;
@@ -24,12 +33,11 @@ export function ChapterForm({
   const [sortOrder, setSortOrder] = useState(initial?.sortOrder ?? nextSortOrder);
   const [isActive, setActive] = useState(initial?.isActive ?? true);
 
+  const valid = titleVi.trim().length > 0 && Number.isInteger(sortOrder) && sortOrder >= 0;
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!titleVi.trim()) {
-      return;
-    }
+    if (!valid || saving) return;
 
     await onSubmit({
       titleVi: titleVi.trim(),
@@ -40,59 +48,59 @@ export function ChapterForm({
   }
 
   return (
-    <form onSubmit={submit} className="rounded-xl border bg-white p-4">
-      <div className="grid gap-4 lg:grid-cols-[1fr_160px]">
-        <label className="space-y-1">
-          <span className="text-sm font-medium">Tên chương</span>
-          <input
-            value={titleVi}
-            onChange={(e) => setTitleVi(e.target.value)}
-            maxLength={200}
-            required
-            className="h-10 w-full rounded-lg border px-3 text-sm"
+    <form onSubmit={submit} className="space-y-4">
+      <FormSection
+        title={initial ? "Chỉnh sửa chương học" : "Thêm chương học"}
+        description="Thông tin chapter được lưu trực tiếp theo CourseChapter contract của backend."
+        icon={<BookOpenText size={18} />}
+      >
+        <FormRow columns={2}>
+          <FormField label="Tên chương" required>
+            <Input
+              value={titleVi}
+              onChange={(event) => setTitleVi(event.target.value)}
+              maxLength={200}
+              placeholder="Ví dụ: Chương 1 - Làm quen"
+            />
+          </FormField>
+
+          <FormField label="Thứ tự" required>
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={sortOrder}
+              onChange={(event) => setSortOrder(Number(event.target.value))}
+            />
+          </FormField>
+        </FormRow>
+
+        <FormField label="Mô tả">
+          <Textarea
+            value={descriptionVi}
+            onChange={(event) => setDescriptionVi(event.target.value)}
+            rows={4}
+            placeholder="Mô tả ngắn nội dung của chương học."
           />
-        </label>
+        </FormField>
 
-        <label className="space-y-1">
-          <span className="text-sm font-medium">Thứ tự</span>
-          <input
-            type="number"
-            min={0}
-            value={sortOrder}
-            onChange={(e) => setSortOrder(Number(e.target.value))}
-            className="h-10 w-full rounded-lg border px-3 text-sm"
+        <FormField label="Trạng thái">
+          <Switch
+            checked={isActive}
+            onCheckedChange={setActive}
+            label={isActive ? "Đang hoạt động" : "Ngừng hoạt động"}
+            description="Chương hoạt động có thể được sử dụng trong curriculum của khóa học."
           />
-        </label>
-      </div>
+        </FormField>
+      </FormSection>
 
-      <label className="mt-4 block space-y-1">
-        <span className="text-sm font-medium">Mô tả</span>
-        <textarea
-          value={descriptionVi}
-          onChange={(e) => setDescriptionVi(e.target.value)}
-          rows={3}
-          className="w-full rounded-lg border px-3 py-2 text-sm"
-        />
-      </label>
-
-      <label className="mt-4 flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={isActive}
-          onChange={(e) => setActive(e.target.checked)}
-          className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-        />
-        Hoạt động
-      </label>
-
-      <div className="mt-4 flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
-          Hủy
-        </Button>
-        <Button type="submit" variant="danger" disabled={saving}>
-          Lưu chương
-        </Button>
-      </div>
+      <FormActions
+        loading={saving}
+        disabled={!valid}
+        submitText={initial ? "Lưu chương" : "Thêm chương"}
+        cancelText="Hủy"
+        onCancel={onCancel}
+      />
     </form>
   );
 }
