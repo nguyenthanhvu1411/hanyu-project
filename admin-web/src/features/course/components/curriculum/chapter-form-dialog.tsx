@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { chuongHocApi, CreateCourseChapterRequest, UpdateCourseChapterRequest } from "@/features/chuong-hoc/api/chuong-hoc.api";
-import { AdminCourseChapter } from "@/features/khoa-hoc/types/khoa-hoc.types";
+import { chuongHocApi, CreateCourseChapterRequest, UpdateCourseChapterRequest } from "@/features/course/api/chuong-hoc.api";
+import type { AdminCourseChapter } from "@/features/course/types/course.types";
 
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -52,10 +51,10 @@ export function ChapterFormDialog({ courseId, chapter, open, onOpenChange }: Cha
           concurrencyToken: chapter.concurrencyToken,
         };
         return await chuongHocApi.capNhat(courseId, chapter.id, payload);
-      } else {
-        const payload: CreateCourseChapterRequest = values;
-        return await chuongHocApi.tao(courseId, payload);
       }
+
+      const payload: CreateCourseChapterRequest = values;
+      return await chuongHocApi.tao(courseId, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chapters", courseId] });
@@ -65,20 +64,16 @@ export function ChapterFormDialog({ courseId, chapter, open, onOpenChange }: Cha
     },
   });
 
-  const onSubmit = (values: FormData) => {
-    mutation.mutate(values);
-  };
+  const onSubmit = (values: FormData) => mutation.mutate(values);
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onOpenChange={onOpenChange}
       title={isEditing ? "Sửa chương học" : "Thêm chương học mới"}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Hủy
-          </Button>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Hủy</Button>
           <Button type="submit" disabled={mutation.isPending} onClick={form.handleSubmit(onSubmit)}>
             {mutation.isPending ? "Đang lưu..." : "Lưu"}
           </Button>
@@ -89,35 +84,14 @@ export function ChapterFormDialog({ courseId, chapter, open, onOpenChange }: Cha
         <div className="space-y-2">
           <label className="text-sm font-medium leading-none">Tên chương</label>
           <Input placeholder="Nhập tên chương..." {...form.register("titleVi")} />
-          {form.formState.errors.titleVi && (
-            <p className="text-[0.8rem] font-medium text-destructive">
-              {form.formState.errors.titleVi.message}
-            </p>
-          )}
         </div>
-
         <div className="space-y-2">
           <label className="text-sm font-medium leading-none">Thứ tự</label>
           <Input type="number" {...form.register("sortOrder", { valueAsNumber: true })} />
-          {form.formState.errors.sortOrder && (
-            <p className="text-[0.8rem] font-medium text-destructive">
-              {form.formState.errors.sortOrder.message}
-            </p>
-          )}
         </div>
-
         <div className="space-y-2">
           <label className="text-sm font-medium leading-none">Mô tả (tùy chọn)</label>
-          <Textarea 
-            placeholder="Nhập mô tả..." 
-            className="resize-none" 
-            {...form.register("descriptionVi")} 
-          />
-          {form.formState.errors.descriptionVi && (
-            <p className="text-[0.8rem] font-medium text-destructive">
-              {form.formState.errors.descriptionVi.message}
-            </p>
-          )}
+          <Textarea placeholder="Nhập mô tả..." {...form.register("descriptionVi")} />
         </div>
       </form>
     </Dialog>
