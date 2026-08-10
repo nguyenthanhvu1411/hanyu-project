@@ -107,3 +107,123 @@ export interface AdminLessonQuery {
   page?: number;
   pageSize?: number;
 }
+
+export enum LessonSectionType {
+  Introduction = 0,
+  Vocabulary = 1,
+  Explanation = 2,
+  Example = 3,
+  Grammar = 4,
+  Note = 5,
+  Practice = 6,
+  Summary = 7,
+}
+
+export const lessonSectionTypeLabels: Record<LessonSectionType, string> = {
+  [LessonSectionType.Introduction]: "Giới thiệu",
+  [LessonSectionType.Vocabulary]: "Từ vựng",
+  [LessonSectionType.Explanation]: "Giải thích",
+  [LessonSectionType.Example]: "Ví dụ",
+  [LessonSectionType.Grammar]: "Ngữ pháp",
+  [LessonSectionType.Note]: "Ghi chú",
+  [LessonSectionType.Practice]: "Luyện tập",
+  [LessonSectionType.Summary]: "Tổng kết",
+};
+
+export enum LessonAssetType {
+  Image = 0,
+  Audio = 1,
+  Document = 2,
+}
+
+export const lessonAssetTypeLabels: Record<LessonAssetType, string> = {
+  [LessonAssetType.Image]: "Hình ảnh",
+  [LessonAssetType.Audio]: "Âm thanh",
+  [LessonAssetType.Document]: "Tài liệu",
+};
+
+export interface AdminLessonSection {
+  id: number;
+  publicId: string;
+  lessonId: number;
+  sectionType: LessonSectionType;
+  titleVi?: string | null;
+  contentVi?: string | null;
+  sortOrder: number;
+  isRequired: boolean;
+  estimatedSeconds?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLessonSectionRequest {
+  sectionType: LessonSectionType;
+  sortOrder: number;
+  titleVi?: string | null;
+  contentVi?: string | null;
+  isRequired: boolean;
+  estimatedSeconds?: number | null;
+}
+
+export type UpdateLessonSectionRequest = CreateLessonSectionRequest;
+
+export interface AdminLessonVocabulary {
+  vocabularyId: number;
+  vocabularyPublicId: string;
+  simplified: string;
+  traditional?: string | null;
+  pinyin: string;
+  primaryMeaningVi: string;
+  sortOrder: number;
+  isRequired: boolean;
+}
+
+export interface AttachLessonVocabularyRequest {
+  vocabularyId: number;
+  sortOrder: number;
+  isRequired: boolean;
+}
+
+export interface UpdateLessonVocabularyRequest {
+  sortOrder: number;
+  isRequired: boolean;
+}
+
+export interface AdminLessonAsset {
+  id: number;
+  publicId: string;
+  lessonId: number;
+  audioAssetId?: number | null;
+  assetType: LessonAssetType;
+  url?: string | null;
+  captionVi?: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLessonAssetRequest {
+  assetType: LessonAssetType;
+  url?: string | null;
+  captionVi?: string | null;
+  audioAssetId?: number | null;
+  sortOrder: number;
+}
+
+export interface UpdateLessonAssetRequest {
+  url?: string | null;
+  captionVi?: string | null;
+  audioAssetId?: number | null;
+  sortOrder: number;
+}
+
+export interface AdminLessonPrerequisite {
+  requiredLessonId: number;
+  requiredLessonPublicId: string;
+  slug: string;
+  titleVi: string;
+}
+
+export interface AddLessonPrerequisiteRequest {
+  requiredLessonId: number;
+}
