@@ -97,6 +97,13 @@ public class Lesson : AuditableEntity
     {
         EnsureEditable();
 
+        if (hskLevelId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(hskLevelId),
+                "HskLevelId phải lớn hơn 0.");
+        }
+
         if (string.IsNullOrWhiteSpace(slug))
             throw new ArgumentException(
                 "Slug không được để trống.",
