@@ -4,9 +4,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { baiGiangApi } from "@/features/bai-giang/api/bai-giang.api";
-import { AdminLessonListItem, CreateLessonRequest, UpdateLessonRequest } from "@/features/bai-giang/types/bai-giang.types";
 
+import { lessonApi } from "@/features/lesson/api/lesson.api";
+import type {
+  AdminLessonListItem,
+  CreateLessonRequest,
+  UpdateLessonRequest,
+} from "@/features/lesson/types/lesson.types";
+import { FormField } from "@/components/forms/form-field";
+import { FormRow } from "@/components/forms/form-row";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,8 +23,8 @@ const schema = z.object({
   slug: z.string().min(1, "Vui lòng nhập slug"),
   shortDescriptionVi: z.string().optional().nullable(),
   sortOrder: z.number().min(0, "Thứ tự phải lớn hơn hoặc bằng 0"),
-  estimatedMinutes: z.number().min(0, "Thời lượng phải lớn hơn hoặc bằng 0"),
-  difficulty: z.number().min(0).max(10),
+  estimatedMinutes: z.number().min(1, "Thời lượng phải từ 1 phút"),
+  difficulty: z.number().min(1).max(5),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -32,7 +38,13 @@ interface LessonFormDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function LessonFormDialog({ courseId, chapterId, hskLevelId, lesson, open, onOpenChange }: LessonFormDialogProps) {
+export function LessonFormDialog({
+  chapterId,
+  hskLevelId,
+  lesson,
+  open,
+  onOpenChange,
+}: LessonFormDialogProps) {
   const queryClient = useQueryClient();
 
   const form = useForm<FormData>({
@@ -55,20 +67,20 @@ export function LessonFormDialog({ courseId, chapterId, hskLevelId, lesson, open
         const payload: UpdateLessonRequest = {
           ...values,
           courseChapterId: chapterId,
-          hskLevelId: hskLevelId,
+          hskLevelId,
           isFeatured: lesson.isFeatured,
           version: lesson.version,
         };
-        return await baiGiangApi.capNhat(lesson.id, payload);
-      } else {
-        const payload: CreateLessonRequest = {
-          ...values,
-          courseChapterId: chapterId,
-          hskLevelId: hskLevelId,
-          isFeatured: false,
-        };
-        return await baiGiangApi.tao(payload);
+        return lessonApi.capNhat(lesson.id, payload);
       }
+
+      const payload: CreateLessonRequest = {
+        ...values,
+        courseChapterId: chapterId,
+        hskLevelId,
+        isFeatured: false,
+      };
+      return lessonApi.tao(payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lessons", "by-chapter", chapterId] });
@@ -77,13 +89,11 @@ export function LessonFormDialog({ courseId, chapterId, hskLevelId, lesson, open
     },
   });
 
-  const onSubmit = (values: FormData) => {
-    mutation.mutate(values);
-  };
+  const onSubmit = (values: FormData) => mutation.mutate(values);
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onOpenChange={onOpenChange}
       title={isEditing ? "Sửa bài giảng" : "Thêm bài giảng mới"}
       footer={
@@ -91,67 +101,61 @@ export function LessonFormDialog({ courseId, chapterId, hskLevelId, lesson, open
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Hủy
           </Button>
-          <Button type="submit" disabled={mutation.isPending} onClick={form.handleSubmit(onSubmit)}>
-            {mutation.isPending ? "Đang lưu..." : "Lưu"}
+          <Button type="button" loading={mutation.isPending} onClick={form.handleSubmit(onSubmit)}>
+            Lưu
           </Button>
         </div>
       }
     >
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium leading-none">Tên bài giảng</label>
+        <FormField
+          label="Tên bài giảng"
+          required
+          error={form.formState.errors.titleVi?.message}
+        >
           <Input placeholder="Nhập tên bài giảng..." {...form.register("titleVi")} />
-          {form.formState.errors.titleVi && (
-            <p className="text-[0.8rem] font-medium text-destructive">
-              {form.formState.errors.titleVi.message}
-            </p>
-          )}
-        </div>
+        </FormField>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium leading-none">Slug</label>
+        <FormField
+          label="Slug"
+          required
+          error={form.formState.errors.slug?.message}
+        >
           <Input placeholder="vd: xin-chao" {...form.register("slug")} />
-          {form.formState.errors.slug && (
-            <p className="text-[0.8rem] font-medium text-destructive">
-              {form.formState.errors.slug.message}
-            </p>
-          )}
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none">Thứ tự</label>
-            <Input type="number" {...form.register("sortOrder", { valueAsNumber: true })} />
-            {form.formState.errors.sortOrder && (
-              <p className="text-[0.8rem] font-medium text-destructive">
-                {form.formState.errors.sortOrder.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none">Thời lượng (phút)</label>
-            <Input type="number" {...form.register("estimatedMinutes", { valueAsNumber: true })} />
-            {form.formState.errors.estimatedMinutes && (
-              <p className="text-[0.8rem] font-medium text-destructive">
-                {form.formState.errors.estimatedMinutes.message}
-              </p>
-            )}
-          </div>
-        </div>
+        </FormField>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium leading-none">Mô tả ngắn (tùy chọn)</label>
-          <Textarea 
-            placeholder="Nhập mô tả..." 
-            className="resize-none" 
-            {...form.register("shortDescriptionVi")} 
-          />
-          {form.formState.errors.shortDescriptionVi && (
-            <p className="text-[0.8rem] font-medium text-destructive">
-              {form.formState.errors.shortDescriptionVi.message}
-            </p>
-          )}
-        </div>
+        <FormRow columns={3}>
+          <FormField label="Thứ tự" error={form.formState.errors.sortOrder?.message}>
+            <Input type="number" min={0} {...form.register("sortOrder", { valueAsNumber: true })} />
+          </FormField>
+
+          <FormField
+            label="Thời lượng (phút)"
+            error={form.formState.errors.estimatedMinutes?.message}
+          >
+            <Input
+              type="number"
+              min={1}
+              {...form.register("estimatedMinutes", { valueAsNumber: true })}
+            />
+          </FormField>
+
+          <FormField label="Độ khó" error={form.formState.errors.difficulty?.message}>
+            <Input
+              type="number"
+              min={1}
+              max={5}
+              {...form.register("difficulty", { valueAsNumber: true })}
+            />
+          </FormField>
+        </FormRow>
+
+        <FormField
+          label="Mô tả ngắn"
+          error={form.formState.errors.shortDescriptionVi?.message}
+        >
+          <Textarea placeholder="Nhập mô tả..." {...form.register("shortDescriptionVi")} />
+        </FormField>
       </form>
     </Dialog>
   );
