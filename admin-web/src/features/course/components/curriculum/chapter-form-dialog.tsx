@@ -7,9 +7,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { chuongHocApi, CreateCourseChapterRequest, UpdateCourseChapterRequest } from "@/features/course/api/chuong-hoc.api";
 import type { AdminCourseChapter } from "@/features/course/types/course.types";
 
+import { FormField } from "@/components/forms/form-field";
+import { FormRow } from "@/components/forms/form-row";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 const schema = z.object({
@@ -42,19 +45,21 @@ export function ChapterFormDialog({ courseId, chapter, open, onOpenChange }: Cha
   });
 
   const isEditing = !!chapter;
+  const isActive = form.watch("isActive");
 
   const mutation = useMutation({
     mutationFn: async (values: FormData) => {
-      if (isEditing) {
+      if (isEditing && chapter) {
+        const current = await chuongHocApi.chiTiet(courseId, chapter.id);
         const payload: UpdateCourseChapterRequest = {
           ...values,
-          concurrencyToken: chapter.concurrencyToken,
+          concurrencyToken: current.concurrencyToken,
         };
-        return await chuongHocApi.capNhat(courseId, chapter.id, payload);
+        return chuongHocApi.capNhat(courseId, chapter.id, payload);
       }
 
       const payload: CreateCourseChapterRequest = values;
-      return await chuongHocApi.tao(courseId, payload);
+      return chuongHocApi.tao(courseId, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chapters", courseId] });
@@ -73,26 +78,37 @@ export function ChapterFormDialog({ courseId, chapter, open, onOpenChange }: Cha
       title={isEditing ? "Sửa chương học" : "Thêm chương học mới"}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Hủy</Button>
-          <Button type="submit" disabled={mutation.isPending} onClick={form.handleSubmit(onSubmit)}>
-            {mutation.isPending ? "Đang lưu..." : "Lưu"}
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Hủy
+          </Button>
+          <Button type="button" loading={mutation.isPending} onClick={form.handleSubmit(onSubmit)}>
+            Lưu
           </Button>
         </div>
       }
     >
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium leading-none">Tên chương</label>
+        <FormField label="Tên chương" required error={form.formState.errors.titleVi?.message}>
           <Input placeholder="Nhập tên chương..." {...form.register("titleVi")} />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium leading-none">Thứ tự</label>
-          <Input type="number" {...form.register("sortOrder", { valueAsNumber: true })} />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium leading-none">Mô tả (tùy chọn)</label>
+        </FormField>
+
+        <FormRow columns={2}>
+          <FormField label="Thứ tự" error={form.formState.errors.sortOrder?.message}>
+            <Input type="number" min={0} {...form.register("sortOrder", { valueAsNumber: true })} />
+          </FormField>
+
+          <FormField label="Trạng thái">
+            <Switch
+              checked={isActive}
+              onCheckedChange={(checked) => form.setValue("isActive", checked, { shouldDirty: true })}
+              label={isActive ? "Đang hoạt động" : "Ngừng hoạt động"}
+            />
+          </FormField>
+        </FormRow>
+
+        <FormField label="Mô tả" error={form.formState.errors.descriptionVi?.message}>
           <Textarea placeholder="Nhập mô tả..." {...form.register("descriptionVi")} />
-        </div>
+        </FormField>
       </form>
     </Dialog>
   );
