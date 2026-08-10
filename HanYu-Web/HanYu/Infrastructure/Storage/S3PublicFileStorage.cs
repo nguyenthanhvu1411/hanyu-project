@@ -16,7 +16,18 @@ public sealed class S3PublicFileStorage : IPublicFileStorage, IDisposable
     {
         _options = options.Value;
 
-        var config = new AmazonS3Config();
+        if (string.IsNullOrWhiteSpace(_options.AccessKey) ||
+            string.IsNullOrWhiteSpace(_options.SecretKey))
+        {
+            throw new InvalidOperationException(
+                "Storage credentials chưa được cấu hình. Hãy đặt Storage:AccessKey và Storage:SecretKey bằng user-secrets hoặc environment variables.");
+        }
+
+        var config = new AmazonS3Config
+        {
+            SignatureVersion = "4"
+        };
+
         if (!string.IsNullOrWhiteSpace(_options.ServiceUrl))
         {
             config.ServiceURL = _options.ServiceUrl;
@@ -27,12 +38,9 @@ public sealed class S3PublicFileStorage : IPublicFileStorage, IDisposable
             config.RegionEndpoint = RegionEndpoint.GetBySystemName(_options.Region);
         }
 
-        _s3 = !string.IsNullOrWhiteSpace(_options.AccessKey) &&
-              !string.IsNullOrWhiteSpace(_options.SecretKey)
-            ? new AmazonS3Client(
-                new BasicAWSCredentials(_options.AccessKey, _options.SecretKey),
-                config)
-            : new AmazonS3Client(config);
+        _s3 = new AmazonS3Client(
+            new BasicAWSCredentials(_options.AccessKey, _options.SecretKey),
+            config);
     }
 
     public async Task<PublicFileUploadResult> UploadAsync(
@@ -41,11 +49,7 @@ public sealed class S3PublicFileStorage : IPublicFileStorage, IDisposable
         string contentType,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.PublicBucketName))
-            throw new InvalidOperationException("Storage:PublicBucketName chưa được cấu hình.");
-
-        if (string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
-            throw new InvalidOperationException("Storage:PublicBaseUrl chưa được cấu hình.");
+        EnsureBucketConfigured();
 
         if (content.CanSeek)
             content.Position = 0;
@@ -53,25 +57,63 @@ public sealed class S3PublicFileStorage : IPublicFileStorage, IDisposable
         var request = new PutObjectRequest
         {
             BucketName = _options.PublicBucketName,
-            Key = objectKey,
+            Key = NormalizeObjectKey(objectKey),
             InputStream = content,
             ContentType = contentType
         };
 
         await _s3.PutObjectAsync(request, cancellationToken);
 
-        var publicUrl = $"{_options.PublicBaseUrl.TrimEnd('/')}/{objectKey.TrimStart('/')}";
-        return new PublicFileUploadResult(objectKey, publicUrl);
+        var readUrl = CreateReadUrl(request.Key);
+        return new PublicFileUploadResult(request.Key, readUrl);
     }
 
     public Task DeleteAsync(
         string objectKey,
         CancellationToken cancellationToken = default)
     {
+        EnsureBucketConfigured();
+
         return _s3.DeleteObjectAsync(
             _options.PublicBucketName,
-            objectKey,
+            NormalizeObjectKey(objectKey),
             cancellationToken);
+    }
+
+    private string CreateReadUrl(string objectKey)
+    {
+        if (!string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
+        {
+            return $"{_options.PublicBaseUrl.TrimEnd('/')}/{objectKey.TrimStart('/')}";
+        }
+
+        var expiresAt = DateTime.UtcNow.AddMinutes(
+            Math.Clamp(_options.MediaReadUrlExpirationMinutes, 1, 60 * 24));
+
+        return _s3.GetPreSignedURL(new GetPreSignedUrlRequest
+        {
+            BucketName = _options.PublicBucketName,
+            Key = objectKey,
+            Verb = HttpVerb.GET,
+            Expires = expiresAt
+        });
+    }
+
+    private void EnsureBucketConfigured()
+    {
+        if (string.IsNullOrWhiteSpace(_options.PublicBucketName))
+        {
+            throw new InvalidOperationException(
+                "Storage:PublicBucketName chưa được cấu hình.");
+        }
+    }
+
+    private static string NormalizeObjectKey(string objectKey)
+    {
+        if (string.IsNullOrWhiteSpace(objectKey))
+            throw new ArgumentException("Object key không được để trống.", nameof(objectKey));
+
+        return objectKey.Trim().TrimStart('/');
     }
 
     public void Dispose()
