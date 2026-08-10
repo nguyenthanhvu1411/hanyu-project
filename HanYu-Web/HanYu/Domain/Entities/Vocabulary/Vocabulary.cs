@@ -108,7 +108,8 @@ public class Vocabulary : AuditableEntity
         long? topicId,
         long? audioAssetId)
     {
-
+        SetHskLevel(
+            hskLevelId);
 
         Simplified =
             NormalizeRequired(
@@ -160,9 +161,6 @@ public class Vocabulary : AuditableEntity
         ValidateOptionalId(
             audioAssetId,
             nameof(audioAssetId));
-
-        HskLevelId =
-            hskLevelId;
 
         Difficulty =
             difficulty;
