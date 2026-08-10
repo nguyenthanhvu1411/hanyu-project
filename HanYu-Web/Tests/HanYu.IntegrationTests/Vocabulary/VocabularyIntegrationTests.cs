@@ -1,6 +1,5 @@
 using System.Net;
 using HanYu.Domain.Entities.Vocabulary;
-using HanYu.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace HanYu.IntegrationTests.Vocabulary;
@@ -19,9 +18,12 @@ public sealed class VocabularyIntegrationTests
     [Fact]
     public async Task DraftVocabulary_IsNotPublic()
     {
+        var hskLevelId =
+            await GetHsk1IdAsync();
+
         var word =
             new Domain.Entities.Vocabulary.Vocabulary(
-                1,
+                hskLevelId,
                 "测试",
                 "cè shì",
                 "ce4 shi4",
@@ -50,9 +52,12 @@ public sealed class VocabularyIntegrationTests
     [Fact]
     public async Task PublishedVocabulary_IsPublic()
     {
+        var hskLevelId =
+            await GetHsk1IdAsync();
+
         var word =
             new Domain.Entities.Vocabulary.Vocabulary(
-                1,
+                hskLevelId,
                 "学习",
                 "xué xí",
                 "xue2 xi2",
@@ -90,4 +95,12 @@ public sealed class VocabularyIntegrationTests
         body.Should()
             .Contain("学习");
     }
+
+    private Task<long> GetHsk1IdAsync()
+        => Factory.ExecuteDbAsync(
+            db => db.Set<HskLevel>()
+                .AsNoTracking()
+                .Where(x => x.Code == "HSK1")
+                .Select(x => x.Id)
+                .SingleAsync());
 }
