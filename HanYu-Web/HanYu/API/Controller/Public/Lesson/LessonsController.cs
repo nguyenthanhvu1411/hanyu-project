@@ -21,25 +21,8 @@ public sealed class LessonsController : ControllerBase
         CancellationToken cancellationToken)
     {
         return this.ToActionResult(
-            await _service.GetAccessibleLessonAsync(publicId, cancellationToken));
-    }
-
-    [HttpPost("{publicId:guid}/start")]
-    public async Task<IActionResult> Start(
-        Guid publicId,
-        CancellationToken cancellationToken)
-    {
-        return this.ToActionResult(
-            await _service.StartAsync(publicId, cancellationToken));
-    }
-
-    [HttpPost("{publicId:guid}/complete")]
-    public async Task<IActionResult> Complete(
-        Guid publicId,
-        [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
-        CancellationToken cancellationToken)
-    {
-        return this.ToActionResult(
-            await _service.CompleteAsync(publicId, idempotencyKey, cancellationToken));
+            await _service.GetAccessibleLessonAsync(
+                publicId,
+                cancellationToken));
     }
 }
