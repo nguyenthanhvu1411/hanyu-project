@@ -3,22 +3,23 @@
 import { CircleCheckBig, CircleOff, GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+
 import { DataTable } from "@/components/common/data-table/data-table";
 import { DataTableActions } from "@/components/common/data-table/data-table-actions";
 import { ErrorState } from "@/components/common/error-state";
 import { PermissionGuard } from "@/security/permission-guard";
 import { PERMISSIONS } from "@/constants/permission.constants";
+import type { DataTableColumn } from "@/types/table.types";
+import type { AdminHskLevelDto } from "@/dto/learning/hsk-level.dto";
+
 import { HskLevelFilter } from "./hsk-level-filter";
 import { HskLevelStatusBadge } from "./hsk-level-status-badge";
 import { HskLevelDeleteDialog } from "./hsk-level-delete-dialog";
 import { HskLevelStatusDialog } from "./hsk-level-status-dialog";
 import { useHskLevels } from "../../hooks/use-hsk-levels";
-import type { AdminHskLevelDto } from "@/dto/learning/hsk-level.dto";
-import type { DataTableColumn } from "@/types/table.types";
 
 export function HskLevelTable() {
   const router = useRouter();
-
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
@@ -40,26 +41,17 @@ export function HskLevelTable() {
     {
       id: "level",
       header: "Cấp độ",
-      width: "130px",
+      width: "170px",
       cell: (item) => (
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-[#fff0ee] text-[#ef241c]">
             <GraduationCap size={15} />
           </div>
-          <span className="text-[11px] font-semibold text-[#333]">
-            HSK {item.id}
-          </span>
+          <div>
+            <div className="text-[11px] font-semibold text-[#333]">{item.code}</div>
+            <div className="text-[10px] text-[#999]">ID: {item.id}</div>
+          </div>
         </div>
-      ),
-    },
-    {
-      id: "code",
-      header: "Mã",
-      width: "130px",
-      cell: (item) => (
-        <code className="rounded-[5px] bg-[#f5f4f1] px-2 py-[4px] text-[10px] font-medium text-[#555]">
-          {item.code}
-        </code>
       ),
     },
     {
@@ -111,11 +103,7 @@ export function HskLevelTable() {
                 }}
                 className="flex w-full items-center gap-2 rounded-[5px] px-2 py-2 text-left text-[11px] text-[#555] hover:bg-[#f5f4f1]"
               >
-                {item.isActive ? (
-                  <CircleOff size={14} />
-                ) : (
-                  <CircleCheckBig size={14} />
-                )}
+                {item.isActive ? <CircleOff size={14} /> : <CircleCheckBig size={14} />}
                 {item.isActive ? "Ngừng hoạt động" : "Kích hoạt"}
               </button>
             </PermissionGuard>
@@ -129,7 +117,7 @@ export function HskLevelTable() {
     return (
       <ErrorState
         title="Không thể tải cấp độ HSK"
-        description="Đã xảy ra lỗi khi tải dữ liệu."
+        description={query.error?.message ?? "Đã xảy ra lỗi khi tải dữ liệu."}
         onRetry={() => query.refetch()}
       />
     );
@@ -158,6 +146,7 @@ export function HskLevelTable() {
           columns={columns}
           rowKey={(item) => item.id}
           loading={query.isLoading}
+          selectable={false}
           page={page}
           pageSize={pageSize}
           totalItems={query.data?.total ?? 0}
@@ -174,9 +163,7 @@ export function HskLevelTable() {
         open={deleteOpen}
         onOpenChange={(open) => {
           setDeleteOpen(open);
-          if (!open) {
-            setSelected(null);
-          }
+          if (!open) setSelected(null);
         }}
         item={selected}
       />
@@ -185,9 +172,7 @@ export function HskLevelTable() {
         open={statusOpen}
         onOpenChange={(open) => {
           setStatusOpen(open);
-          if (!open) {
-            setSelected(null);
-          }
+          if (!open) setSelected(null);
         }}
         item={selected}
       />
