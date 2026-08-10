@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { baiGiangApi } from "@/features/bai-giang/api/bai-giang.api";
-import type { AdminLessonListItem } from "@/features/bai-giang/types/bai-giang.types";
+import { lessonApi } from "@/features/lesson/api/lesson.api";
+import type { AdminLessonListItem } from "@/features/lesson/types/lesson.types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Props {
   courseId: number;
@@ -21,7 +22,7 @@ export function AssignLessonForm({ onAssign, onCancel }: Props) {
     const timeout = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const result = await baiGiangApi.danhSach({
+        const result = await lessonApi.danhSach({
           search,
           page: 1,
           pageSize: 50,
@@ -39,20 +40,15 @@ export function AssignLessonForm({ onAssign, onCancel }: Props) {
   return (
     <div className="rounded-lg border bg-white p-3">
       <div className="flex gap-2">
-        <input
+        <Input
           autoFocus
           placeholder="Tìm bài học chưa thuộc chương..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-9 flex-1 rounded-lg border px-3 text-sm"
+          onChange={(event) => setSearch(event.target.value)}
+          className="flex-1"
         />
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onCancel}
-        >
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
           Đóng
         </Button>
       </div>
@@ -72,20 +68,15 @@ export function AssignLessonForm({ onAssign, onCancel }: Props) {
               className="flex w-full items-center justify-between border-b px-3 py-2 text-left last:border-b-0 hover:bg-neutral-50"
             >
               <span>
-                <span className="block text-sm font-medium">
-                  {lesson.titleVi}
-                </span>
+                <span className="block text-sm font-medium">{lesson.titleVi}</span>
                 <span className="text-xs text-neutral-500">{lesson.slug}</span>
               </span>
-
               <span className="text-xs text-red-600">Thêm</span>
             </button>
           ))}
 
         {!loading && items.length === 0 && (
-          <p className="p-3 text-sm text-neutral-500">
-            Không tìm thấy bài học phù hợp.
-          </p>
+          <p className="p-3 text-sm text-neutral-500">Không tìm thấy bài học phù hợp.</p>
         )}
       </div>
     </div>
