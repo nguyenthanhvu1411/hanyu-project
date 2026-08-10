@@ -1,6 +1,8 @@
 export interface AdminHskLevelDto {
   /** Backend long. JavaScript number is safe for the current database identity range. */
   id: number;
+  /** Backend Guid PublicId serialized as a string. */
+  publicId: string;
   code: string;
   nameVi: string;
   sortOrder: number;
