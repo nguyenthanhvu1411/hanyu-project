@@ -1,3 +1,4 @@
+using System.Net;
 using HanYu.Domain.Entities.Lesson;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,78 @@ public sealed class LessonIntegrationTests
         HanYuWebApplicationFactory factory)
         : base(factory)
     {
+    }
+
+    [Fact]
+    public async Task PublishedLesson_CanBeReadAnonymously()
+    {
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.GetAsync(
+                $"/api/v1/public/lessons/{data.LessonPublicId}");
+
+        response.StatusCode
+            .Should()
+            .Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task MissingPublicLesson_ReturnsNotFound()
+    {
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.GetAsync(
+                $"/api/v1/public/lessons/{Guid.NewGuid()}");
+
+        response.StatusCode
+            .Should()
+            .Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task DraftLesson_IsNotExposedByPublicEndpoint()
+    {
+        var hskLevelId =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<Domain.Entities.Vocabulary.HskLevel>()
+                        .Where(x => x.Code == "HSK1")
+                        .Select(x => x.Id)
+                        .SingleAsync());
+
+        var draftPublicId =
+            await Factory.ExecuteDbAsync(
+                async db =>
+                {
+                    var lesson =
+                        new Domain.Entities.Lesson.Lesson(
+                            hskLevelId,
+                            Unique("draft-lesson"),
+                            "Bài giảng nháp");
+
+                    db.Add(lesson);
+                    await db.SaveChangesAsync();
+
+                    return lesson.PublicId;
+                });
+
+        var response =
+            await Factory.CreateAnonymousClient()
+                .GetAsync(
+                    $"/api/v1/public/lessons/{draftPublicId}");
+
+        response.StatusCode
+            .Should()
+            .Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -90,6 +163,63 @@ public sealed class LessonIntegrationTests
     }
 
     [Fact]
+    public async Task BookmarkTwice_DoesNotDuplicate_AndCanBeRemoved()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        var first =
+            await client.PostAsync(
+                $"/api/v1/public/lesson-bookmarks/{data.LessonPublicId}",
+                null);
+
+        var second =
+            await client.PostAsync(
+                $"/api/v1/public/lesson-bookmarks/{data.LessonPublicId}",
+                null);
+
+        first.IsSuccessStatusCode.Should().BeTrue();
+        second.IsSuccessStatusCode.Should().BeTrue();
+
+        var count =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<UserLessonBookmark>()
+                        .CountAsync(
+                            x =>
+                                x.UserId == userId &&
+                                x.LessonId == data.LessonId));
+
+        count.Should().Be(1);
+
+        var remove =
+            await client.DeleteAsync(
+                $"/api/v1/public/lesson-bookmarks/{data.LessonPublicId}");
+
+        remove.IsSuccessStatusCode.Should().BeTrue();
+
+        var exists =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<UserLessonBookmark>()
+                        .AnyAsync(
+                            x =>
+                                x.UserId == userId &&
+                                x.LessonId == data.LessonId));
+
+        exists.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task CompletingRequiredSection_AndLesson_Works()
     {
         var userId =
@@ -143,5 +273,50 @@ public sealed class LessonIntegrationTests
                                 x.CompletedAt != null));
 
         completed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Admin_CanReadAndValidateLesson()
+    {
+        var adminId =
+            await CreateUserAsync("admin");
+
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var client =
+            Factory.CreateAdminClient(
+                adminId);
+
+        var detail =
+            await client.GetAsync(
+                $"/api/v1/admin/lessons/{data.LessonId}");
+
+        var validate =
+            await client.GetAsync(
+                $"/api/v1/admin/lessons/{data.LessonId}/validate");
+
+        detail.StatusCode.Should().Be(HttpStatusCode.OK);
+        validate.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task AnonymousUser_CannotAccessAdminLessonApi()
+    {
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var response =
+            await Factory.CreateAnonymousClient()
+                .GetAsync(
+                    $"/api/v1/admin/lessons/{data.LessonId}");
+
+        response.StatusCode
+            .Should()
+            .Be(HttpStatusCode.Unauthorized);
     }
 }
