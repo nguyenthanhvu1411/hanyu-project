@@ -127,7 +127,7 @@ export function CourseTable() {
         align: "center",
         width: "120px",
         cell: (item) => (
-          <Badge variant={item.isActive ? "success" : "secondary"}>
+          <Badge variant={item.isActive ? "success" : "default"}>
             {item.isActive ? "Hoạt động" : "Ngừng"}
           </Badge>
         ),
