@@ -1,10 +1,14 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { chuongHocApi, CreateCourseChapterRequest, UpdateCourseChapterRequest } from "@/features/course/api/chuong-hoc.api";
+import {
+  chapterApi,
+  type CreateCourseChapterRequest,
+  type UpdateCourseChapterRequest,
+} from "@/features/course/api/chapter.api";
 import type { AdminCourseChapter } from "@/features/course/types/course.types";
 
 import { FormField } from "@/components/forms/form-field";
@@ -33,7 +37,6 @@ interface ChapterFormDialogProps {
 
 export function ChapterFormDialog({ courseId, chapter, open, onOpenChange }: ChapterFormDialogProps) {
   const queryClient = useQueryClient();
-
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -43,23 +46,17 @@ export function ChapterFormDialog({ courseId, chapter, open, onOpenChange }: Cha
       isActive: chapter?.isActive ?? true,
     },
   });
-
-  const isEditing = !!chapter;
-  const isActive = form.watch("isActive");
+  const isEditing = Boolean(chapter);
 
   const mutation = useMutation({
     mutationFn: async (values: FormData) => {
       if (isEditing && chapter) {
-        const current = await chuongHocApi.chiTiet(courseId, chapter.id);
-        const payload: UpdateCourseChapterRequest = {
-          ...values,
-          concurrencyToken: current.concurrencyToken,
-        };
-        return chuongHocApi.capNhat(courseId, chapter.id, payload);
+        const current = await chapterApi.getById(courseId, chapter.id);
+        const payload: UpdateCourseChapterRequest = { ...values, concurrencyToken: current.concurrencyToken };
+        return chapterApi.update(courseId, chapter.id, payload);
       }
-
       const payload: CreateCourseChapterRequest = values;
-      return chuongHocApi.tao(courseId, payload);
+      return chapterApi.create(courseId, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chapters", courseId] });
@@ -78,12 +75,8 @@ export function ChapterFormDialog({ courseId, chapter, open, onOpenChange }: Cha
       title={isEditing ? "Sửa chương học" : "Thêm chương học mới"}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Hủy
-          </Button>
-          <Button type="button" loading={mutation.isPending} onClick={form.handleSubmit(onSubmit)}>
-            Lưu
-          </Button>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Hủy</Button>
+          <Button type="button" loading={mutation.isPending} onClick={form.handleSubmit(onSubmit)}>Lưu</Button>
         </div>
       }
     >
@@ -91,21 +84,24 @@ export function ChapterFormDialog({ courseId, chapter, open, onOpenChange }: Cha
         <FormField label="Tên chương" required error={form.formState.errors.titleVi?.message}>
           <Input placeholder="Nhập tên chương..." {...form.register("titleVi")} />
         </FormField>
-
         <FormRow columns={2}>
           <FormField label="Thứ tự" error={form.formState.errors.sortOrder?.message}>
             <Input type="number" min={0} {...form.register("sortOrder", { valueAsNumber: true })} />
           </FormField>
-
           <FormField label="Trạng thái">
-            <Switch
-              checked={isActive}
-              onCheckedChange={(checked) => form.setValue("isActive", checked, { shouldDirty: true })}
-              label={isActive ? "Đang hoạt động" : "Ngừng hoạt động"}
+            <Controller
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  label={field.value ? "Đang hoạt động" : "Ngừng hoạt động"}
+                />
+              )}
             />
           </FormField>
         </FormRow>
-
         <FormField label="Mô tả" error={form.formState.errors.descriptionVi?.message}>
           <Textarea placeholder="Nhập mô tả..." {...form.register("descriptionVi")} />
         </FormField>
