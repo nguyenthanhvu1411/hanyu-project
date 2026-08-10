@@ -22,21 +22,44 @@ function base(courseId: number) {
 
 export const chapterApi = {
   list(courseId: number, includeDeleted = false) {
-    return apiClient<AdminCourseChapter[]>(`${base(courseId)}?includeDeleted=${includeDeleted}`);
+    return apiClient<AdminCourseChapter[]>(
+      `${base(courseId)}?includeDeleted=${includeDeleted}`,
+    );
   },
+
   getById(courseId: number, chapterId: number) {
-    return apiClient<AdminCourseChapter & { concurrencyToken: string }>(`${base(courseId)}/${chapterId}`);
+    return apiClient<AdminCourseChapter>(`${base(courseId)}/${chapterId}`);
   },
+
   create(courseId: number, request: CreateCourseChapterRequest) {
-    return apiClient<AdminCourseChapter>(base(courseId), { method: "POST", body: request });
+    return apiClient<AdminCourseChapter>(base(courseId), {
+      method: "POST",
+      body: request,
+    });
   },
-  update(courseId: number, chapterId: number, request: UpdateCourseChapterRequest) {
-    return apiClient<AdminCourseChapter>(`${base(courseId)}/${chapterId}`, { method: "PUT", body: request });
+
+  update(
+    courseId: number,
+    chapterId: number,
+    request: UpdateCourseChapterRequest,
+  ) {
+    return apiClient<AdminCourseChapter>(`${base(courseId)}/${chapterId}`, {
+      method: "PUT",
+      body: request,
+    });
   },
+
   delete(courseId: number, chapterId: number, request: ChapterWorkflowRequest) {
-    return apiClient<void>(`${base(courseId)}/${chapterId}`, { method: "DELETE", body: request });
+    return apiClient<void>(`${base(courseId)}/${chapterId}`, {
+      method: "DELETE",
+      body: request,
+    });
   },
+
   restore(courseId: number, chapterId: number, request: ChapterWorkflowRequest) {
-    return apiClient<AdminCourseChapter>(`${base(courseId)}/${chapterId}/restore`, { method: "POST", body: request });
+    return apiClient<AdminCourseChapter>(`${base(courseId)}/${chapterId}/restore`, {
+      method: "POST",
+      body: request,
+    });
   },
 };
