@@ -11,12 +11,15 @@ import type {
   CreateLessonRequest,
   UpdateLessonRequest,
 } from "@/features/lesson/types/lesson.types";
+import type { CourseChapterLesson } from "@/features/course/types/curriculum.types";
 import { FormField } from "@/components/forms/form-field";
 import { FormRow } from "@/components/forms/form-row";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { appToast } from "@/components/ui/toast";
+import { normalizeApiError } from "@/lib/api/api-error";
 
 const schema = z.object({
   titleVi: z.string().min(1, "Vui lòng nhập tên bài giảng"),
@@ -28,27 +31,38 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+type CurriculumLesson = AdminLessonListItem | CourseChapterLesson;
 
 interface LessonFormDialogProps {
   courseId: number;
   chapterId: number;
   hskLevelId: number;
-  lesson?: AdminLessonListItem | null;
+  lesson?: CurriculumLesson | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function LessonFormDialog({ chapterId, hskLevelId, lesson, open, onOpenChange }: LessonFormDialogProps) {
+export function LessonFormDialog({
+  courseId,
+  chapterId,
+  hskLevelId,
+  lesson,
+  open,
+  onOpenChange,
+}: LessonFormDialogProps) {
   const queryClient = useQueryClient();
+  const shortDescription =
+    lesson && "shortDescriptionVi" in lesson ? lesson.shortDescriptionVi : "";
+
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      titleVi: lesson?.titleVi || "",
-      slug: lesson?.slug || "",
-      shortDescriptionVi: lesson?.shortDescriptionVi || "",
-      sortOrder: lesson?.sortOrder || 0,
-      estimatedMinutes: lesson?.estimatedMinutes || 10,
-      difficulty: lesson?.difficulty || 1,
+      titleVi: lesson?.titleVi ?? "",
+      slug: lesson?.slug ?? "",
+      shortDescriptionVi: shortDescription ?? "",
+      sortOrder: lesson?.sortOrder ?? 0,
+      estimatedMinutes: lesson?.estimatedMinutes ?? 10,
+      difficulty: lesson?.difficulty ?? 1,
     },
   });
   const isEditing = Boolean(lesson);
@@ -56,15 +70,26 @@ export function LessonFormDialog({ chapterId, hskLevelId, lesson, open, onOpenCh
   const mutation = useMutation({
     mutationFn: async (values: FormData) => {
       if (isEditing && lesson) {
+        const current = await lessonApi.getById(lesson.id);
         const payload: UpdateLessonRequest = {
-          ...values,
           courseChapterId: chapterId,
-          hskLevelId,
-          isFeatured: lesson.isFeatured,
-          version: lesson.version,
+          hskLevelId: current.hskLevelId,
+          topicId: current.topicId,
+          slug: values.slug,
+          titleVi: values.titleVi,
+          shortDescriptionVi: values.shortDescriptionVi,
+          descriptionVi: current.descriptionVi,
+          objectiveVi: current.objectiveVi,
+          coverImageUrl: current.coverImageUrl,
+          sortOrder: values.sortOrder,
+          estimatedMinutes: values.estimatedMinutes,
+          difficulty: values.difficulty,
+          isFeatured: current.isFeatured,
+          version: current.version,
         };
         return lessonApi.update(lesson.id, payload);
       }
+
       const payload: CreateLessonRequest = {
         ...values,
         courseChapterId: chapterId,
@@ -73,10 +98,22 @@ export function LessonFormDialog({ chapterId, hskLevelId, lesson, open, onOpenCh
       };
       return lessonApi.create(payload);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lessons", "by-chapter", chapterId] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["chapter-lessons", courseId, chapterId] }),
+        queryClient.invalidateQueries({ queryKey: ["lessons"] }),
+        queryClient.invalidateQueries({ queryKey: ["course", courseId] }),
+        queryClient.invalidateQueries({ queryKey: ["chapters", courseId] }),
+      ]);
+      appToast.success(isEditing ? "Đã cập nhật bài giảng." : "Đã tạo bài giảng.");
       onOpenChange(false);
       form.reset();
+    },
+    onError: (error) => {
+      appToast.error(
+        isEditing ? "Không thể cập nhật bài giảng" : "Không thể tạo bài giảng",
+        normalizeApiError(error).message,
+      );
     },
   });
 
@@ -87,13 +124,28 @@ export function LessonFormDialog({ chapterId, hskLevelId, lesson, open, onOpenCh
       title={isEditing ? "Sửa bài giảng" : "Thêm bài giảng mới"}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Hủy</Button>
-          <Button type="button" loading={mutation.isPending} onClick={form.handleSubmit((values) => mutation.mutate(values))}>Lưu</Button>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Hủy
+          </Button>
+          <Button
+            type="button"
+            loading={mutation.isPending}
+            onClick={form.handleSubmit((values) => mutation.mutate(values))}
+          >
+            Lưu
+          </Button>
         </div>
       }
     >
-      <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
-        <FormField label="Tên bài giảng" required error={form.formState.errors.titleVi?.message}>
+      <form
+        onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+        className="space-y-4"
+      >
+        <FormField
+          label="Tên bài giảng"
+          required
+          error={form.formState.errors.titleVi?.message}
+        >
           <Input placeholder="Nhập tên bài giảng..." {...form.register("titleVi")} />
         </FormField>
         <FormField label="Slug" required error={form.formState.errors.slug?.message}>
@@ -101,16 +153,35 @@ export function LessonFormDialog({ chapterId, hskLevelId, lesson, open, onOpenCh
         </FormField>
         <FormRow columns={3}>
           <FormField label="Thứ tự" error={form.formState.errors.sortOrder?.message}>
-            <Input type="number" min={0} {...form.register("sortOrder", { valueAsNumber: true })} />
+            <Input
+              type="number"
+              min={0}
+              {...form.register("sortOrder", { valueAsNumber: true })}
+            />
           </FormField>
-          <FormField label="Thời lượng (phút)" error={form.formState.errors.estimatedMinutes?.message}>
-            <Input type="number" min={1} {...form.register("estimatedMinutes", { valueAsNumber: true })} />
+          <FormField
+            label="Thời lượng (phút)"
+            error={form.formState.errors.estimatedMinutes?.message}
+          >
+            <Input
+              type="number"
+              min={1}
+              {...form.register("estimatedMinutes", { valueAsNumber: true })}
+            />
           </FormField>
           <FormField label="Độ khó" error={form.formState.errors.difficulty?.message}>
-            <Input type="number" min={1} max={5} {...form.register("difficulty", { valueAsNumber: true })} />
+            <Input
+              type="number"
+              min={1}
+              max={5}
+              {...form.register("difficulty", { valueAsNumber: true })}
+            />
           </FormField>
         </FormRow>
-        <FormField label="Mô tả ngắn" error={form.formState.errors.shortDescriptionVi?.message}>
+        <FormField
+          label="Mô tả ngắn"
+          error={form.formState.errors.shortDescriptionVi?.message}
+        >
           <Textarea placeholder="Nhập mô tả..." {...form.register("shortDescriptionVi")} />
         </FormField>
       </form>
