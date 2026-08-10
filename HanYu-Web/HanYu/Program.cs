@@ -4,6 +4,7 @@ using HanYu.Infrastructure;
 using HanYu.Infrastructure.Observability;
 using HanYu.Infrastructure.Persistence;
 using HanYu.Infrastructure.Security;
+using Microsoft.Extensions.Hosting;
 using Serilog;
 
 // ─── Bootstrap Logger ────────────────────────────────────────────────────────
@@ -133,7 +134,9 @@ try
 
     return 0;
 }
-catch (Exception ex) when (ex is not OperationCanceledException)
+catch (Exception ex) when (
+    ex is not OperationCanceledException and
+    not HostAbortedException)
 {
     Log.Fatal(ex, "Application startup failed.");
     return 1;
@@ -144,6 +147,3 @@ finally
 }
 
 public partial class Program { }
-
-
-
