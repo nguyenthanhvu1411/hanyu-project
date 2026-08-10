@@ -6,6 +6,7 @@ using HanYu.Infrastructure;
 using HanYu.Infrastructure.Course;
 using HanYu.Infrastructure.Observability;
 using HanYu.Infrastructure.Persistence;
+using HanYu.Infrastructure.Persistence.Seeding.Content;
 using HanYu.Infrastructure.Security;
 using HanYu.Infrastructure.Storage;
 using Microsoft.Extensions.Hosting;
@@ -39,6 +40,10 @@ try
             IPublicFileStorage,
             InMemoryPublicFileStorage>();
     }
+
+    builder.Services.Configure<ContentSeedOptions>(
+        builder.Configuration.GetSection(ContentSeedOptions.SectionName));
+    builder.Services.AddScoped<CourseContentSeeder>();
 
     // Curriculum reorder is intentionally isolated from the general Course service
     // because it performs two-phase writes to preserve unique sort-order constraints.
