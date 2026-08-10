@@ -66,7 +66,7 @@ public sealed class LessonTests
         var action =
             () =>
                 new Domain.Entities.Lesson.Lesson(
-                    7,
+                    0,
                     "invalid",
                     "Invalid");
 
