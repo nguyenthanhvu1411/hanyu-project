@@ -65,6 +65,7 @@ public sealed class CourseChapter : AuditableEntity
         SetSortOrder(sortOrder);
         IsActive = isActive;
 
+        RotateConcurrencyToken();
         Touch(updatedById);
     }
 
@@ -76,6 +77,7 @@ public sealed class CourseChapter : AuditableEntity
 
         SetSortOrder(sortOrder);
 
+        RotateConcurrencyToken();
         Touch(updatedById);
     }
 
@@ -89,6 +91,7 @@ public sealed class CourseChapter : AuditableEntity
 
         IsActive = true;
 
+        RotateConcurrencyToken();
         Touch(updatedById);
     }
 
@@ -102,6 +105,7 @@ public sealed class CourseChapter : AuditableEntity
 
         IsActive = false;
 
+        RotateConcurrencyToken();
         Touch(updatedById);
     }
 
@@ -117,7 +121,7 @@ public sealed class CourseChapter : AuditableEntity
 
         IsActive = false;
 
-        ConcurrencyToken = Guid.NewGuid();
+        RotateConcurrencyToken();
     }
 
     public void RestoreDeleted(
@@ -132,8 +136,11 @@ public sealed class CourseChapter : AuditableEntity
 
         IsActive = true;
 
-        ConcurrencyToken = Guid.NewGuid();
+        RotateConcurrencyToken();
     }
+
+    private void RotateConcurrencyToken()
+        => ConcurrencyToken = Guid.NewGuid();
 
     private void SetTitleVi(
         string titleVi)
@@ -176,25 +183,6 @@ public sealed class CourseChapter : AuditableEntity
         }
 
         SortOrder = sortOrder;
-    }
-
-    private void Touch(
-        Guid updatedById)
-    {
-        EnsureUserId(updatedById, nameof(updatedById));
-
-        MarkAsUpdated(updatedById);
-
-        ConcurrencyToken = Guid.NewGuid();
-    }
-
-    private void EnsureNotDeleted()
-    {
-        if (IsDeleted)
-        {
-            throw new InvalidOperationException(
-                "Chương học đã bị xóa.");
-        }
     }
 
     private static void EnsureUserId(
