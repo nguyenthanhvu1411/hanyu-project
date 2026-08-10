@@ -24,6 +24,45 @@ export interface AdminLessonListItem {
   updatedAt: string;
 }
 
+export interface AdminLessonDetail {
+  id: number;
+  publicId: string;
+  courseId?: number | null;
+  coursePublicId?: string | null;
+  courseTitleVi?: string | null;
+  courseChapterId?: number | null;
+  courseChapterPublicId?: string | null;
+  courseChapterTitleVi?: string | null;
+  hskLevelId: number;
+  hskCode?: string | null;
+  hskNameVi?: string | null;
+  topicId?: number | null;
+  topicNameVi?: string | null;
+  slug: string;
+  titleVi: string;
+  shortDescriptionVi?: string | null;
+  descriptionVi?: string | null;
+  objectiveVi?: string | null;
+  coverImageUrl?: string | null;
+  sortOrder: number;
+  estimatedMinutes: number;
+  difficulty: number;
+  isFeatured: boolean;
+  status: ContentStatus;
+  version: number;
+  publishedAt?: string | null;
+  sectionCount: number;
+  vocabularyCount: number;
+  assetCount: number;
+  prerequisiteCount: number;
+  createdAt: string;
+  createdById?: string | null;
+  updatedAt: string;
+  updatedById?: string | null;
+  deletedAt?: string | null;
+  deletedById?: string | null;
+}
+
 export interface CreateLessonRequest {
   courseChapterId?: number | null;
   hskLevelId: number;
@@ -46,6 +85,12 @@ export interface UpdateLessonRequest extends CreateLessonRequest {
 
 export interface LessonWorkflowRequest {
   version: number;
+}
+
+export interface LessonValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
 }
 
 export interface AdminLessonQuery {
