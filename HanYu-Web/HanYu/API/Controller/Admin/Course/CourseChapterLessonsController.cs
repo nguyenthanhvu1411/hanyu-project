@@ -9,17 +9,18 @@ namespace HanYu.API.Controller.Admin.Course;
 
 [ApiController]
 [Authorize(Policy = Policies.AdminOnly)]
-[Route(
-    "api/v1/admin/courses/{courseId:long}/chapters/{chapterId:long}/lessons")]
-public sealed class CourseChapterLessonsController
-    : ControllerBase
+[Route("api/v1/admin/courses/{courseId:long}/chapters/{chapterId:long}/lessons")]
+public sealed class CourseChapterLessonsController : ControllerBase
 {
     private readonly IAdminCourseService _service;
+    private readonly ICourseCurriculumReorderService _reorderService;
 
     public CourseChapterLessonsController(
-        IAdminCourseService service)
+        IAdminCourseService service,
+        ICourseCurriculumReorderService reorderService)
     {
         _service = service;
+        _reorderService = reorderService;
     }
 
     [HttpGet]
@@ -27,16 +28,8 @@ public sealed class CourseChapterLessonsController
         long courseId,
         long chapterId,
         CancellationToken cancellationToken)
-    {
-        var result =
-            await _service.GetChapterLessonsAsync(
-                courseId,
-                chapterId,
-                cancellationToken);
-
-        return this.ToActionResult(
-            result);
-    }
+        => this.ToActionResult(
+            await _service.GetChapterLessonsAsync(courseId, chapterId, cancellationToken));
 
     [HttpPost("assign")]
     public async Task<IActionResult> Assign(
@@ -44,17 +37,9 @@ public sealed class CourseChapterLessonsController
         long chapterId,
         [FromBody] AssignLessonToChapterRequest request,
         CancellationToken cancellationToken)
-    {
-        var result =
+        => this.ToActionResult(
             await _service.AssignLessonToChapterAsync(
-                courseId,
-                chapterId,
-                request,
-                cancellationToken);
-
-        return this.ToActionResult(
-            result);
-    }
+                courseId, chapterId, request, cancellationToken));
 
     [HttpPost("{lessonId:long}/move")]
     public async Task<IActionResult> Move(
@@ -63,18 +48,9 @@ public sealed class CourseChapterLessonsController
         long lessonId,
         [FromBody] MoveLessonToChapterRequest request,
         CancellationToken cancellationToken)
-    {
-        var result =
+        => this.ToActionResult(
             await _service.MoveLessonAsync(
-                courseId,
-                chapterId,
-                lessonId,
-                request,
-                cancellationToken);
-
-        return this.ToActionResult(
-            result);
-    }
+                courseId, chapterId, lessonId, request, cancellationToken));
 
     [HttpDelete("{lessonId:long}")]
     public async Task<IActionResult> Remove(
@@ -82,17 +58,9 @@ public sealed class CourseChapterLessonsController
         long chapterId,
         long lessonId,
         CancellationToken cancellationToken)
-    {
-        var result =
+        => this.ToActionResult(
             await _service.RemoveLessonFromChapterAsync(
-                courseId,
-                chapterId,
-                lessonId,
-                cancellationToken);
-
-        return this.ToActionResult(
-            result);
-    }
+                courseId, chapterId, lessonId, cancellationToken));
 
     [HttpPut("reorder")]
     public async Task<IActionResult> Reorder(
@@ -100,15 +68,7 @@ public sealed class CourseChapterLessonsController
         long chapterId,
         [FromBody] ReorderChapterLessonsRequest request,
         CancellationToken cancellationToken)
-    {
-        var result =
-            await _service.ReorderChapterLessonsAsync(
-                courseId,
-                chapterId,
-                request,
-                cancellationToken);
-
-        return this.ToActionResult(
-            result);
-    }
+        => this.ToActionResult(
+            await _reorderService.ReorderChapterLessonsAsync(
+                courseId, chapterId, request, cancellationToken));
 }
