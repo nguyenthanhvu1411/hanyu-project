@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { PermissionGuard } from "@/security/permission-guard";
 import { PERMISSIONS } from "@/constants/permission.constants";
-import { LessonTable } from "@/features/bai-giang/components/lesson-table";
+import { LessonTable } from "@/features/lesson/components/lesson-table";
 
 export default function LessonsPage() {
   return (
