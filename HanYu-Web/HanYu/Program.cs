@@ -1,11 +1,13 @@
 using HanYu.API.Common.Middleware;
 using HanYu.API.Extensions;
 using HanYu.Application.Interfaces.Course;
+using HanYu.Application.Interfaces.Storage;
 using HanYu.Infrastructure;
 using HanYu.Infrastructure.Course;
 using HanYu.Infrastructure.Observability;
 using HanYu.Infrastructure.Persistence;
 using HanYu.Infrastructure.Security;
+using HanYu.Infrastructure.Storage;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 
@@ -26,6 +28,17 @@ try
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
     builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+
+    builder.Services.AddScoped<
+        IPublicFileStorage,
+        S3PublicFileStorage>();
+
+    if (builder.Environment.IsEnvironment("IntegrationTest"))
+    {
+        builder.Services.AddSingleton<
+            IPublicFileStorage,
+            InMemoryPublicFileStorage>();
+    }
 
     // Curriculum reorder is intentionally isolated from the general Course service
     // because it performs two-phase writes to preserve unique sort-order constraints.
@@ -90,9 +103,6 @@ try
     {
         app.UseRateLimiter();
     }
-
-    // Uploaded cover images are public assets after an authenticated admin upload.
-    app.UseStaticFiles();
 
     app.UseAuthentication();
     app.UseAuthorization();
