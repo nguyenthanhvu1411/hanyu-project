@@ -8,9 +8,10 @@ namespace HanYu.API.Controller.Public.Lesson;
 [Route("api/v1/public/lessons")]
 public sealed class LessonsController : ControllerBase
 {
-    private readonly IPublicLessonService _service;
+    private readonly ILessonPublicService _service;
 
-    public LessonsController(IPublicLessonService service)
+    public LessonsController(
+        ILessonPublicService service)
     {
         _service = service;
     }
@@ -21,8 +22,9 @@ public sealed class LessonsController : ControllerBase
         CancellationToken cancellationToken)
     {
         return this.ToActionResult(
-            await _service.GetAccessibleLessonAsync(
-                publicId,
+            await _service.GetLessonAsync(
+                userId: null,
+                lessonPublicId: publicId,
                 cancellationToken));
     }
 }
