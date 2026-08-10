@@ -1,4 +1,4 @@
-import { CourseEditor } from "@/features/khoa-hoc/components/editor/course-editor";
+import { CourseEditor } from "@/features/course/components/editor/course-editor";
 
 interface Props {
   params: Promise<{
