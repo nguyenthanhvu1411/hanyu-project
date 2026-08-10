@@ -36,19 +36,21 @@ public static class TestDataSeeder
                      level <= 6;
                      level++)
                 {
+                    var code =
+                        $"HSK{level}";
+
                     var exists =
                         await db.Set<HskLevel>()
+                            .IgnoreQueryFilters()
                             .AnyAsync(
-                                x =>
-                                    x.Id ==
-                                    level);
+                                x => x.Code == code);
 
                     if (exists)
                         continue;
 
                     db.Add(
                         new HskLevel(
-                            $"HSK{level}",
+                            code,
                             $"HSK {level}",
                             level));
                 }
@@ -68,13 +70,30 @@ public static class TestDataSeeder
                     Guid.NewGuid()
                         .ToString("N")[..8];
 
+                var hskLevel =
+                    await db.Set<HskLevel>()
+                        .FirstOrDefaultAsync(
+                            x => x.Code == "HSK1");
+
+                if (hskLevel is null)
+                {
+                    hskLevel =
+                        new HskLevel(
+                            "HSK1",
+                            "HSK 1",
+                            1);
+
+                    db.Add(hskLevel);
+                    await db.SaveChangesAsync();
+                }
+
                 // =====================================
                 // VOCABULARY
                 // =====================================
 
                 var vocabulary =
                     new Domain.Entities.Vocabulary.Vocabulary(
-                        hskLevelId: 1,
+                        hskLevelId: hskLevel.Id,
                         simplified:
                             $"测{suffix}",
                         pinyin:
@@ -102,7 +121,7 @@ public static class TestDataSeeder
 
                 var lesson =
                     new Domain.Entities.Lesson.Lesson(
-                        1,
+                        hskLevel.Id,
                         $"integration-{suffix}",
                         "Bài học Integration");
 
