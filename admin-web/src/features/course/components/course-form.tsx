@@ -280,7 +280,8 @@ export function CourseForm({ courseId }: CourseFormProps) {
         <FormRow columns={3}>
           <FormField
             label="Cấp độ HSK"
-            hint={hskError ?? "Chọn từ danh mục HSK đã cấu hình trong hệ thống."}
+            description="Chọn từ danh mục HSK đã cấu hình trong hệ thống."
+            error={hskError ?? undefined}
           >
             <Select
               value={form.hskLevelId ? String(form.hskLevelId) : ""}
