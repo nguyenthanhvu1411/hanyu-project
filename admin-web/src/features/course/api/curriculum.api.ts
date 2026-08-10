@@ -12,44 +12,30 @@ import type {
   UpdateChapterRequest,
 } from "../types/curriculum.types";
 
-function chapterBase(
-  courseId: number,
-) {
+function chapterBase(courseId: number) {
   return `/api/v1/admin/courses/${courseId}/chapters`;
 }
 
-function lessonBase(
-  courseId: number,
-  chapterId: number,
-) {
-  return `${chapterBase(
-    courseId,
-  )}/${chapterId}/lessons`;
+function lessonBase(courseId: number, chapterId: number) {
+  return `${chapterBase(courseId)}/${chapterId}/lessons`;
 }
 
 export const curriculumApi = {
-  chapters(
-    courseId: number,
-    includeDeleted = false,
-  ) {
+  chapters(courseId: number, includeDeleted = false) {
     return apiClient<CourseChapter[]>(
-      `${chapterBase(
-        courseId,
-      )}?includeDeleted=${includeDeleted}`,
+      `${chapterBase(courseId)}?includeDeleted=${includeDeleted}`,
     );
   },
 
-  createChapter(
-    courseId: number,
-    body: CreateChapterRequest,
-  ) {
-    return apiClient<CourseChapter>(
-      chapterBase(courseId),
-      {
-        method: "POST",
-        body,
-      },
-    );
+  chapter(courseId: number, chapterId: number) {
+    return apiClient<CourseChapter>(`${chapterBase(courseId)}/${chapterId}`);
+  },
+
+  createChapter(courseId: number, body: CreateChapterRequest) {
+    return apiClient<CourseChapter>(chapterBase(courseId), {
+      method: "POST",
+      body,
+    });
   },
 
   updateChapter(
@@ -57,15 +43,10 @@ export const curriculumApi = {
     chapterId: number,
     body: UpdateChapterRequest,
   ) {
-    return apiClient<CourseChapter>(
-      `${chapterBase(
-        courseId,
-      )}/${chapterId}`,
-      {
-        method: "PUT",
-        body,
-      },
-    );
+    return apiClient<CourseChapter>(`${chapterBase(courseId)}/${chapterId}`, {
+      method: "PUT",
+      body,
+    });
   },
 
   deleteChapter(
@@ -73,15 +54,10 @@ export const curriculumApi = {
     chapterId: number,
     body: EntityWorkflowRequest,
   ) {
-    return apiClient<void>(
-      `${chapterBase(
-        courseId,
-      )}/${chapterId}`,
-      {
-        method: "DELETE",
-        body,
-      },
-    );
+    return apiClient<void>(`${chapterBase(courseId)}/${chapterId}`, {
+      method: "DELETE",
+      body,
+    });
   },
 
   restoreChapter(
@@ -90,9 +66,7 @@ export const curriculumApi = {
     body: EntityWorkflowRequest,
   ) {
     return apiClient<CourseChapter>(
-      `${chapterBase(
-        courseId,
-      )}/${chapterId}/restore`,
+      `${chapterBase(courseId)}/${chapterId}/restore`,
       {
         method: "POST",
         body,
@@ -100,31 +74,15 @@ export const curriculumApi = {
     );
   },
 
-  reorderChapters(
-    courseId: number,
-    body: ReorderChaptersRequest,
-  ) {
-    return apiClient<void>(
-      `/api/v1/admin/courses/${courseId}/chapters/order`,
-      {
-        method: "PUT",
-        body,
-      },
-    );
+  reorderChapters(courseId: number, body: ReorderChaptersRequest) {
+    return apiClient<void>(`/api/v1/admin/courses/${courseId}/chapters/order`, {
+      method: "PUT",
+      body,
+    });
   },
 
-  lessons(
-    courseId: number,
-    chapterId: number,
-  ) {
-    return apiClient<
-      CourseChapterLesson[]
-    >(
-      lessonBase(
-        courseId,
-        chapterId,
-      ),
-    );
+  lessons(courseId: number, chapterId: number) {
+    return apiClient<CourseChapterLesson[]>(lessonBase(courseId, chapterId));
   },
 
   assignLesson(
@@ -133,10 +91,7 @@ export const curriculumApi = {
     body: AssignLessonRequest,
   ) {
     return apiClient<CourseChapterLesson>(
-      lessonBase(
-        courseId,
-        chapterId,
-      ),
+      `${lessonBase(courseId, chapterId)}/assign`,
       {
         method: "POST",
         body,
@@ -151,27 +106,17 @@ export const curriculumApi = {
     body: MoveLessonRequest,
   ) {
     return apiClient<CourseChapterLesson>(
-      `${lessonBase(
-        courseId,
-        sourceChapterId,
-      )}/${lessonId}/move`,
+      `${lessonBase(courseId, sourceChapterId)}/${lessonId}/move`,
       {
-        method: "PUT",
+        method: "POST",
         body,
       },
     );
   },
 
-  removeLesson(
-    courseId: number,
-    chapterId: number,
-    lessonId: number,
-  ) {
+  removeLesson(courseId: number, chapterId: number, lessonId: number) {
     return apiClient<void>(
-      `${lessonBase(
-        courseId,
-        chapterId,
-      )}/${lessonId}`,
+      `${lessonBase(courseId, chapterId)}/${lessonId}`,
       {
         method: "DELETE",
       },
@@ -183,15 +128,9 @@ export const curriculumApi = {
     chapterId: number,
     body: ReorderLessonsRequest,
   ) {
-    return apiClient<void>(
-      `${lessonBase(
-        courseId,
-        chapterId,
-      )}/order`,
-      {
-        method: "PUT",
-        body,
-      },
-    );
+    return apiClient<void>(`${lessonBase(courseId, chapterId)}/reorder`, {
+      method: "PUT",
+      body,
+    });
   },
 };
