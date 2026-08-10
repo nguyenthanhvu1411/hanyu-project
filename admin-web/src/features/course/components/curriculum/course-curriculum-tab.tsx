@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { khoaHocApi } from "@/features/khoa-hoc/api/khoa-hoc.api";
+import { courseApi } from "@/features/course/api/course.api";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,8 +14,8 @@ export function CourseCurriculumTab({ courseId }: { courseId: number }) {
 
   const { data: course, isLoading } = useQuery({
     queryKey: ["course", courseId],
-    queryFn: () => khoaHocApi.chiTiet(courseId),
-    enabled: !!courseId,
+    queryFn: () => courseApi.chiTiet(courseId),
+    enabled: Number.isSafeInteger(courseId) && courseId > 0,
   });
 
   if (isLoading) {
@@ -28,10 +28,10 @@ export function CourseCurriculumTab({ courseId }: { courseId: number }) {
   }
 
   if (!course) {
-    return <div>Course not found</div>;
+    return <div>Không tìm thấy khóa học.</div>;
   }
 
-  const chapters = course.chapters || [];
+  const chapters = course.chapters ?? [];
 
   return (
     <div className="space-y-6">
@@ -46,13 +46,18 @@ export function CourseCurriculumTab({ courseId }: { courseId: number }) {
           </div>
         ) : (
           chapters.map((chapter) => (
-            <ChapterItem key={chapter.id} chapter={chapter} courseId={courseId} courseHskLevelId={course.hskLevelId ?? 1} />
+            <ChapterItem
+              key={chapter.id}
+              chapter={chapter}
+              courseId={courseId}
+              courseHskLevelId={course.hskLevelId ?? 1}
+            />
           ))
         )}
       </div>
 
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         className="w-full justify-start text-muted-foreground hover:text-foreground"
         onClick={() => setIsChapterFormOpen(true)}
       >
