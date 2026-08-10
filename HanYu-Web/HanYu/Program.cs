@@ -91,6 +91,9 @@ try
         app.UseRateLimiter();
     }
 
+    // Uploaded cover images are public assets after an authenticated admin upload.
+    app.UseStaticFiles();
+
     app.UseAuthentication();
     app.UseAuthorization();
     app.UseHanYuHealthChecks();
