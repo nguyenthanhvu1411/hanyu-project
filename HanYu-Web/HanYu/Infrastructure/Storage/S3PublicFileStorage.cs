@@ -1,3 +1,5 @@
+using Amazon;
+using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using HanYu.Application.Interfaces.Storage;
@@ -5,17 +7,32 @@ using Microsoft.Extensions.Options;
 
 namespace HanYu.Infrastructure.Storage;
 
-public sealed class S3PublicFileStorage : IPublicFileStorage
+public sealed class S3PublicFileStorage : IPublicFileStorage, IDisposable
 {
     private readonly IAmazonS3 _s3;
     private readonly StorageOptions _options;
 
-    public S3PublicFileStorage(
-        IAmazonS3 s3,
-        IOptions<StorageOptions> options)
+    public S3PublicFileStorage(IOptions<StorageOptions> options)
     {
-        _s3 = s3;
         _options = options.Value;
+
+        var config = new AmazonS3Config();
+        if (!string.IsNullOrWhiteSpace(_options.ServiceUrl))
+        {
+            config.ServiceURL = _options.ServiceUrl;
+            config.ForcePathStyle = _options.ForcePathStyle;
+        }
+        else
+        {
+            config.RegionEndpoint = RegionEndpoint.GetBySystemName(_options.Region);
+        }
+
+        _s3 = !string.IsNullOrWhiteSpace(_options.AccessKey) &&
+              !string.IsNullOrWhiteSpace(_options.SecretKey)
+            ? new AmazonS3Client(
+                new BasicAWSCredentials(_options.AccessKey, _options.SecretKey),
+                config)
+            : new AmazonS3Client(config);
     }
 
     public async Task<PublicFileUploadResult> UploadAsync(
@@ -55,5 +72,10 @@ public sealed class S3PublicFileStorage : IPublicFileStorage
             _options.PublicBucketName,
             objectKey,
             cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        _s3.Dispose();
     }
 }
