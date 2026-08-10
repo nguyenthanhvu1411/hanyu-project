@@ -37,7 +37,7 @@ public sealed class HskLevelsController
                 request,
                 cancellationToken));
 
-    [HttpPut("{id:int}")]
+    [HttpPut("{id:long}")]
     public async Task<IActionResult> Update(
         long id,
         UpdateHskLevelRequest request,
@@ -48,7 +48,7 @@ public sealed class HskLevelsController
                 request,
                 cancellationToken));
 
-    [HttpPost("{id:int}/activate")]
+    [HttpPost("{id:long}/activate")]
     public async Task<IActionResult> Activate(
         long id,
         CancellationToken cancellationToken)
@@ -57,7 +57,7 @@ public sealed class HskLevelsController
                 id,
                 cancellationToken));
 
-    [HttpPost("{id:int}/deactivate")]
+    [HttpPost("{id:long}/deactivate")]
     public async Task<IActionResult> Deactivate(
         long id,
         CancellationToken cancellationToken)
@@ -66,7 +66,7 @@ public sealed class HskLevelsController
                 id,
                 cancellationToken));
 
-    [HttpDelete("{id:int}")]
+    [HttpDelete("{id:long}")]
     public async Task<IActionResult> Delete(
         long id,
         CancellationToken cancellationToken)
