@@ -1,0 +1,3648 @@
+Được. Với cấu trúc hiện tại của bạn, mình chốt thành 2 project test riêng:
+
+WEB-ChineseLeaning/
+└── HanYu-Web/
+    ├── HanYu/
+    │   ├── API/
+    │   ├── Application/
+    │   ├── Domain/
+    │   ├── Infrastructure/
+    │   ├── Migrations/
+    │   ├── Shared/
+    │   └── HanYu.csproj
+    │
+    └── Tests/
+        ├── HanYu.UnitTests/
+        │   └── HanYu.UnitTests.csproj
+        │
+        └── HanYu.IntegrationTests/
+            └── HanYu.IntegrationTests.csproj
+
+Cách này phù hợp hơn vì project production không phải reference xUnit, Testcontainers, FluentAssertions... Specification của HanYu cũng yêu cầu pipeline có unit/integration/contract test và core journey E2E trước go-live.
+
+Ngoài ra project thật của bạn đang đăng ký PostgreSQL qua DefaultConnection, UseNpgsql() và UseSnakeCaseNamingConvention(), nên Integration Test bên dưới sẽ sử dụng PostgreSQL container thật, không dùng EF InMemory.
+
+1. Xóa Tests hiện tại khỏi HanYu
+
+Hiện bạn có:
+
+HanYu/
+├── Infrastructure/
+├── ...
+├── Tests/       ← bỏ khỏi đây
+└── HanYu.csproj
+
+Di chuyển thành:
+
+HanYu-Web/
+├── HanYu/
+└── Tests/
+
+Sau đó:
+
+cd C:\Luutru\WEB-ChineseLeaning\HanYu-Web
+
+mkdir Tests
+cd Tests
+
+dotnet new xunit -n HanYu.UnitTests
+dotnet new xunit -n HanYu.IntegrationTests
+
+Nếu có solution:
+
+cd ..
+
+dotnet sln add .\Tests\HanYu.UnitTests\HanYu.UnitTests.csproj
+dotnet sln add .\Tests\HanYu.IntegrationTests\HanYu.IntegrationTests.csproj
+2. HanYu.UnitTests.csproj
+
+Đường dẫn:
+
+Tests/HanYu.UnitTests/HanYu.UnitTests.csproj
+
+Thay toàn bộ:
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+
+    <PackageReference
+      Include="Microsoft.NET.Test.Sdk"
+      Version="17.12.0" />
+
+    <PackageReference
+      Include="xunit"
+      Version="2.9.2" />
+
+    <PackageReference
+      Include="xunit.runner.visualstudio"
+      Version="2.8.2">
+      <IncludeAssets>
+        runtime;
+        build;
+        native;
+        contentfiles;
+        analyzers;
+        buildtransitive
+      </IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
+    <PackageReference
+      Include="FluentAssertions"
+      Version="6.12.2" />
+
+    <PackageReference
+      Include="coverlet.collector"
+      Version="6.0.2">
+      <IncludeAssets>
+        runtime;
+        build;
+        native;
+        contentfiles;
+        analyzers;
+        buildtransitive
+      </IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
+  </ItemGroup>
+
+  <ItemGroup>
+
+    <ProjectReference
+      Include="..\..\HanYu\HanYu.csproj" />
+
+  </ItemGroup>
+
+</Project>
+3. Cấu trúc UnitTests
+HanYu.UnitTests/
+├── Content/
+│   └── ContentImportJobTests.cs
+│
+├── Gamification/
+│   ├── AchievementTests.cs
+│   └── UserStreakTests.cs
+│
+├── Lesson/
+│   └── LessonTests.cs
+│
+├── Notification/
+│   └── InAppNotificationTests.cs
+│
+├── Quiz/
+│   └── QuizTests.cs
+│
+├── Review/
+│   └── ReviewSchedulerTests.cs
+│
+├── Vocabulary/
+│   └── VocabularyTests.cs
+│
+├── GlobalUsings.cs
+└── HanYu.UnitTests.csproj
+4. GlobalUsings.cs
+global using Xunit;
+global using FluentAssertions;
+5. VocabularyTests.cs
+
+Entity Vocabulary hiện có constructor đầy đủ gồm HSK, simplified, pinyin, pinyinNormalized, meaning và lifecycle Review → Approved → Published.
+
+using HanYu.Domain.Entities.Vocabulary;
+using HanYu.Domain.Enums;
+
+namespace HanYu.UnitTests.Vocabulary;
+
+public sealed class VocabularyTests
+{
+    [Fact]
+    public void Constructor_WithValidData_CreatesDraftVocabulary()
+    {
+        var vocabulary =
+            CreateVocabulary();
+
+        vocabulary.HskLevelId.Should().Be(1);
+
+        vocabulary.Simplified.Should().Be("你好");
+
+        vocabulary.Pinyin.Should().Be("nǐ hǎo");
+
+        vocabulary.PinyinNormalized.Should().Be("ni3 hao3");
+
+        vocabulary.PrimaryMeaningVi.Should().Be("xin chào");
+
+        vocabulary.Status.Should().Be(
+            ContentStatus.Draft);
+    }
+
+    [Fact]
+    public void SubmitForReview_FromDraft_ChangesStatus()
+    {
+        var vocabulary =
+            CreateVocabulary();
+
+        vocabulary.SubmitForReview();
+
+        vocabulary.Status.Should().Be(
+            ContentStatus.Review);
+    }
+
+    [Fact]
+    public void Approve_FromReview_ChangesStatus()
+    {
+        var vocabulary =
+            CreateVocabulary();
+
+        vocabulary.SubmitForReview();
+
+        vocabulary.Approve();
+
+        vocabulary.Status.Should().Be(
+            ContentStatus.Approved);
+    }
+
+    [Fact]
+    public void Publish_FromApproved_ChangesStatus()
+    {
+        var vocabulary =
+            CreateVocabulary();
+
+        vocabulary.SubmitForReview();
+
+        vocabulary.Approve();
+
+        vocabulary.Publish();
+
+        vocabulary.Status.Should().Be(
+            ContentStatus.Published);
+
+        vocabulary.PublishedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Approve_FromDraft_Throws()
+    {
+        var vocabulary =
+            CreateVocabulary();
+
+        var action =
+            () => vocabulary.Approve();
+
+        action.Should()
+            .Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Constructor_InvalidHsk_Throws()
+    {
+        var action =
+            () =>
+                new Domain.Entities.Vocabulary.Vocabulary(
+                    0,
+                    "你好",
+                    "nǐ hǎo",
+                    "ni3 hao3",
+                    "xin chào");
+
+        action.Should()
+            .Throw<ArgumentOutOfRangeException>();
+    }
+
+    private static Domain.Entities.Vocabulary.Vocabulary
+        CreateVocabulary()
+        => new(
+            hskLevelId: 1,
+            simplified: "你好",
+            pinyin: "nǐ hǎo",
+            pinyinNormalized: "ni3 hao3",
+            primaryMeaningVi: "xin chào");
+}
+6. LessonTests.cs
+using HanYu.Domain.Entities.Lesson;
+using HanYu.Domain.Enums;
+
+namespace HanYu.UnitTests.Lesson;
+
+public sealed class LessonTests
+{
+    [Fact]
+    public void Constructor_CreatesDraftLesson()
+    {
+        var lesson =
+            CreateLesson();
+
+        lesson.Status.Should().Be(
+            ContentStatus.Draft);
+
+        lesson.HskLevelId.Should().Be(1);
+
+        lesson.Slug.Should().Be(
+            "bai-hoc-dau-tien");
+
+        lesson.TitleVi.Should().Be(
+            "Bài học đầu tiên");
+    }
+
+    [Fact]
+    public void Lifecycle_DraftToPublished_Works()
+    {
+        var lesson =
+            CreateLesson();
+
+        lesson.SubmitForReview();
+
+        lesson.Status.Should().Be(
+            ContentStatus.Review);
+
+        lesson.Approve();
+
+        lesson.Status.Should().Be(
+            ContentStatus.Approved);
+
+        lesson.Publish();
+
+        lesson.Status.Should().Be(
+            ContentStatus.Published);
+
+        lesson.PublishedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Approve_FromDraft_Throws()
+    {
+        var lesson =
+            CreateLesson();
+
+        var action =
+            () => lesson.Approve();
+
+        action.Should()
+            .Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void InvalidHskLevel_Throws()
+    {
+        var action =
+            () =>
+                new Domain.Entities.Lesson.Lesson(
+                    7,
+                    "invalid",
+                    "Invalid");
+
+        action.Should()
+            .Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void UpdateCore_InvalidDifficulty_Throws()
+    {
+        var lesson =
+            CreateLesson();
+
+        var action =
+            () => lesson.UpdateCore(
+                1,
+                "test",
+                "Test",
+                null,
+                null,
+                null,
+                0,
+                15,
+                6);
+
+        action.Should()
+            .Throw<ArgumentOutOfRangeException>();
+    }
+
+    private static Domain.Entities.Lesson.Lesson
+        CreateLesson()
+        => new(
+            1,
+            "Bài Học Đầu Tiên",
+            "Bài học đầu tiên");
+}
+7. ReviewSchedulerTests.cs
+using HanYu.Domain.Enums;
+using HanYu.Infrastructure.Review;
+
+namespace HanYu.UnitTests.Review;
+
+public sealed class ReviewSchedulerTests
+{
+    private readonly ReviewScheduler _scheduler =
+        new();
+
+    [Fact]
+    public void GoodCorrect_IncreasesMastery()
+    {
+        var result =
+            _scheduler.Calculate(
+                30m,
+                1440,
+                ReviewRating.Good,
+                true,
+                DateTimeOffset.UtcNow);
+
+        result.MasteryAfter
+            .Should()
+            .BeGreaterThan(30m);
+    }
+
+    [Fact]
+    public void GoodCorrect_IncreasesInterval()
+    {
+        var result =
+            _scheduler.Calculate(
+                30m,
+                1440,
+                ReviewRating.Good,
+                true,
+                DateTimeOffset.UtcNow);
+
+        result.IntervalAfterMinutes
+            .Should()
+            .BeGreaterThan(1440);
+    }
+
+    [Fact]
+    public void Incorrect_DecreasesMastery()
+    {
+        var result =
+            _scheduler.Calculate(
+                70m,
+                1440,
+                ReviewRating.Easy,
+                false,
+                DateTimeOffset.UtcNow);
+
+        result.MasteryAfter
+            .Should()
+            .BeLessThan(70m);
+    }
+
+    [Fact]
+    public void Incorrect_ResetsToShortInterval()
+    {
+        var result =
+            _scheduler.Calculate(
+                70m,
+                10080,
+                ReviewRating.Easy,
+                false,
+                DateTimeOffset.UtcNow);
+
+        result.IntervalAfterMinutes
+            .Should()
+            .BeLessThan(10080);
+    }
+
+    [Fact]
+    public void Easy_HasLongerIntervalThanHard()
+    {
+        var now =
+            DateTimeOffset.UtcNow;
+
+        var hard =
+            _scheduler.Calculate(
+                50m,
+                1440,
+                ReviewRating.Hard,
+                true,
+                now);
+
+        var easy =
+            _scheduler.Calculate(
+                50m,
+                1440,
+                ReviewRating.Easy,
+                true,
+                now);
+
+        easy.IntervalAfterMinutes
+            .Should()
+            .BeGreaterThan(
+                hard.IntervalAfterMinutes);
+    }
+
+    [Fact]
+    public void Mastery_NeverExceeds100()
+    {
+        var result =
+            _scheduler.Calculate(
+                99m,
+                1440,
+                ReviewRating.Easy,
+                true,
+                DateTimeOffset.UtcNow);
+
+        result.MasteryAfter.Should().Be(100m);
+    }
+
+    [Fact]
+    public void Mastery_NeverBelowZero()
+    {
+        var result =
+            _scheduler.Calculate(
+                1m,
+                1440,
+                ReviewRating.Again,
+                false,
+                DateTimeOffset.UtcNow);
+
+        result.MasteryAfter.Should().Be(0m);
+    }
+}
+8. UserStreakTests.cs
+
+UserStreak hiện đã tự chống tăng hai lần trong cùng ngày và reset streak khi ngày học không liên tiếp.
+
+using HanYu.Domain.Entities.Analytics;
+
+namespace HanYu.UnitTests.Gamification;
+
+public sealed class UserStreakTests
+{
+    [Fact]
+    public void FirstLearningDay_StartsStreakAtOne()
+    {
+        var streak =
+            new UserStreak(
+                Guid.NewGuid());
+
+        streak.RegisterLearningDay(
+            new DateOnly(2026, 8, 1));
+
+        streak.CurrentStreak.Should().Be(1);
+
+        streak.LongestStreak.Should().Be(1);
+
+        streak.TotalActiveDays.Should().Be(1);
+    }
+
+    [Fact]
+    public void SameDay_DoesNotIncreaseStreak()
+    {
+        var streak =
+            new UserStreak(
+                Guid.NewGuid());
+
+        var date =
+            new DateOnly(2026, 8, 1);
+
+        streak.RegisterLearningDay(date);
+
+        streak.RegisterLearningDay(date);
+
+        streak.CurrentStreak.Should().Be(1);
+
+        streak.TotalActiveDays.Should().Be(1);
+    }
+
+    [Fact]
+    public void ConsecutiveDay_IncreasesStreak()
+    {
+        var streak =
+            new UserStreak(
+                Guid.NewGuid());
+
+        streak.RegisterLearningDay(
+            new DateOnly(2026, 8, 1));
+
+        streak.RegisterLearningDay(
+            new DateOnly(2026, 8, 2));
+
+        streak.CurrentStreak.Should().Be(2);
+
+        streak.LongestStreak.Should().Be(2);
+
+        streak.TotalActiveDays.Should().Be(2);
+    }
+
+    [Fact]
+    public void MissingDay_ResetsCurrentStreak()
+    {
+        var streak =
+            new UserStreak(
+                Guid.NewGuid());
+
+        streak.RegisterLearningDay(
+            new DateOnly(2026, 8, 1));
+
+        streak.RegisterLearningDay(
+            new DateOnly(2026, 8, 2));
+
+        streak.RegisterLearningDay(
+            new DateOnly(2026, 8, 5));
+
+        streak.CurrentStreak.Should().Be(1);
+
+        streak.LongestStreak.Should().Be(2);
+
+        streak.TotalActiveDays.Should().Be(3);
+    }
+
+    [Fact]
+    public void OlderDate_Throws()
+    {
+        var streak =
+            new UserStreak(
+                Guid.NewGuid());
+
+        streak.RegisterLearningDay(
+            new DateOnly(2026, 8, 5));
+
+        var action =
+            () => streak.RegisterLearningDay(
+                new DateOnly(2026, 8, 4));
+
+        action.Should()
+            .Throw<InvalidOperationException>();
+    }
+}
+9. AchievementTests.cs
+
+Achievement hiện hỗ trợ create/update, activate/deactivate, reward và order.
+
+using HanYu.Domain.Entities.Gamification;
+
+namespace HanYu.UnitTests.Gamification;
+
+public sealed class AchievementTests
+{
+    [Fact]
+    public void Constructor_NormalizesCode()
+    {
+        var achievement =
+            new Achievement(
+                " first_lesson ",
+                "Bài học đầu tiên",
+                20);
+
+        achievement.Code
+            .Should()
+            .Be("FIRST_LESSON");
+
+        achievement.XpReward.Should().Be(20);
+    }
+
+    [Fact]
+    public void Deactivate_Works()
+    {
+        var achievement =
+            new Achievement(
+                "TEST",
+                "Test");
+
+        achievement.Deactivate();
+
+        achievement.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public void NegativeReward_Throws()
+    {
+        var action =
+            () =>
+                new Achievement(
+                    "INVALID",
+                    "Invalid",
+                    -1);
+
+        action.Should()
+            .Throw<ArgumentOutOfRangeException>();
+    }
+}
+10. ContentImportJobTests.cs
+using HanYu.Domain.Entities.Content;
+using HanYu.Domain.Enums;
+
+namespace HanYu.UnitTests.Content;
+
+public sealed class ContentImportJobTests
+{
+    [Fact]
+    public void NewJob_IsPending()
+    {
+        var job =
+            CreateJob();
+
+        job.Status.Should().Be(
+            ContentImportStatus.Pending);
+    }
+
+    [Fact]
+    public void Start_ChangesStatusToProcessing()
+    {
+        var job =
+            CreateJob();
+
+        job.Start(2);
+
+        job.Status.Should().Be(
+            ContentImportStatus.Processing);
+
+        job.TotalRows.Should().Be(2);
+
+        job.StartedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Complete_AllSuccess_SetsCompleted()
+    {
+        var job =
+            CreateJob();
+
+        job.Start(2);
+
+        job.RegisterProcessedRow(true);
+
+        job.RegisterProcessedRow(true);
+
+        job.Complete();
+
+        job.Status.Should().Be(
+            ContentImportStatus.Completed);
+
+        job.SuccessRows.Should().Be(2);
+
+        job.FailedRows.Should().Be(0);
+    }
+
+    [Fact]
+    public void Complete_WithErrors_SetsCompletedWithErrors()
+    {
+        var job =
+            CreateJob();
+
+        job.Start(2);
+
+        job.RegisterProcessedRow(true);
+
+        job.RegisterProcessedRow(false);
+
+        job.Complete();
+
+        job.Status.Should().Be(
+            ContentImportStatus.CompletedWithErrors);
+
+        job.SuccessRows.Should().Be(1);
+
+        job.FailedRows.Should().Be(1);
+    }
+
+    [Fact]
+    public void CannotCompleteBeforeAllRowsProcessed()
+    {
+        var job =
+            CreateJob();
+
+        job.Start(2);
+
+        job.RegisterProcessedRow(true);
+
+        var action =
+            () => job.Complete();
+
+        action.Should()
+            .Throw<InvalidOperationException>();
+    }
+
+    private static ContentImportJob CreateJob()
+        => new(
+            default,
+            "integration.xlsx",
+            "/tests/integration.xlsx");
+}
+
+Entity hiện chặn complete khi chưa xử lý đủ row và tự chọn CompletedWithErrors khi có row lỗi.
+
+11. InAppNotificationTests.cs
+using HanYu.Domain.Entities.Notification;
+using HanYu.Domain.Enums;
+
+namespace HanYu.UnitTests.Notification;
+
+public sealed class InAppNotificationTests
+{
+    [Fact]
+    public void NewNotification_IsUnread()
+    {
+        var notification =
+            Create();
+
+        notification.IsRead.Should().BeFalse();
+
+        notification.ReadAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void MarkRead_Works()
+    {
+        var notification =
+            Create();
+
+        notification.MarkRead();
+
+        notification.IsRead.Should().BeTrue();
+
+        notification.ReadAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void MarkRead_IsIdempotent()
+    {
+        var notification =
+            Create();
+
+        notification.MarkRead();
+
+        var first =
+            notification.ReadAt;
+
+        notification.MarkRead();
+
+        notification.ReadAt.Should().Be(first);
+    }
+
+    [Fact]
+    public void MarkUnread_Works()
+    {
+        var notification =
+            Create();
+
+        notification.MarkRead();
+
+        notification.MarkUnread();
+
+        notification.IsRead.Should().BeFalse();
+    }
+
+    [Fact]
+    public void EmptyTitle_Throws()
+    {
+        var action =
+            () => new InAppNotification(
+                Guid.NewGuid(),
+                default,
+                "",
+                "Message");
+
+        action.Should()
+            .Throw<ArgumentException>();
+    }
+
+    private static InAppNotification Create()
+        => new(
+            Guid.NewGuid(),
+            default,
+            "Thông báo",
+            "Nội dung thông báo");
+}
+12. QuizTests.cs
+using HanYu.Domain.Entities.Quiz;
+using HanYu.Domain.Enums;
+
+namespace HanYu.UnitTests.Quiz;
+
+public sealed class QuizTests
+{
+    [Fact]
+    public void Constructor_CreatesDraftQuiz()
+    {
+        var quiz =
+            Create();
+
+        quiz.Status.Should().Be(
+            ContentStatus.Draft);
+
+        quiz.TitleVi.Should().Be(
+            "Quiz Integration");
+
+        quiz.PassingScore.Should().Be(70m);
+    }
+
+    [Fact]
+    public void Lifecycle_ToPublished_Works()
+    {
+        var quiz =
+            Create();
+
+        quiz.SubmitForReview();
+
+        quiz.Status.Should().Be(
+            ContentStatus.Review);
+
+        quiz.Approve();
+
+        quiz.Status.Should().Be(
+            ContentStatus.Approved);
+
+        quiz.Publish();
+
+        quiz.Status.Should().Be(
+            ContentStatus.Published);
+    }
+
+    [Fact]
+    public void InvalidPassingScore_Throws()
+    {
+        var action =
+            () =>
+                new Domain.Entities.Quiz.Quiz(
+                    "Quiz",
+                    QuizType.Lesson,
+                    101m);
+
+        action.Should()
+            .Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void AttachInvalidLesson_Throws()
+    {
+        var quiz =
+            Create();
+
+        var action =
+            () => quiz.AttachLesson(0);
+
+        action.Should()
+            .Throw<ArgumentOutOfRangeException>();
+    }
+
+    private static Domain.Entities.Quiz.Quiz
+        Create()
+        => new(
+            "Quiz Integration",
+            QuizType.Lesson,
+            70m);
+}
+PHẦN 2 — INTEGRATION TESTS
+13. HanYu.IntegrationTests.csproj
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+
+    <PackageReference
+      Include="Microsoft.NET.Test.Sdk"
+      Version="17.12.0" />
+
+    <PackageReference
+      Include="Microsoft.AspNetCore.Mvc.Testing"
+      Version="8.0.19" />
+
+    <PackageReference
+      Include="Microsoft.EntityFrameworkCore.Relational"
+      Version="8.0.19" />
+
+    <PackageReference
+      Include="Npgsql.EntityFrameworkCore.PostgreSQL"
+      Version="8.0.8" />
+
+    <PackageReference
+      Include="Testcontainers.PostgreSql"
+      Version="4.1.0" />
+
+    <PackageReference
+      Include="Respawn"
+      Version="6.2.1" />
+
+    <PackageReference
+      Include="FluentAssertions"
+      Version="6.12.2" />
+
+    <PackageReference
+      Include="xunit"
+      Version="2.9.2" />
+
+    <PackageReference
+      Include="xunit.runner.visualstudio"
+      Version="2.8.2">
+      <IncludeAssets>
+        runtime;
+        build;
+        native;
+        contentfiles;
+        analyzers;
+        buildtransitive
+      </IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
+    <PackageReference
+      Include="coverlet.collector"
+      Version="6.0.2">
+      <IncludeAssets>
+        runtime;
+        build;
+        native;
+        contentfiles;
+        analyzers;
+        buildtransitive
+      </IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+
+  </ItemGroup>
+
+  <ItemGroup>
+
+    <ProjectReference
+      Include="..\..\HanYu\HanYu.csproj" />
+
+  </ItemGroup>
+
+  <ItemGroup>
+
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>
+        PreserveNewest
+      </CopyToOutputDirectory>
+    </None>
+
+  </ItemGroup>
+
+</Project>
+14. Cấu trúc IntegrationTests
+HanYu.IntegrationTests/
+├── Common/
+│   ├── HanYuWebApplicationFactory.cs
+│   ├── IntegrationTestBase.cs
+│   ├── TestAuthenticationHandler.cs
+│   ├── TestAuthorizationHandler.cs
+│   ├── TestDataSeeder.cs
+│   ├── TestHttpClientExtensions.cs
+│   └── JsonAssertions.cs
+│
+├── Analytics/
+│   └── AnalyticsIntegrationTests.cs
+│
+├── Content/
+│   └── ContentIntegrationTests.cs
+│
+├── EndToEnd/
+│   └── CoreLearningJourneyTests.cs
+│
+├── Gamification/
+│   └── GamificationIntegrationTests.cs
+│
+├── Identity/
+│   └── IdentityIntegrationTests.cs
+│
+├── Lesson/
+│   └── LessonIntegrationTests.cs
+│
+├── Notification/
+│   └── NotificationIntegrationTests.cs
+│
+├── Operations/
+│   └── OperationsIntegrationTests.cs
+│
+├── Quiz/
+│   └── QuizIntegrationTests.cs
+│
+├── Review/
+│   └── ReviewIntegrationTests.cs
+│
+├── Security/
+│   ├── AuthorizationIntegrationTests.cs
+│   └── ProblemDetailsIntegrationTests.cs
+│
+├── Vocabulary/
+│   └── VocabularyIntegrationTests.cs
+│
+├── GlobalUsings.cs
+├── xunit.runner.json
+└── HanYu.IntegrationTests.csproj
+15. Sửa Program.cs
+
+Cuối:
+
+HanYu/Program.cs
+
+thêm:
+
+public partial class Program
+{
+}
+
+Không đặt namespace.
+
+16. Integration GlobalUsings.cs
+global using Xunit;
+global using FluentAssertions;
+global using System.Net.Http.Json;
+17. xunit.runner.json
+{
+  "parallelizeAssembly": false,
+  "parallelizeTestCollections": false
+}
+18. TestAuthenticationHandler.cs
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Options;
+
+namespace HanYu.IntegrationTests.Common;
+
+public sealed class TestAuthenticationHandler
+    : AuthenticationHandler<AuthenticationSchemeOptions>
+{
+    public const string Scheme =
+        "IntegrationTest";
+
+    public const string UserIdHeader =
+        "X-Test-User-Id";
+
+    public const string RoleHeader =
+        "X-Test-Role";
+
+    public const string AllowAllHeader =
+        "X-Test-Allow-All";
+
+    public TestAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : base(
+            options,
+            logger,
+            encoder)
+    {
+    }
+
+    protected override Task<AuthenticateResult>
+        HandleAuthenticateAsync()
+    {
+        if (!Request.Headers.TryGetValue(
+                UserIdHeader,
+                out var rawUserId))
+        {
+            return Task.FromResult(
+                AuthenticateResult.NoResult());
+        }
+
+        if (!Guid.TryParse(
+                rawUserId.ToString(),
+                out var userId))
+        {
+            return Task.FromResult(
+                AuthenticateResult.Fail(
+                    "Invalid integration test user."));
+        }
+
+        var claims =
+            new List<Claim>
+            {
+                new(
+                    ClaimTypes.NameIdentifier,
+                    userId.ToString()),
+
+                new(
+                    "sub",
+                    userId.ToString()),
+
+                new(
+                    ClaimTypes.Name,
+                    $"test-{userId:N}")
+            };
+
+        if (Request.Headers.TryGetValue(
+                RoleHeader,
+                out var role) &&
+            !string.IsNullOrWhiteSpace(
+                role.ToString()))
+        {
+            claims.Add(
+                new Claim(
+                    ClaimTypes.Role,
+                    role.ToString()));
+        }
+
+        if (Request.Headers.TryGetValue(
+                AllowAllHeader,
+                out var allowAll) &&
+            string.Equals(
+                allowAll.ToString(),
+                "true",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            claims.Add(
+                new Claim(
+                    "integration:allow-all",
+                    "true"));
+        }
+
+        var identity =
+            new ClaimsIdentity(
+                claims,
+                Scheme);
+
+        var principal =
+            new ClaimsPrincipal(identity);
+
+        var ticket =
+            new AuthenticationTicket(
+                principal,
+                Scheme);
+
+        return Task.FromResult(
+            AuthenticateResult.Success(
+                ticket));
+    }
+}
+19. TestAuthorizationHandler.cs
+using Microsoft.AspNetCore.Authorization;
+
+namespace HanYu.IntegrationTests.Common;
+
+public sealed class TestAuthorizationHandler
+    : AuthorizationHandler<IAuthorizationRequirement>
+{
+    protected override Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        IAuthorizationRequirement requirement)
+    {
+        if (context.User.HasClaim(
+                "integration:allow-all",
+                "true"))
+        {
+            context.Succeed(requirement);
+        }
+
+        return Task.CompletedTask;
+    }
+}
+20. HanYuWebApplicationFactory.cs
+using HanYu.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
+using Respawn;
+using Testcontainers.PostgreSql;
+
+namespace HanYu.IntegrationTests.Common;
+
+public sealed class HanYuWebApplicationFactory
+    : WebApplicationFactory<Program>,
+      IAsyncLifetime
+{
+    private readonly PostgreSqlContainer _postgres =
+        new PostgreSqlBuilder()
+            .WithImage(
+                "postgres:16-alpine")
+            .WithDatabase(
+                "hanyu_integration")
+            .WithUsername(
+                "postgres")
+            .WithPassword(
+                "postgres")
+            .Build();
+
+    private Respawner? _respawner;
+
+    public string ConnectionString =>
+        _postgres.GetConnectionString();
+
+    public async Task InitializeAsync()
+    {
+        await _postgres.StartAsync();
+
+        /*
+         * Force WebApplication startup.
+         */
+        _ = Server;
+
+        await using var scope =
+            Services.CreateAsyncScope();
+
+        var db =
+            scope.ServiceProvider
+                .GetRequiredService<
+                    HanYuDbContext>();
+
+        await db.Database.MigrateAsync();
+
+        await CreateRespawnerAsync();
+    }
+
+    public new async Task DisposeAsync()
+    {
+        Dispose();
+
+        await _postgres.DisposeAsync();
+    }
+
+    protected override void ConfigureWebHost(
+        IWebHostBuilder builder)
+    {
+        builder.UseEnvironment(
+            "IntegrationTest");
+
+        builder.ConfigureAppConfiguration(
+            (_, configuration) =>
+            {
+                var values =
+                    new Dictionary<string, string?>
+                    {
+                        ["ConnectionStrings:DefaultConnection"] =
+                            ConnectionString,
+
+                        ["Jwt:SecretKey"] =
+                            "HanYu-Integration-Test-Secret-Key-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+
+                        ["Jwt:Issuer"] =
+                            "HanYu.IntegrationTests",
+
+                        ["Jwt:Audience"] =
+                            "HanYu.IntegrationTests",
+
+                        ["Jwt:AccessTokenExpirationMinutes"] =
+                            "30",
+
+                        ["Jwt:RefreshTokenExpirationDays"] =
+                            "7"
+                    };
+
+                configuration.AddInMemoryCollection(
+                    values);
+            });
+
+        builder.ConfigureServices(
+            services =>
+            {
+                services.RemoveAll<
+                    DbContextOptions<HanYuDbContext>>();
+
+                services.RemoveAll<
+                    HanYuDbContext>();
+
+                services.AddDbContext<
+                    HanYuDbContext>(
+                    options =>
+                    {
+                        options
+                            .UseNpgsql(
+                                ConnectionString)
+                            .UseSnakeCaseNamingConvention();
+                    });
+
+                services
+                    .AddAuthentication(
+                        options =>
+                        {
+                            options.DefaultAuthenticateScheme =
+                                TestAuthenticationHandler.Scheme;
+
+                            options.DefaultChallengeScheme =
+                                TestAuthenticationHandler.Scheme;
+
+                            options.DefaultScheme =
+                                TestAuthenticationHandler.Scheme;
+                        })
+                    .AddScheme<
+                        AuthenticationSchemeOptions,
+                        TestAuthenticationHandler>(
+                        TestAuthenticationHandler.Scheme,
+                        _ =>
+                        {
+                        });
+
+                services.AddSingleton<
+                    IAuthorizationHandler,
+                    TestAuthorizationHandler>();
+            });
+    }
+
+    public HttpClient CreateAnonymousClient()
+        => CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false
+            });
+
+    public HttpClient CreateUserClient(
+        Guid userId)
+    {
+        var client =
+            CreateAnonymousClient();
+
+        client.DefaultRequestHeaders.Add(
+            TestAuthenticationHandler.UserIdHeader,
+            userId.ToString());
+
+        return client;
+    }
+
+    public HttpClient CreateAdminClient(
+        Guid userId)
+    {
+        var client =
+            CreateUserClient(userId);
+
+        client.DefaultRequestHeaders.Add(
+            TestAuthenticationHandler.RoleHeader,
+            "Admin");
+
+        client.DefaultRequestHeaders.Add(
+            TestAuthenticationHandler.AllowAllHeader,
+            "true");
+
+        return client;
+    }
+
+    public async Task ResetDatabaseAsync()
+    {
+        if (_respawner is null)
+        {
+            await CreateRespawnerAsync();
+        }
+
+        await using var connection =
+            new NpgsqlConnection(
+                ConnectionString);
+
+        await connection.OpenAsync();
+
+        await _respawner!.ResetAsync(
+            connection);
+    }
+
+    public async Task ExecuteDbAsync(
+        Func<HanYuDbContext, Task> action)
+    {
+        await using var scope =
+            Services.CreateAsyncScope();
+
+        var db =
+            scope.ServiceProvider
+                .GetRequiredService<
+                    HanYuDbContext>();
+
+        await action(db);
+    }
+
+    public async Task<T> ExecuteDbAsync<T>(
+        Func<HanYuDbContext, Task<T>> action)
+    {
+        await using var scope =
+            Services.CreateAsyncScope();
+
+        var db =
+            scope.ServiceProvider
+                .GetRequiredService<
+                    HanYuDbContext>();
+
+        return await action(db);
+    }
+
+    private async Task CreateRespawnerAsync()
+    {
+        await using var connection =
+            new NpgsqlConnection(
+                ConnectionString);
+
+        await connection.OpenAsync();
+
+        _respawner =
+            await Respawner.CreateAsync(
+                connection,
+                new RespawnerOptions
+                {
+                    DbAdapter =
+                        DbAdapter.Postgres,
+
+                    SchemasToInclude =
+                        ["public"],
+
+                    TablesToIgnore =
+                    [
+                        new Table(
+                            "__EFMigrationsHistory")
+                    ]
+                });
+    }
+}
+21. IntegrationTestBase.cs
+
+Mình tạo user thật trong PostgreSQL, không dùng Guid.NewGuid() giả khi dữ liệu có FK đến User.
+
+using HanYu.Domain.Entities.Identity;
+using HanYu.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace HanYu.IntegrationTests.Common;
+
+public abstract class IntegrationTestBase
+    : IAsyncLifetime
+{
+    protected HanYuWebApplicationFactory Factory
+    {
+        get;
+    }
+
+    protected IntegrationTestBase(
+        HanYuWebApplicationFactory factory)
+    {
+        Factory =
+            factory;
+    }
+
+    public async Task InitializeAsync()
+    {
+        await Factory.ResetDatabaseAsync();
+
+        await TestDataSeeder
+            .SeedReferenceDataAsync(
+                Factory);
+    }
+
+    public Task DisposeAsync()
+        => Task.CompletedTask;
+
+    protected async Task<Guid> CreateUserAsync(
+        string? prefix = null)
+    {
+        await using var scope =
+            Factory.Services.CreateAsyncScope();
+
+        var userManager =
+            scope.ServiceProvider
+                .GetRequiredService<
+                    UserManager<User>>();
+
+        var suffix =
+            Guid.NewGuid()
+                .ToString("N");
+
+        var userName =
+            $"{prefix ?? "test"}_{suffix}";
+
+        var email =
+            $"{userName}@example.com";
+
+        var user =
+            new User(
+                userName,
+                email);
+
+        var result =
+            await userManager.CreateAsync(
+                user,
+                "TestPassword123!");
+
+        result.Succeeded
+            .Should()
+            .BeTrue(
+                string.Join(
+                    "; ",
+                    result.Errors.Select(
+                        x => x.Description)));
+
+        return user.Id;
+    }
+
+    protected static string Unique(
+        string prefix)
+        => $"{prefix}-{Guid.NewGuid():N}";
+}
+
+User hiện có constructor User(string userName, string email), nên helper này bám đúng entity thật.
+
+22. TestDataSeeder.cs
+using HanYu.Domain.Entities.Lesson;
+using HanYu.Domain.Entities.Quiz;
+using HanYu.Domain.Entities.Vocabulary;
+using HanYu.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.IntegrationTests.Common;
+
+public sealed record TestLearningData(
+    long VocabularyId,
+    Guid VocabularyPublicId,
+    string Simplified,
+
+    long LessonId,
+    Guid LessonPublicId,
+    Guid SectionPublicId,
+
+    long QuizId,
+    Guid QuizPublicId,
+
+    long QuestionId,
+    Guid QuestionPublicId,
+
+    long CorrectOptionId,
+    Guid CorrectOptionPublicId);
+
+public static class TestDataSeeder
+{
+    public static async Task SeedReferenceDataAsync(
+        HanYuWebApplicationFactory factory)
+    {
+        await factory.ExecuteDbAsync(
+            async db =>
+            {
+                for (short level = 1;
+                     level <= 6;
+                     level++)
+                {
+                    var exists =
+                        await db.Set<HskLevel>()
+                            .AnyAsync(
+                                x =>
+                                    x.Id ==
+                                    level);
+
+                    if (exists)
+                        continue;
+
+                    db.Add(
+                        new HskLevel(
+                            level,
+                            $"HSK{level}",
+                            $"HSK {level}",
+                            level));
+                }
+
+                await db.SaveChangesAsync();
+            });
+    }
+
+    public static async Task<TestLearningData>
+        SeedLearningDataAsync(
+            HanYuWebApplicationFactory factory)
+    {
+        return await factory.ExecuteDbAsync(
+            async db =>
+            {
+                var suffix =
+                    Guid.NewGuid()
+                        .ToString("N")[..8];
+
+                // =====================================
+                // VOCABULARY
+                // =====================================
+
+                var vocabulary =
+                    new Domain.Entities.Vocabulary.Vocabulary(
+                        hskLevelId: 1,
+                        simplified:
+                            $"测{suffix}",
+                        pinyin:
+                            "cè shì",
+                        pinyinNormalized:
+                            "ce4 shi4",
+                        primaryMeaningVi:
+                            "kiểm tra");
+
+                db.Add(vocabulary);
+
+                await db.SaveChangesAsync();
+
+                vocabulary.SubmitForReview();
+
+                vocabulary.Approve();
+
+                vocabulary.Publish();
+
+                await db.SaveChangesAsync();
+
+                // =====================================
+                // LESSON
+                // =====================================
+
+                var lesson =
+                    new Domain.Entities.Lesson.Lesson(
+                        1,
+                        $"integration-{suffix}",
+                        "Bài học Integration");
+
+                db.Add(lesson);
+
+                await db.SaveChangesAsync();
+
+                var section =
+                    new LessonSection(
+                        lesson.Id,
+                        LessonSectionType.Introduction,
+                        0,
+                        "Giới thiệu");
+
+                section.UpdateContent(
+                    "Giới thiệu",
+                    "Nội dung integration test");
+
+                db.Add(section);
+
+                db.Add(
+                    new LessonVocabulary(
+                        lesson.Id,
+                        vocabulary.Id,
+                        0,
+                        true));
+
+                await db.SaveChangesAsync();
+
+                lesson.SubmitForReview();
+
+                lesson.Approve();
+
+                lesson.Publish();
+
+                await db.SaveChangesAsync();
+
+                // =====================================
+                // QUIZ
+                // =====================================
+
+                var quiz =
+                    new Domain.Entities.Quiz.Quiz(
+                        "Quiz Integration",
+                        QuizType.Lesson,
+                        60m);
+
+                quiz.AttachLesson(
+                    lesson.Id);
+
+                db.Add(quiz);
+
+                await db.SaveChangesAsync();
+
+                var question =
+                    new QuizQuestion(
+                        quiz.Id,
+                        QuizQuestionType.MultipleChoice,
+                        "Từ này có nghĩa là gì?",
+                        1m,
+                        0);
+
+                question.AttachVocabulary(
+                    vocabulary.Id);
+
+                db.Add(question);
+
+                await db.SaveChangesAsync();
+
+                var correct =
+                    new QuizQuestionOption(
+                        question.Id,
+                        "Kiểm tra",
+                        true,
+                        0);
+
+                var wrong =
+                    new QuizQuestionOption(
+                        question.Id,
+                        "Tạm biệt",
+                        false,
+                        1);
+
+                db.AddRange(
+                    correct,
+                    wrong);
+
+                await db.SaveChangesAsync();
+
+                question.SubmitForReview();
+
+                question.Approve();
+
+                question.Publish();
+
+                quiz.SubmitForReview();
+
+                quiz.Approve();
+
+                quiz.Publish();
+
+                await db.SaveChangesAsync();
+
+                return new TestLearningData(
+                    vocabulary.Id,
+                    vocabulary.PublicId,
+                    vocabulary.Simplified,
+
+                    lesson.Id,
+                    lesson.PublicId,
+                    section.PublicId,
+
+                    quiz.Id,
+                    quiz.PublicId,
+
+                    question.Id,
+                    question.PublicId,
+
+                    correct.Id,
+                    correct.PublicId);
+            });
+    }
+}
+23. TestHttpClientExtensions.cs
+using System.Text.Json;
+
+namespace HanYu.IntegrationTests.Common;
+
+public static class TestHttpClientExtensions
+{
+    public static async Task<JsonDocument>
+        ReadJsonAsync(
+            this HttpResponseMessage response)
+    {
+        var body =
+            await response.Content
+                .ReadAsStringAsync();
+
+        return JsonDocument.Parse(body);
+    }
+
+    public static Guid GetGuid(
+        this JsonElement element,
+        string propertyName)
+    {
+        if (element.TryGetProperty(
+                propertyName,
+                out var value))
+        {
+            return value.GetGuid();
+        }
+
+        if (element.TryGetProperty(
+                "data",
+                out var data) &&
+            data.TryGetProperty(
+                propertyName,
+                out value))
+        {
+            return value.GetGuid();
+        }
+
+        throw new InvalidOperationException(
+            $"Property '{propertyName}' không tồn tại.");
+    }
+
+    public static long GetLong(
+        this JsonElement element,
+        string propertyName)
+    {
+        if (element.TryGetProperty(
+                propertyName,
+                out var value))
+        {
+            return value.GetInt64();
+        }
+
+        if (element.TryGetProperty(
+                "data",
+                out var data) &&
+            data.TryGetProperty(
+                propertyName,
+                out value))
+        {
+            return value.GetInt64();
+        }
+
+        throw new InvalidOperationException(
+            $"Property '{propertyName}' không tồn tại.");
+    }
+}
+24. Identity Integration Test
+using System.Net;
+
+namespace HanYu.IntegrationTests.Identity;
+
+using Common;
+
+public sealed class IdentityIntegrationTests
+    : IntegrationTestBase
+{
+    public IdentityIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task Register_ValidUser_ReturnsSuccess()
+    {
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var suffix =
+            Guid.NewGuid()
+                .ToString("N");
+
+        var response =
+            await client.PostAsJsonAsync(
+                "/api/v1/public/auth/register",
+                new
+                {
+                    userName =
+                        $"user_{suffix}",
+
+                    email =
+                        $"user_{suffix}@example.com",
+
+                    password =
+                        "TestPassword123!",
+
+                    displayName =
+                        "Integration User"
+                });
+
+        response.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+    }
+
+    [Fact]
+    public async Task Register_DuplicateEmail_Fails()
+    {
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var suffix =
+            Guid.NewGuid()
+                .ToString("N");
+
+        var email =
+            $"duplicate_{suffix}@example.com";
+
+        var first =
+            await client.PostAsJsonAsync(
+                "/api/v1/public/auth/register",
+                new
+                {
+                    userName =
+                        $"first_{suffix}",
+
+                    email,
+
+                    password =
+                        "TestPassword123!",
+
+                    displayName =
+                        "First"
+                });
+
+        first.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var second =
+            await client.PostAsJsonAsync(
+                "/api/v1/public/auth/register",
+                new
+                {
+                    userName =
+                        $"second_{suffix}",
+
+                    email,
+
+                    password =
+                        "TestPassword123!",
+
+                    displayName =
+                        "Second"
+                });
+
+        second.StatusCode.Should().BeOneOf(
+            HttpStatusCode.BadRequest,
+            HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task Login_ValidCredentials_ReturnsAccessToken()
+    {
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var suffix =
+            Guid.NewGuid()
+                .ToString("N");
+
+        var email =
+            $"login_{suffix}@example.com";
+
+        const string password =
+            "TestPassword123!";
+
+        var register =
+            await client.PostAsJsonAsync(
+                "/api/v1/public/auth/register",
+                new
+                {
+                    userName =
+                        $"login_{suffix}",
+
+                    email,
+
+                    password,
+
+                    displayName =
+                        "Login Integration"
+                });
+
+        register.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var login =
+            await client.PostAsJsonAsync(
+                "/api/v1/public/auth/login",
+                new
+                {
+                    emailOrUserName =
+                        email,
+
+                    password
+                });
+
+        login.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var body =
+            await login.Content
+                .ReadAsStringAsync();
+
+        body.Should()
+            .ContainEquivalentOf(
+                "accessToken");
+    }
+
+    [Fact]
+    public async Task Login_InvalidPassword_Fails()
+    {
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.PostAsJsonAsync(
+                "/api/v1/public/auth/login",
+                new
+                {
+                    emailOrUserName =
+                        "missing@example.com",
+
+                    password =
+                        "Wrong123!"
+                });
+
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.BadRequest,
+            HttpStatusCode.Unauthorized);
+    }
+}
+
+Auth catalog của project xác nhận các route /register, /login, /refresh dưới /api/v1/public/auth.
+
+25. Vocabulary Integration Test
+
+Public Vocabulary hiện dùng route {simplified}, theo Swagger project của bạn.
+
+using System.Net;
+using HanYu.Domain.Entities.Vocabulary;
+using HanYu.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.IntegrationTests.Vocabulary;
+
+using Common;
+
+public sealed class VocabularyIntegrationTests
+    : IntegrationTestBase
+{
+    public VocabularyIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task DraftVocabulary_IsNotPublic()
+    {
+        var word =
+            new Domain.Entities.Vocabulary.Vocabulary(
+                1,
+                "测试",
+                "cè shì",
+                "ce4 shi4",
+                "kiểm tra");
+
+        await Factory.ExecuteDbAsync(
+            async db =>
+            {
+                db.Add(word);
+
+                await db.SaveChangesAsync();
+            });
+
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.GetAsync(
+                $"/api/v1/public/vocabularies/{Uri.EscapeDataString(word.Simplified)}");
+
+        response.StatusCode
+            .Should()
+            .Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task PublishedVocabulary_IsPublic()
+    {
+        var word =
+            new Domain.Entities.Vocabulary.Vocabulary(
+                1,
+                "学习",
+                "xué xí",
+                "xue2 xi2",
+                "học tập");
+
+        word.SubmitForReview();
+
+        word.Approve();
+
+        word.Publish();
+
+        await Factory.ExecuteDbAsync(
+            async db =>
+            {
+                db.Add(word);
+
+                await db.SaveChangesAsync();
+            });
+
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.GetAsync(
+                $"/api/v1/public/vocabularies/{Uri.EscapeDataString(word.Simplified)}");
+
+        response.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var body =
+            await response.Content
+                .ReadAsStringAsync();
+
+        body.Should()
+            .Contain("学习");
+    }
+}
+26. Lesson Integration Test
+using HanYu.Domain.Entities.Lesson;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.IntegrationTests.Lesson;
+
+using Common;
+
+public sealed class LessonIntegrationTests
+    : IntegrationTestBase
+{
+    public LessonIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task PublishedLesson_CanBeStarted()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        var response =
+            await client.PostAsync(
+                $"/api/v1/public/lessons/{data.LessonPublicId}/start",
+                null);
+
+        response.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var progressExists =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<UserLessonProgress>()
+                        .AnyAsync(
+                            x =>
+                                x.UserId ==
+                                userId &&
+                                x.LessonId ==
+                                data.LessonId));
+
+        progressExists.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task StartTwice_DoesNotDuplicateProgress()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        await client.PostAsync(
+            $"/api/v1/public/lessons/{data.LessonPublicId}/start",
+            null);
+
+        await client.PostAsync(
+            $"/api/v1/public/lessons/{data.LessonPublicId}/start",
+            null);
+
+        var count =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<UserLessonProgress>()
+                        .CountAsync(
+                            x =>
+                                x.UserId ==
+                                userId &&
+                                x.LessonId ==
+                                data.LessonId));
+
+        count.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CompletingRequiredSection_AndLesson_Works()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        await client.PostAsync(
+            $"/api/v1/public/lessons/{data.LessonPublicId}/start",
+            null);
+
+        var section =
+            await client.PutAsJsonAsync(
+                $"/api/v1/public/lessons/{data.LessonPublicId}/sections/{data.SectionPublicId}/progress",
+                new
+                {
+                    timeSpentSeconds = 120,
+                    isCompleted = true
+                });
+
+        section.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var complete =
+            await client.PostAsync(
+                $"/api/v1/public/lessons/{data.LessonPublicId}/complete",
+                null);
+
+        complete.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var completed =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<UserLessonProgress>()
+                        .AnyAsync(
+                            x =>
+                                x.UserId ==
+                                userId &&
+                                x.LessonId ==
+                                data.LessonId &&
+                                x.CompletedAt != null));
+
+        completed.Should().BeTrue();
+    }
+}
+27. Review Integration Test
+using HanYu.Domain.Entities.Review;
+using HanYu.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.IntegrationTests.Review;
+
+using Common;
+
+public sealed class ReviewIntegrationTests
+    : IntegrationTestBase
+{
+    public ReviewIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task SubmitReview_UpdatesState_AndCreatesEvent()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var state =
+            new UserVocabularyState(
+                userId,
+                data.VocabularyId);
+
+        state.StartLearning(
+            DateTimeOffset.UtcNow
+                .AddHours(-2),
+            60);
+
+        await Factory.ExecuteDbAsync(
+            async db =>
+            {
+                db.Add(state);
+
+                await db.SaveChangesAsync();
+            });
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        var response =
+            await client.PostAsJsonAsync(
+                "/api/v1/public/reviews",
+                new
+                {
+                    vocabularyPublicId =
+                        data.VocabularyPublicId,
+
+                    rating =
+                        ReviewRating.Good,
+
+                    wasCorrect =
+                        true,
+
+                    responseTimeMs =
+                        500
+                });
+
+        response.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var result =
+            await Factory.ExecuteDbAsync(
+                async db =>
+                {
+                    var updated =
+                        await db.Set<UserVocabularyState>()
+                            .SingleAsync(
+                                x =>
+                                    x.UserId ==
+                                    userId &&
+                                    x.VocabularyId ==
+                                    data.VocabularyId);
+
+                    var eventCount =
+                        await db.Set<ReviewEvent>()
+                            .CountAsync(
+                                x =>
+                                    x.UserId ==
+                                    userId &&
+                                    x.VocabularyId ==
+                                    data.VocabularyId);
+
+                    return (
+                        updated,
+                        eventCount);
+                });
+
+        result.updated.CorrectCount
+            .Should()
+            .Be(1);
+
+        result.updated.LastReviewedAt
+            .Should()
+            .NotBeNull();
+
+        result.updated.NextReviewAt
+            .Should()
+            .NotBeNull();
+
+        result.eventCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ReviewQueue_ReturnsDueState()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var state =
+            new UserVocabularyState(
+                userId,
+                data.VocabularyId);
+
+        state.StartLearning(
+            DateTimeOffset.UtcNow
+                .AddHours(-3),
+            60);
+
+        await Factory.ExecuteDbAsync(
+            async db =>
+            {
+                db.Add(state);
+
+                await db.SaveChangesAsync();
+            });
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        var response =
+            await client.GetAsync(
+                "/api/v1/public/review-queue");
+
+        response.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var body =
+            await response.Content
+                .ReadAsStringAsync();
+
+        body.Should()
+            .Contain(
+                data.VocabularyPublicId
+                    .ToString());
+    }
+}
+28. Quiz Integration Test
+using HanYu.Domain.Entities.Quiz;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.IntegrationTests.Quiz;
+
+using Common;
+
+public sealed class QuizIntegrationTests
+    : IntegrationTestBase
+{
+    public QuizIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task PublishedQuiz_IsPublic()
+    {
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.GetAsync(
+                $"/api/v1/public/quizzes/{data.QuizPublicId}");
+
+        response.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+    }
+
+    [Fact]
+    public async Task StartAttempt_SameIdempotencyKey_ReturnsSameAttempt()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        var key =
+            Guid.NewGuid()
+                .ToString("N");
+
+        var first =
+            await client.PostAsJsonAsync(
+                $"/api/v1/public/quizzes/{data.QuizPublicId}/attempts",
+                new
+                {
+                    idempotencyKey = key
+                });
+
+        first.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var second =
+            await client.PostAsJsonAsync(
+                $"/api/v1/public/quizzes/{data.QuizPublicId}/attempts",
+                new
+                {
+                    idempotencyKey = key
+                });
+
+        second.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var count =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<QuizAttempt>()
+                        .CountAsync(
+                            x =>
+                                x.UserId ==
+                                userId &&
+                                x.QuizId ==
+                                data.QuizId &&
+                                x.IdempotencyKey ==
+                                key));
+
+        count.Should().Be(1);
+    }
+}
+29. Gamification Integration Test
+using HanYu.Application.Interfaces.Gamification;
+using HanYu.Domain.Entities.Gamification;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace HanYu.IntegrationTests.Gamification;
+
+using Common;
+
+public sealed class GamificationIntegrationTests
+    : IntegrationTestBase
+{
+    public GamificationIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task AwardXp_SameSourceTwice_DoesNotDuplicate()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var sourceId =
+            Guid.NewGuid()
+                .ToString("N");
+
+        await using var scope =
+            Factory.Services
+                .CreateAsyncScope();
+
+        var service =
+            scope.ServiceProvider
+                .GetRequiredService<
+                    IGamificationService>();
+
+        var first =
+            await service.AwardXpAsync(
+                userId,
+                20,
+                "Integration",
+                "lesson",
+                sourceId);
+
+        first.IsSuccess.Should().BeTrue();
+
+        var second =
+            await service.AwardXpAsync(
+                userId,
+                20,
+                "Integration",
+                "lesson",
+                sourceId);
+
+        second.IsSuccess.Should().BeTrue();
+
+        var count =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<XpTransaction>()
+                        .CountAsync(
+                            x =>
+                                x.UserId ==
+                                userId &&
+                                x.SourceType ==
+                                "lesson" &&
+                                x.SourceId ==
+                                sourceId));
+
+        count.Should().Be(1);
+    }
+}
+30. Notification Integration Test
+using System.Net;
+using HanYu.Domain.Entities.Notification;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.IntegrationTests.Notification;
+
+using Common;
+
+public sealed class NotificationIntegrationTests
+    : IntegrationTestBase
+{
+    public NotificationIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task User_CanReadOwnNotifications()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var notification =
+            new InAppNotification(
+                userId,
+                default,
+                "Integration Notification",
+                "Hello");
+
+        await Factory.ExecuteDbAsync(
+            async db =>
+            {
+                db.Add(notification);
+
+                await db.SaveChangesAsync();
+            });
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        var response =
+            await client.GetAsync(
+                "/api/v1/public/notifications");
+
+        response.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var body =
+            await response.Content
+                .ReadAsStringAsync();
+
+        body.Should()
+            .Contain(
+                "Integration Notification");
+    }
+
+    [Fact]
+    public async Task User_CannotModifyOtherUsersNotification()
+    {
+        var ownerId =
+            await CreateUserAsync(
+                "owner");
+
+        var attackerId =
+            await CreateUserAsync(
+                "attacker");
+
+        var notification =
+            new InAppNotification(
+                ownerId,
+                default,
+                "Private",
+                "Private");
+
+        await Factory.ExecuteDbAsync(
+            async db =>
+            {
+                db.Add(notification);
+
+                await db.SaveChangesAsync();
+            });
+
+        var client =
+            Factory.CreateUserClient(
+                attackerId);
+
+        var response =
+            await client.PatchAsync(
+                $"/api/v1/public/notifications/{notification.PublicId}/read",
+                null);
+
+        response.StatusCode.Should().BeOneOf(
+            HttpStatusCode.NotFound,
+            HttpStatusCode.Forbidden);
+
+        var readAt =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<InAppNotification>()
+                        .Where(
+                            x =>
+                                x.Id ==
+                                notification.Id)
+                        .Select(x => x.ReadAt)
+                        .SingleAsync());
+
+        readAt.Should().BeNull();
+    }
+}
+31. Analytics Integration Test
+using HanYu.Application.Interfaces.Analytics;
+using HanYu.Domain.Entities.Analytics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace HanYu.IntegrationTests.Analytics;
+
+using Common;
+
+public sealed class AnalyticsIntegrationTests
+    : IntegrationTestBase
+{
+    public AnalyticsIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task Review_CreatesDailyAnalytics()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        await using var scope =
+            Factory.Services
+                .CreateAsyncScope();
+
+        var collector =
+            scope.ServiceProvider
+                .GetRequiredService<
+                    ILearningAnalyticsCollector>();
+
+        await collector.RegisterReviewAsync(
+            userId,
+            true);
+
+        var stat =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<DailyLearningStat>()
+                        .SingleAsync(
+                            x =>
+                                x.UserId ==
+                                userId));
+
+        stat.VocabularyReviewed
+            .Should()
+            .Be(1);
+
+        stat.CorrectReviews
+            .Should()
+            .Be(1);
+
+        stat.WrongReviews
+            .Should()
+            .Be(0);
+    }
+
+    [Fact]
+    public async Task QuizPass_IncrementsQuizCounters()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        await using var scope =
+            Factory.Services
+                .CreateAsyncScope();
+
+        var collector =
+            scope.ServiceProvider
+                .GetRequiredService<
+                    ILearningAnalyticsCollector>();
+
+        await collector.RegisterQuizAttemptAsync(
+            userId,
+            true);
+
+        var stat =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<DailyLearningStat>()
+                        .SingleAsync(
+                            x =>
+                                x.UserId ==
+                                userId));
+
+        stat.QuizAttempts.Should().Be(1);
+
+        stat.QuizPassed.Should().Be(1);
+    }
+}
+32. Content Integration Test
+using HanYu.Domain.Entities.Content;
+using HanYu.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.IntegrationTests.Content;
+
+using Common;
+
+public sealed class ContentIntegrationTests
+    : IntegrationTestBase
+{
+    public ContentIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task ImportJob_CanPersist()
+    {
+        var job =
+            new ContentImportJob(
+                default,
+                "test.xlsx",
+                "/test/test.xlsx");
+
+        job.Start(2);
+
+        job.RegisterProcessedRow(true);
+
+        job.RegisterProcessedRow(false);
+
+        job.Complete();
+
+        await Factory.ExecuteDbAsync(
+            async db =>
+            {
+                db.Add(job);
+
+                await db.SaveChangesAsync();
+            });
+
+        var stored =
+            await Factory.ExecuteDbAsync(
+                db =>
+                    db.Set<ContentImportJob>()
+                        .SingleAsync(
+                            x =>
+                                x.Id ==
+                                job.Id));
+
+        stored.Status.Should().Be(
+            ContentImportStatus.CompletedWithErrors);
+
+        stored.ProcessedRows.Should().Be(2);
+    }
+}
+33. Security Integration Test
+using System.Net;
+
+namespace HanYu.IntegrationTests.Security;
+
+using Common;
+
+public sealed class AuthorizationIntegrationTests
+    : IntegrationTestBase
+{
+    public AuthorizationIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task ReviewQueue_Anonymous_Returns401()
+    {
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.GetAsync(
+                "/api/v1/public/review-queue");
+
+        response.StatusCode
+            .Should()
+            .Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task AdminEndpoint_Anonymous_Returns401()
+    {
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.GetAsync(
+                "/api/v1/admin/review-states");
+
+        response.StatusCode
+            .Should()
+            .Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task AdminEndpoint_NormalUser_Returns403()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        var response =
+            await client.GetAsync(
+                "/api/v1/admin/review-states");
+
+        response.StatusCode
+            .Should()
+            .Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task AdminClient_CanReachAdminEndpoint()
+    {
+        var adminId =
+            await CreateUserAsync(
+                "admin");
+
+        var client =
+            Factory.CreateAdminClient(
+                adminId);
+
+        var response =
+            await client.GetAsync(
+                "/api/v1/admin/review-states");
+
+        response.StatusCode
+            .Should()
+            .NotBe(HttpStatusCode.Unauthorized);
+
+        response.StatusCode
+            .Should()
+            .NotBe(HttpStatusCode.Forbidden);
+    }
+}
+
+Đây là test cần thiết vì spec HanYu yêu cầu authorization phải kiểm tra authenticated + permission + ownership/scope, không chỉ dựa vào frontend.
+
+34. ProblemDetailsIntegrationTests.cs
+using System.Net;
+
+namespace HanYu.IntegrationTests.Security;
+
+using Common;
+
+public sealed class ProblemDetailsIntegrationTests
+    : IntegrationTestBase
+{
+    public ProblemDetailsIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task MissingLesson_Returns404()
+    {
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.GetAsync(
+                $"/api/v1/public/lessons/{Guid.NewGuid()}");
+
+        response.StatusCode
+            .Should()
+            .Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task MissingLesson_ReturnsJsonError()
+    {
+        var client =
+            Factory.CreateAnonymousClient();
+
+        var response =
+            await client.GetAsync(
+                $"/api/v1/public/lessons/{Guid.NewGuid()}");
+
+        response.Content.Headers
+            .ContentType?
+            .MediaType
+            .Should()
+            .BeOneOf(
+                "application/problem+json",
+                "application/json");
+    }
+}
+35. Migration Integration Test
+
+Tạo:
+
+Integration/Infrastructure/MigrationIntegrationTests.cs
+using HanYu.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace HanYu.IntegrationTests.InfrastructureTests;
+
+using Common;
+
+public sealed class MigrationIntegrationTests
+    : IntegrationTestBase
+{
+    public MigrationIntegrationTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task Database_CanConnect()
+    {
+        await using var scope =
+            Factory.Services
+                .CreateAsyncScope();
+
+        var db =
+            scope.ServiceProvider
+                .GetRequiredService<
+                    HanYuDbContext>();
+
+        var canConnect =
+            await db.Database
+                .CanConnectAsync();
+
+        canConnect.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Database_HasNoPendingMigrations()
+    {
+        await using var scope =
+            Factory.Services
+                .CreateAsyncScope();
+
+        var db =
+            scope.ServiceProvider
+                .GetRequiredService<
+                    HanYuDbContext>();
+
+        var pending =
+            await db.Database
+                .GetPendingMigrationsAsync();
+
+        pending.Should().BeEmpty();
+    }
+}
+36. Core End-to-End test
+
+Đây là test quan trọng nhất.
+
+using HanYu.Domain.Entities.Analytics;
+using HanYu.Domain.Entities.Gamification;
+using HanYu.Domain.Entities.Lesson;
+using HanYu.Domain.Entities.Review;
+using HanYu.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.IntegrationTests.EndToEnd;
+
+using Common;
+
+public sealed class CoreLearningJourneyTests
+    : IntegrationTestBase
+{
+    public CoreLearningJourneyTests(
+        HanYuWebApplicationFactory factory)
+        : base(factory)
+    {
+    }
+
+    [Fact]
+    public async Task
+        LessonComplete_ThenReview_ProducesConsistentLearningState()
+    {
+        var userId =
+            await CreateUserAsync();
+
+        var data =
+            await TestDataSeeder
+                .SeedLearningDataAsync(
+                    Factory);
+
+        var client =
+            Factory.CreateUserClient(
+                userId);
+
+        // =====================================
+        // START LESSON
+        // =====================================
+
+        var start =
+            await client.PostAsync(
+                $"/api/v1/public/lessons/{data.LessonPublicId}/start",
+                null);
+
+        start.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        // =====================================
+        // COMPLETE SECTION
+        // =====================================
+
+        var section =
+            await client.PutAsJsonAsync(
+                $"/api/v1/public/lessons/{data.LessonPublicId}/sections/{data.SectionPublicId}/progress",
+                new
+                {
+                    timeSpentSeconds =
+                        180,
+
+                    isCompleted =
+                        true
+                });
+
+        section.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        // =====================================
+        // COMPLETE LESSON
+        // =====================================
+
+        var complete =
+            await client.PostAsync(
+                $"/api/v1/public/lessons/{data.LessonPublicId}/complete",
+                null);
+
+        complete.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        // =====================================
+        // COMPLETE AGAIN
+        // =====================================
+
+        var completeAgain =
+            await client.PostAsync(
+                $"/api/v1/public/lessons/{data.LessonPublicId}/complete",
+                null);
+
+        completeAgain.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        // =====================================
+        // CHECK PROGRESS / SRS
+        // =====================================
+
+        var afterLesson =
+            await Factory.ExecuteDbAsync(
+                async db =>
+                {
+                    var progress =
+                        await db.Set<UserLessonProgress>()
+                            .SingleAsync(
+                                x =>
+                                    x.UserId ==
+                                    userId &&
+                                    x.LessonId ==
+                                    data.LessonId);
+
+                    var state =
+                        await db.Set<UserVocabularyState>()
+                            .SingleOrDefaultAsync(
+                                x =>
+                                    x.UserId ==
+                                    userId &&
+                                    x.VocabularyId ==
+                                    data.VocabularyId);
+
+                    var xp =
+                        await db.Set<XpTransaction>()
+                            .Where(
+                                x =>
+                                    x.UserId ==
+                                    userId)
+                            .SumAsync(
+                                x =>
+                                    (int?)x.Amount)
+                        ?? 0;
+
+                    var streak =
+                        await db.Set<UserStreak>()
+                            .SingleOrDefaultAsync(
+                                x =>
+                                    x.UserId ==
+                                    userId);
+
+                    var stats =
+                        await db.Set<DailyLearningStat>()
+                            .Where(
+                                x =>
+                                    x.UserId ==
+                                    userId)
+                            .ToArrayAsync();
+
+                    return new
+                    {
+                        progress,
+                        state,
+                        xp,
+                        streak,
+                        stats
+                    };
+                });
+
+        afterLesson.progress.Status
+            .Should()
+            .Be(
+                LessonProgressStatus.Completed);
+
+        /*
+         * Nếu bạn đã nối Lesson Complete → SRS:
+         */
+        afterLesson.state
+            .Should()
+            .NotBeNull();
+
+        afterLesson.state!
+            .NextReviewAt
+            .Should()
+            .NotBeNull();
+
+        /*
+         * Nếu Integration/Gamification đã nối:
+         */
+        afterLesson.xp
+            .Should()
+            .BeGreaterThan(0);
+
+        afterLesson.streak
+            .Should()
+            .NotBeNull();
+
+        afterLesson.stats
+            .Should()
+            .NotBeEmpty();
+
+        // =====================================
+        // REVIEW
+        // =====================================
+
+        var review =
+            await client.PostAsJsonAsync(
+                "/api/v1/public/reviews",
+                new
+                {
+                    vocabularyPublicId =
+                        data.VocabularyPublicId,
+
+                    rating =
+                        ReviewRating.Good,
+
+                    wasCorrect =
+                        true,
+
+                    responseTimeMs =
+                        450
+                });
+
+        review.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+
+        var afterReview =
+            await Factory.ExecuteDbAsync(
+                async db =>
+                {
+                    var state =
+                        await db.Set<UserVocabularyState>()
+                            .SingleAsync(
+                                x =>
+                                    x.UserId ==
+                                    userId &&
+                                    x.VocabularyId ==
+                                    data.VocabularyId);
+
+                    var reviewEvents =
+                        await db.Set<ReviewEvent>()
+                            .CountAsync(
+                                x =>
+                                    x.UserId ==
+                                    userId &&
+                                    x.VocabularyId ==
+                                    data.VocabularyId);
+
+                    return new
+                    {
+                        state,
+                        reviewEvents
+                    };
+                });
+
+        afterReview.state.CorrectCount
+            .Should()
+            .BeGreaterThanOrEqualTo(1);
+
+        afterReview.state.LastReviewedAt
+            .Should()
+            .NotBeNull();
+
+        afterReview.state.NextReviewAt
+            .Should()
+            .NotBeNull();
+
+        afterReview.reviewEvents
+            .Should()
+            .Be(1);
+
+        // =====================================
+        // ANALYTICS API
+        // =====================================
+
+        var analytics =
+            await client.GetAsync(
+                "/api/v1/public/analytics/me");
+
+        analytics.IsSuccessStatusCode
+            .Should()
+            .BeTrue();
+    }
+}
+37. Một test rất quan trọng nữa: XP không cộng trùng khi complete lại
+
+Thêm vào EndToEnd:
+
+[Fact]
+public async Task CompletingLessonTwice_DoesNotAwardDuplicateXp()
+{
+    var userId =
+        await CreateUserAsync();
+
+    var data =
+        await TestDataSeeder
+            .SeedLearningDataAsync(
+                Factory);
+
+    var client =
+        Factory.CreateUserClient(
+            userId);
+
+    await client.PostAsync(
+        $"/api/v1/public/lessons/{data.LessonPublicId}/start",
+        null);
+
+    await client.PutAsJsonAsync(
+        $"/api/v1/public/lessons/{data.LessonPublicId}/sections/{data.SectionPublicId}/progress",
+        new
+        {
+            timeSpentSeconds = 100,
+            isCompleted = true
+        });
+
+    await client.PostAsync(
+        $"/api/v1/public/lessons/{data.LessonPublicId}/complete",
+        null);
+
+    var firstXp =
+        await Factory.ExecuteDbAsync(
+            db =>
+                db.Set<XpTransaction>()
+                    .Where(
+                        x =>
+                            x.UserId ==
+                            userId)
+                    .SumAsync(
+                        x =>
+                            (int?)x.Amount));
+
+    await client.PostAsync(
+        $"/api/v1/public/lessons/{data.LessonPublicId}/complete",
+        null);
+
+    var secondXp =
+        await Factory.ExecuteDbAsync(
+            db =>
+                db.Set<XpTransaction>()
+                    .Where(
+                        x =>
+                            x.UserId ==
+                            userId)
+                    .SumAsync(
+                        x =>
+                            (int?)x.Amount));
+
+    secondXp.Should().Be(firstXp);
+}
+38. Build toàn solution
+
+Sau khi tạo xong:
+
+cd C:\Luutru\WEB-ChineseLeaning\HanYu-Web
+
+dotnet clean
+
+dotnet restore
+
+dotnet build
+
+Kỳ vọng:
+
+HanYu                 ✅
+HanYu.UnitTests       ✅
+HanYu.IntegrationTests ✅
+39. Chạy riêng Unit Test
+dotnet test .\Tests\HanYu.UnitTests\HanYu.UnitTests.csproj
+
+Unit Test không cần Docker.
+
+Nó kiểm tra:
+
+Vocabulary domain
+Lesson lifecycle
+Quiz lifecycle
+ReviewScheduler
+Streak
+Achievement
+Notification
+Content import
+40. Chạy Integration Test
+
+Docker Desktop phải chạy.
+
+dotnet test .\Tests\HanYu.IntegrationTests\HanYu.IntegrationTests.csproj
+
+Test sẽ tự:
+
+Start PostgreSQL container
+        ↓
+Create database
+        ↓
+Apply HanYu migrations
+        ↓
+Seed HSK 1..6
+        ↓
+Run test
+        ↓
+Reset database
+        ↓
+Run next test
+        ↓
+Delete PostgreSQL container
+
+Nó không sử dụng Neon production/dev database của bạn.
+
+Đây là điểm cực kỳ quan trọng.
+
+41. Chạy tất cả
+
+Nếu solution chứa 3 project:
+
+dotnet test
+
+Nó chạy:
+
+HanYu.UnitTests
++
+HanYu.IntegrationTests
+42. Coverage
+dotnet test `
+  --collect:"XPlat Code Coverage"
+
+Sau này có thể thêm ReportGenerator.
+
+43. Cấu trúc cuối cùng của repo
+
+Sau khi làm xong nên thành:
+
+WEB-ChineseLeaning/
+└── HanYu-Web/
+    │
+    ├── HanYu/
+    │   ├── API/
+    │   ├── Application/
+    │   ├── Domain/
+    │   ├── Infrastructure/
+    │   ├── Migrations/
+    │   ├── Properties/
+    │   ├── Shared/
+    │   ├── Program.cs
+    │   ├── appsettings.json
+    │   ├── appsettings.Development.json
+    │   └── HanYu.csproj
+    │
+    └── Tests/
+        │
+        ├── HanYu.UnitTests/
+        │   ├── Content/
+        │   │   └── ContentImportJobTests.cs
+        │   │
+        │   ├── Gamification/
+        │   │   ├── AchievementTests.cs
+        │   │   └── UserStreakTests.cs
+        │   │
+        │   ├── Lesson/
+        │   │   └── LessonTests.cs
+        │   │
+        │   ├── Notification/
+        │   │   └── InAppNotificationTests.cs
+        │   │
+        │   ├── Quiz/
+        │   │   └── QuizTests.cs
+        │   │
+        │   ├── Review/
+        │   │   └── ReviewSchedulerTests.cs
+        │   │
+        │   ├── Vocabulary/
+        │   │   └── VocabularyTests.cs
+        │   │
+        │   ├── GlobalUsings.cs
+        │   └── HanYu.UnitTests.csproj
+        │
+        └── HanYu.IntegrationTests/
+            ├── Common/
+            │   ├── HanYuWebApplicationFactory.cs
+            │   ├── IntegrationTestBase.cs
+            │   ├── TestAuthenticationHandler.cs
+            │   ├── TestAuthorizationHandler.cs
+            │   ├── TestDataSeeder.cs
+            │   └── TestHttpClientExtensions.cs
+            │
+            ├── Analytics/
+            │   └── AnalyticsIntegrationTests.cs
+            │
+            ├── Content/
+            │   └── ContentIntegrationTests.cs
+            │
+            ├── EndToEnd/
+            │   └── CoreLearningJourneyTests.cs
+            │
+            ├── Gamification/
+            │   └── GamificationIntegrationTests.cs
+            │
+            ├── Identity/
+            │   └── IdentityIntegrationTests.cs
+            │
+            ├── Infrastructure/
+            │   └── MigrationIntegrationTests.cs
+            │
+            ├── Lesson/
+            │   └── LessonIntegrationTests.cs
+            │
+            ├── Notification/
+            │   └── NotificationIntegrationTests.cs
+            │
+            ├── Quiz/
+            │   └── QuizIntegrationTests.cs
+            │
+            ├── Review/
+            │   └── ReviewIntegrationTests.cs
+            │
+            ├── Security/
+            │   ├── AuthorizationIntegrationTests.cs
+            │   └── ProblemDetailsIntegrationTests.cs
+            │
+            ├── Vocabulary/
+            │   └── VocabularyIntegrationTests.cs
+            │
+            ├── GlobalUsings.cs
+            ├── xunit.runner.json
+            └── HanYu.IntegrationTests.csproj
+Điều mình muốn bạn làm sau khi copy
+
+Đừng tiếp tục viết thêm test ngay. Chạy:
+
+dotnet build
+
+trước.
+
+Vì source HanYu của bạn đã thay đổi qua nhiều vòng, build đầu tiên sẽ cho chúng ta biết chính xác những chỗ tên enum, interface hoặc route nào khác với phiên bản code mình đang căn theo. Chẳng hạn source mình tìm được xác nhận constructor hiện tại của Vocabulary, HskLevel, User, Lesson, QuizQuestion, ContentImportJob như code phía trên, nhưng trong Library vẫn còn một số phiên bản entity cũ song song với phiên bản conversation mới.
+
+Khi HanYu.UnitTests và HanYu.IntegrationTests đều build 0 error, lúc đó chạy dotnet test. Các test fail sau đó mới là lỗi logic thực sự cần xử lý, thay vì lỗi compile do signature khác nhau. Đây cũng là lúc bộ test bắt đầu có giá trị: từ đó về sau mỗi lần bạn sửa Lesson, Quiz, Review, Identity hay SRS chỉ cần chạy dotnet test để biết mình có vô tình làm hỏng phần cũ hay không.

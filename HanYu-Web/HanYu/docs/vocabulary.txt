@@ -1,0 +1,4794 @@
+Được. Mình sẽ khóa hoàn chỉnh module Vocabulary dựa đúng 9 entity bạn vừa gửi, không dùng lại các property đoán trước đó. VocabularyMeaning thực tế dùng MeaningVi/SenseOrder/UsageNoteVi; VocabularyRelation dùng RelationType/NoteVi; VocabularyExample, Topic, PartOfSpeech, HskLevel, AudioAsset đều đã có behavior cần thiết.
+
+Mình giữ đúng pattern: Admin full management + Public read/self-service + mapping + pagination + cache + Foundation.
+
+Cấu trúc cuối cùng
+Application/
+└── Features/
+    └── Vocabulary/
+        ├── Admin/
+        │   ├── Vocabulary/
+        │   ├── Meanings/
+        │   ├── Examples/
+        │   ├── Relations/
+        │   ├── Topics/
+        │   ├── PartsOfSpeech/
+        │   ├── HskLevels/
+        │   └── AudioAssets/
+        │
+        ├── Public/
+        │   ├── Vocabulary/
+        │   ├── Taxonomy/
+        │   └── Notes/
+        │
+        └── Mapping/
+            ├── VocabularyMapper.cs
+            └── VocabularyAdminMapper.cs
+
+Application/
+└── Interfaces/
+    └── Vocabulary/
+        ├── IVocabularyAdminService.cs
+        └── IVocabularyPublicService.cs
+
+Infrastructure/
+├── Vocabulary/
+│   ├── VocabularyAdminService.cs
+│   └── VocabularyPublicService.cs
+│
+└── Options/
+    └── VocabularyCacheOptions.cs
+
+API/
+└── Controller/
+    ├── Admin/Vocabulary/
+    └── Public/Vocabulary/
+1. Admin Vocabulary DTO
+AdminVocabularyResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
+
+public sealed record AdminVocabularyResponse(
+    long Id,
+    short HskLevelId,
+    string HskCode,
+    string HskNameVi,
+    long? PartOfSpeechId,
+    string? PartOfSpeechCode,
+    string? PartOfSpeechNameVi,
+    long? TopicId,
+    string? TopicSlug,
+    string? TopicNameVi,
+    long? AudioAssetId,
+    string Simplified,
+    string? Traditional,
+    string Pinyin,
+    string PinyinNormalized,
+    string PrimaryMeaningVi,
+    string? NotesVi,
+    short Difficulty,
+    ContentStatus Status,
+    int Version,
+    DateTimeOffset? PublishedAt,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+AdminVocabularyQuery.cs
+using HanYu.Application.Common.Models;
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
+
+public sealed record AdminVocabularyQuery
+    : PaginationRequest
+{
+    public string? Q { get; init; }
+
+    public short? HskLevelId { get; init; }
+
+    public long? PartOfSpeechId { get; init; }
+
+    public long? TopicId { get; init; }
+
+    public short? Difficulty { get; init; }
+
+    public ContentStatus? Status { get; init; }
+
+    public string? Sort { get; init; }
+        = "-updatedAt";
+}
+CreateVocabularyRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
+
+public sealed record CreateVocabularyRequest(
+    short HskLevelId,
+    string Simplified,
+    string? Traditional,
+    string Pinyin,
+    string PinyinNormalized,
+    string PrimaryMeaningVi,
+    string? NotesVi,
+    short Difficulty,
+    long? PartOfSpeechId,
+    long? TopicId,
+    long? AudioAssetId);
+UpdateVocabularyRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
+
+public sealed record UpdateVocabularyRequest(
+    short HskLevelId,
+    string Simplified,
+    string? Traditional,
+    string Pinyin,
+    string PinyinNormalized,
+    string PrimaryMeaningVi,
+    string? NotesVi,
+    short Difficulty,
+    long? PartOfSpeechId,
+    long? TopicId,
+    long? AudioAssetId,
+    int Version);
+
+Version đúng với entity hiện tại vì Vocabulary đã tự tăng version khi update/status thay đổi.
+
+2. Vocabulary Meaning
+AdminVocabularyMeaningResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.Meanings;
+
+public sealed record AdminVocabularyMeaningResponse(
+    long Id,
+    long VocabularyId,
+    string MeaningVi,
+    short SenseOrder,
+    string? UsageNoteVi,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+CreateVocabularyMeaningRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.Meanings;
+
+public sealed record CreateVocabularyMeaningRequest(
+    string MeaningVi,
+    short SenseOrder,
+    string? UsageNoteVi);
+UpdateVocabularyMeaningRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.Meanings;
+
+public sealed record UpdateVocabularyMeaningRequest(
+    string MeaningVi,
+    short SenseOrder,
+    string? UsageNoteVi);
+
+Entity thật quy định SenseOrder > 0 và MeaningVi <= 500.
+
+3. Vocabulary Example
+AdminVocabularyExampleResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Admin.Examples;
+
+public sealed record AdminVocabularyExampleResponse(
+    long Id,
+    long VocabularyId,
+    long? AudioAssetId,
+    string SentenceZh,
+    string SentencePinyin,
+    string SentenceVi,
+    short Difficulty,
+    ContentStatus Status,
+    string? SourceNote,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+CreateVocabularyExampleRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.Examples;
+
+public sealed record CreateVocabularyExampleRequest(
+    string SentenceZh,
+    string SentencePinyin,
+    string SentenceVi,
+    short Difficulty,
+    long? AudioAssetId,
+    string? SourceNote);
+UpdateVocabularyExampleRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.Examples;
+
+public sealed record UpdateVocabularyExampleRequest(
+    string SentenceZh,
+    string SentencePinyin,
+    string SentenceVi,
+    short Difficulty,
+    long? AudioAssetId,
+    string? SourceNote);
+4. Vocabulary Relation
+AdminVocabularyRelationResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Admin.Relations;
+
+public sealed record AdminVocabularyRelationResponse(
+    long Id,
+    long VocabularyId,
+    long RelatedVocabularyId,
+    string RelatedSimplified,
+    string RelatedPinyin,
+    string RelatedMeaningVi,
+    VocabularyRelationType RelationType,
+    string? NoteVi,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+CreateVocabularyRelationRequest.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Admin.Relations;
+
+public sealed record CreateVocabularyRelationRequest(
+    long RelatedVocabularyId,
+    VocabularyRelationType RelationType,
+    string? NoteVi);
+UpdateVocabularyRelationRequest.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Admin.Relations;
+
+public sealed record UpdateVocabularyRelationRequest(
+    VocabularyRelationType RelationType,
+    string? NoteVi);
+5. Topic
+AdminTopicResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Admin.Topics;
+
+public sealed record AdminTopicResponse(
+    long Id,
+    string Slug,
+    string NameVi,
+    string? DescriptionVi,
+    int SortOrder,
+    ContentStatus Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+CreateTopicRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.Topics;
+
+public sealed record CreateTopicRequest(
+    string Slug,
+    string NameVi,
+    string? DescriptionVi,
+    int SortOrder);
+UpdateTopicRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.Topics;
+
+public sealed record UpdateTopicRequest(
+    string Slug,
+    string NameVi,
+    string? DescriptionVi,
+    int SortOrder);
+6. PartOfSpeech
+AdminPartOfSpeechResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.PartsOfSpeech;
+
+public sealed record AdminPartOfSpeechResponse(
+    long Id,
+    string Code,
+    string NameVi,
+    string? NameEn,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+CreatePartOfSpeechRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.PartsOfSpeech;
+
+public sealed record CreatePartOfSpeechRequest(
+    string Code,
+    string NameVi,
+    string? NameEn);
+UpdatePartOfSpeechRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.PartsOfSpeech;
+
+public sealed record UpdatePartOfSpeechRequest(
+    string Code,
+    string NameVi,
+    string? NameEn);
+7. HSK
+AdminHskLevelResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.HskLevels;
+
+public sealed record AdminHskLevelResponse(
+    short Id,
+    string Code,
+    string NameVi,
+    short SortOrder,
+    bool IsActive);
+CreateHskLevelRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.HskLevels;
+
+public sealed record CreateHskLevelRequest(
+    short Id,
+    string Code,
+    string NameVi,
+    short SortOrder);
+UpdateHskLevelRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.HskLevels;
+
+public sealed record UpdateHskLevelRequest(
+    string Code,
+    string NameVi,
+    short SortOrder);
+
+HskLevel không kế thừa BaseEntity, ID của nó là short do chính taxonomy quản lý.
+
+8. AudioAsset
+AdminAudioAssetResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Admin.AudioAssets;
+
+public sealed record AdminAudioAssetResponse(
+    long Id,
+    string StoragePath,
+    string? PublicUrl,
+    AudioAssetKind Kind,
+    string MimeType,
+    long? FileSizeBytes,
+    int? DurationMs,
+    string? Voice,
+    string? Provider,
+    string? LanguageCode,
+    string? Checksum,
+    ContentStatus Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+CreateAudioAssetRequest.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Admin.AudioAssets;
+
+public sealed record CreateAudioAssetRequest(
+    string StoragePath,
+    AudioAssetKind Kind,
+    string MimeType);
+UpdateAudioAssetRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Admin.AudioAssets;
+
+public sealed record UpdateAudioAssetRequest(
+    string StoragePath,
+    string MimeType,
+    long? FileSizeBytes,
+    int? DurationMs,
+    string? Checksum,
+    string? Voice,
+    string? Provider,
+    string? LanguageCode,
+    string? PublicUrl);
+
+Audio entity đã có đúng UpdateFileInfo, UpdateAudioMetadata, UpdatePublicUrl, Publish, Archive.
+
+9. Public Vocabulary DTO
+VocabularyMeaningResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+
+public sealed record VocabularyMeaningResponse(
+    string MeaningVi,
+    short SenseOrder,
+    string? UsageNoteVi);
+VocabularyExampleResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+
+public sealed record VocabularyExampleResponse(
+    string SentenceZh,
+    string SentencePinyin,
+    string SentenceVi,
+    short Difficulty,
+    string? AudioUrl);
+VocabularyRelationResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+
+public sealed record VocabularyRelationResponse(
+    string Simplified,
+    string? Traditional,
+    string Pinyin,
+    string PrimaryMeaningVi,
+    VocabularyRelationType RelationType,
+    string? NoteVi);
+VocabularyListItemResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+
+public sealed record VocabularyListItemResponse(
+    string Simplified,
+    string? Traditional,
+    string Pinyin,
+    string PinyinNormalized,
+    string PrimaryMeaningVi,
+    short HskLevel,
+    string HskCode,
+    short Difficulty,
+    string? PartOfSpeech,
+    string? Topic,
+    string? AudioUrl);
+VocabularyDetailResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+
+public sealed record VocabularyDetailResponse(
+    string Simplified,
+    string? Traditional,
+    string Pinyin,
+    string PinyinNormalized,
+    string PrimaryMeaningVi,
+    string? NotesVi,
+    short HskLevel,
+    string HskCode,
+    string HskNameVi,
+    short Difficulty,
+    string? PartOfSpeech,
+    string? PartOfSpeechNameVi,
+    string? Topic,
+    string? TopicNameVi,
+    string? AudioUrl,
+    IReadOnlyCollection<VocabularyMeaningResponse> Meanings,
+    IReadOnlyCollection<VocabularyExampleResponse> Examples,
+    IReadOnlyCollection<VocabularyRelationResponse> Relations);
+10. Public query
+VocabularyQuery.cs
+using HanYu.Application.Common.Models;
+
+namespace HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+
+public sealed record VocabularyQuery
+    : PaginationRequest
+{
+    public string? Q { get; init; }
+
+    public short? HskLevel { get; init; }
+
+    public string? Topic { get; init; }
+
+    public string? PartOfSpeech { get; init; }
+
+    public short? Difficulty { get; init; }
+
+    public string? Sort { get; init; }
+        = "simplified";
+}
+11. Public taxonomy
+PublicTopicResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Public.Taxonomy;
+
+public sealed record PublicTopicResponse(
+    string Slug,
+    string NameVi,
+    string? DescriptionVi);
+PublicPartOfSpeechResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Public.Taxonomy;
+
+public sealed record PublicPartOfSpeechResponse(
+    string Code,
+    string NameVi,
+    string? NameEn);
+PublicHskLevelResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Public.Taxonomy;
+
+public sealed record PublicHskLevelResponse(
+    short Level,
+    string Code,
+    string NameVi);
+12. Note
+VocabularyNoteResponse.cs
+namespace HanYu.Application.Features.Vocabulary.Public.Notes;
+
+public sealed record VocabularyNoteResponse(
+    string Content,
+    bool IsPinned,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+SaveVocabularyNoteRequest.cs
+namespace HanYu.Application.Features.Vocabulary.Public.Notes;
+
+public sealed record SaveVocabularyNoteRequest(
+    string Content,
+    bool IsPinned);
+13. VocabularyAdminMapper.cs
+using HanYu.Application.Features.Vocabulary.Admin.AudioAssets;
+using HanYu.Application.Features.Vocabulary.Admin.Examples;
+using HanYu.Application.Features.Vocabulary.Admin.HskLevels;
+using HanYu.Application.Features.Vocabulary.Admin.Meanings;
+using HanYu.Application.Features.Vocabulary.Admin.PartsOfSpeech;
+using HanYu.Application.Features.Vocabulary.Admin.Relations;
+using HanYu.Application.Features.Vocabulary.Admin.Topics;
+using HanYu.Domain.Entities.Vocabulary;
+
+namespace HanYu.Application.Features.Vocabulary.Mapping;
+
+public static class VocabularyAdminMapper
+{
+    public static AdminVocabularyMeaningResponse
+        ToMeaningResponse(
+            VocabularyMeaning entity)
+    {
+        return new AdminVocabularyMeaningResponse(
+            entity.Id,
+            entity.VocabularyId,
+            entity.MeaningVi,
+            entity.SenseOrder,
+            entity.UsageNoteVi,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+
+    public static AdminVocabularyExampleResponse
+        ToExampleResponse(
+            VocabularyExample entity)
+    {
+        return new AdminVocabularyExampleResponse(
+            entity.Id,
+            entity.VocabularyId,
+            entity.AudioAssetId,
+            entity.SentenceZh,
+            entity.SentencePinyin,
+            entity.SentenceVi,
+            entity.Difficulty,
+            entity.Status,
+            entity.SourceNote,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+
+    public static AdminVocabularyRelationResponse
+        ToRelationResponse(
+            VocabularyRelation entity)
+    {
+        return new AdminVocabularyRelationResponse(
+            entity.Id,
+            entity.VocabularyId,
+            entity.RelatedVocabularyId,
+            entity.RelatedVocabulary.Simplified,
+            entity.RelatedVocabulary.Pinyin,
+            entity.RelatedVocabulary.PrimaryMeaningVi,
+            entity.RelationType,
+            entity.NoteVi,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+
+    public static AdminTopicResponse
+        ToTopicResponse(
+            Topic entity)
+    {
+        return new AdminTopicResponse(
+            entity.Id,
+            entity.Slug,
+            entity.NameVi,
+            entity.DescriptionVi,
+            entity.SortOrder,
+            entity.Status,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+
+    public static AdminPartOfSpeechResponse
+        ToPartOfSpeechResponse(
+            PartOfSpeech entity)
+    {
+        return new AdminPartOfSpeechResponse(
+            entity.Id,
+            entity.Code,
+            entity.NameVi,
+            entity.NameEn,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+
+    public static AdminHskLevelResponse
+        ToHskResponse(
+            HskLevel entity)
+    {
+        return new AdminHskLevelResponse(
+            entity.Id,
+            entity.Code,
+            entity.NameVi,
+            entity.SortOrder,
+            entity.IsActive);
+    }
+
+    public static AdminAudioAssetResponse
+        ToAudioResponse(
+            AudioAsset entity)
+    {
+        return new AdminAudioAssetResponse(
+            entity.Id,
+            entity.StoragePath,
+            entity.PublicUrl,
+            entity.Kind,
+            entity.MimeType,
+            entity.FileSizeBytes,
+            entity.DurationMs,
+            entity.Voice,
+            entity.Provider,
+            entity.LanguageCode,
+            entity.Checksum,
+            entity.Status,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+}
+14. VocabularyMapper.cs
+using HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
+using HanYu.Application.Features.Vocabulary.Public.Notes;
+using HanYu.Application.Features.Vocabulary.Public.Taxonomy;
+using HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+using HanYu.Domain.Entities.Vocabulary;
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Vocabulary.Mapping;
+
+public static class VocabularyMapper
+{
+    public static AdminVocabularyResponse
+        ToAdminResponse(
+            Domain.Entities.Vocabulary.Vocabulary entity)
+    {
+        return new AdminVocabularyResponse(
+            entity.Id,
+            entity.HskLevelId,
+            entity.HskLevel.Code,
+            entity.HskLevel.NameVi,
+            entity.PartOfSpeechId,
+            entity.PartOfSpeech?.Code,
+            entity.PartOfSpeech?.NameVi,
+            entity.TopicId,
+            entity.Topic?.Slug,
+            entity.Topic?.NameVi,
+            entity.AudioAssetId,
+            entity.Simplified,
+            entity.Traditional,
+            entity.Pinyin,
+            entity.PinyinNormalized,
+            entity.PrimaryMeaningVi,
+            entity.NotesVi,
+            entity.Difficulty,
+            entity.Status,
+            entity.Version,
+            entity.PublishedAt,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+
+    public static VocabularyListItemResponse
+        ToPublicListItem(
+            Domain.Entities.Vocabulary.Vocabulary entity)
+    {
+        return new VocabularyListItemResponse(
+            entity.Simplified,
+            entity.Traditional,
+            entity.Pinyin,
+            entity.PinyinNormalized,
+            entity.PrimaryMeaningVi,
+            entity.HskLevelId,
+            entity.HskLevel.Code,
+            entity.Difficulty,
+            entity.PartOfSpeech?.Code,
+            entity.Topic?.Slug,
+            entity.AudioAsset?.Status ==
+                ContentStatus.Published
+                ? entity.AudioAsset.PublicUrl
+                : null);
+    }
+
+    public static VocabularyDetailResponse
+        ToPublicDetail(
+            Domain.Entities.Vocabulary.Vocabulary entity,
+            IReadOnlyCollection<
+                VocabularyRelation> relations)
+    {
+        var meanings =
+            entity.Meanings
+                .OrderBy(x => x.SenseOrder)
+                .Select(
+                    x =>
+                        new VocabularyMeaningResponse(
+                            x.MeaningVi,
+                            x.SenseOrder,
+                            x.UsageNoteVi))
+                .ToArray();
+
+        var examples =
+            entity.Examples
+                .Where(
+                    x =>
+                        x.Status ==
+                        ContentStatus.Published)
+                .OrderBy(x => x.Id)
+                .Select(
+                    x =>
+                        new VocabularyExampleResponse(
+                            x.SentenceZh,
+                            x.SentencePinyin,
+                            x.SentenceVi,
+                            x.Difficulty,
+                            x.AudioAsset?.Status ==
+                                ContentStatus.Published
+                                ? x.AudioAsset.PublicUrl
+                                : null))
+                .ToArray();
+
+        var relationResponses =
+            relations
+                .Select(
+                    x =>
+                        new VocabularyRelationResponse(
+                            x.RelatedVocabulary.Simplified,
+                            x.RelatedVocabulary.Traditional,
+                            x.RelatedVocabulary.Pinyin,
+                            x.RelatedVocabulary.PrimaryMeaningVi,
+                            x.RelationType,
+                            x.NoteVi))
+                .ToArray();
+
+        return new VocabularyDetailResponse(
+            entity.Simplified,
+            entity.Traditional,
+            entity.Pinyin,
+            entity.PinyinNormalized,
+            entity.PrimaryMeaningVi,
+            entity.NotesVi,
+            entity.HskLevelId,
+            entity.HskLevel.Code,
+            entity.HskLevel.NameVi,
+            entity.Difficulty,
+            entity.PartOfSpeech?.Code,
+            entity.PartOfSpeech?.NameVi,
+            entity.Topic?.Slug,
+            entity.Topic?.NameVi,
+            entity.AudioAsset?.Status ==
+                ContentStatus.Published
+                ? entity.AudioAsset.PublicUrl
+                : null,
+            meanings,
+            examples,
+            relationResponses);
+    }
+
+    public static VocabularyNoteResponse
+        ToNoteResponse(
+            UserVocabularyNote entity)
+    {
+        return new VocabularyNoteResponse(
+            entity.Content,
+            entity.IsPinned,
+            entity.CreatedAt,
+            entity.UpdatedAt);
+    }
+
+    public static PublicTopicResponse
+        ToPublicTopic(
+            Topic entity)
+    {
+        return new PublicTopicResponse(
+            entity.Slug,
+            entity.NameVi,
+            entity.DescriptionVi);
+    }
+
+    public static PublicPartOfSpeechResponse
+        ToPublicPartOfSpeech(
+            PartOfSpeech entity)
+    {
+        return new PublicPartOfSpeechResponse(
+            entity.Code,
+            entity.NameVi,
+            entity.NameEn);
+    }
+
+    public static PublicHskLevelResponse
+        ToPublicHsk(
+            HskLevel entity)
+    {
+        return new PublicHskLevelResponse(
+            entity.Id,
+            entity.Code,
+            entity.NameVi);
+    }
+}
+15. IVocabularyPublicService.cs
+using HanYu.Application.Common.Models;
+using HanYu.Application.Features.Vocabulary.Public.Notes;
+using HanYu.Application.Features.Vocabulary.Public.Taxonomy;
+using HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+
+namespace HanYu.Application.Interfaces.Vocabulary;
+
+public interface IVocabularyPublicService
+{
+    Task<Result<
+        PagedResult<VocabularyListItemResponse>>>
+        GetVocabulariesAsync(
+            VocabularyQuery query,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<VocabularyDetailResponse>>
+        GetVocabularyAsync(
+            string simplified,
+            string? pinyinNormalized,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<
+        IReadOnlyCollection<PublicTopicResponse>>>
+        GetTopicsAsync(
+            CancellationToken cancellationToken = default);
+
+    Task<Result<
+        IReadOnlyCollection<PublicPartOfSpeechResponse>>>
+        GetPartsOfSpeechAsync(
+            CancellationToken cancellationToken = default);
+
+    Task<Result<
+        IReadOnlyCollection<PublicHskLevelResponse>>>
+        GetHskLevelsAsync(
+            CancellationToken cancellationToken = default);
+
+    Task<Result<VocabularyNoteResponse?>>
+        GetMyNoteAsync(
+            Guid userId,
+            string simplified,
+            string? pinyinNormalized,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<VocabularyNoteResponse>>
+        SaveMyNoteAsync(
+            Guid userId,
+            string simplified,
+            string? pinyinNormalized,
+            SaveVocabularyNoteRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result>
+        DeleteMyNoteAsync(
+            Guid userId,
+            string simplified,
+            string? pinyinNormalized,
+            CancellationToken cancellationToken = default);
+}
+16. IVocabularyAdminService.cs
+using HanYu.Application.Common.Models;
+using HanYu.Application.Features.Vocabulary.Admin.AudioAssets;
+using HanYu.Application.Features.Vocabulary.Admin.Examples;
+using HanYu.Application.Features.Vocabulary.Admin.HskLevels;
+using HanYu.Application.Features.Vocabulary.Admin.Meanings;
+using HanYu.Application.Features.Vocabulary.Admin.PartsOfSpeech;
+using HanYu.Application.Features.Vocabulary.Admin.Relations;
+using HanYu.Application.Features.Vocabulary.Admin.Topics;
+using HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
+
+namespace HanYu.Application.Interfaces.Vocabulary;
+
+public interface IVocabularyAdminService
+{
+    Task<Result<PagedResult<AdminVocabularyResponse>>>
+        GetVocabulariesAsync(
+            AdminVocabularyQuery query,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminVocabularyResponse>>
+        GetVocabularyAsync(
+            long id,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminVocabularyResponse>>
+        CreateVocabularyAsync(
+            CreateVocabularyRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminVocabularyResponse>>
+        UpdateVocabularyAsync(
+            long id,
+            UpdateVocabularyRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> SubmitVocabularyForReviewAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> ApproveVocabularyAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> PublishVocabularyAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> ArchiveVocabularyAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> RestoreVocabularyAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyCollection<AdminVocabularyMeaningResponse>>>
+        GetMeaningsAsync(
+            long vocabularyId,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminVocabularyMeaningResponse>>
+        CreateMeaningAsync(
+            long vocabularyId,
+            CreateVocabularyMeaningRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminVocabularyMeaningResponse>>
+        UpdateMeaningAsync(
+            long vocabularyId,
+            long meaningId,
+            UpdateVocabularyMeaningRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> DeleteMeaningAsync(
+        long vocabularyId,
+        long meaningId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyCollection<AdminVocabularyExampleResponse>>>
+        GetExamplesAsync(
+            long vocabularyId,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminVocabularyExampleResponse>>
+        CreateExampleAsync(
+            long vocabularyId,
+            CreateVocabularyExampleRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminVocabularyExampleResponse>>
+        UpdateExampleAsync(
+            long vocabularyId,
+            long exampleId,
+            UpdateVocabularyExampleRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> SubmitExampleForReviewAsync(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> ApproveExampleAsync(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> PublishExampleAsync(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> ArchiveExampleAsync(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> RestoreExampleAsync(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> DeleteExampleAsync(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyCollection<AdminVocabularyRelationResponse>>>
+        GetRelationsAsync(
+            long vocabularyId,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminVocabularyRelationResponse>>
+        CreateRelationAsync(
+            long vocabularyId,
+            CreateVocabularyRelationRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminVocabularyRelationResponse>>
+        UpdateRelationAsync(
+            long vocabularyId,
+            long relationId,
+            UpdateVocabularyRelationRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> DeleteRelationAsync(
+        long vocabularyId,
+        long relationId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyCollection<AdminTopicResponse>>>
+        GetTopicsAsync(
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminTopicResponse>>
+        CreateTopicAsync(
+            CreateTopicRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminTopicResponse>>
+        UpdateTopicAsync(
+            long id,
+            UpdateTopicRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> PublishTopicAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> ArchiveTopicAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> RestoreTopicAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> DeleteTopicAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyCollection<AdminPartOfSpeechResponse>>>
+        GetPartsOfSpeechAsync(
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminPartOfSpeechResponse>>
+        CreatePartOfSpeechAsync(
+            CreatePartOfSpeechRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminPartOfSpeechResponse>>
+        UpdatePartOfSpeechAsync(
+            long id,
+            UpdatePartOfSpeechRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> DeletePartOfSpeechAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyCollection<AdminHskLevelResponse>>>
+        GetHskLevelsAsync(
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminHskLevelResponse>>
+        CreateHskLevelAsync(
+            CreateHskLevelRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminHskLevelResponse>>
+        UpdateHskLevelAsync(
+            short id,
+            UpdateHskLevelRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> ActivateHskLevelAsync(
+        short id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> DeactivateHskLevelAsync(
+        short id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> DeleteHskLevelAsync(
+        short id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<PagedResult<AdminAudioAssetResponse>>>
+        GetAudioAssetsAsync(
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminAudioAssetResponse>>
+        CreateAudioAssetAsync(
+            CreateAudioAssetRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<AdminAudioAssetResponse>>
+        UpdateAudioAssetAsync(
+            long id,
+            UpdateAudioAssetRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> PublishAudioAssetAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> ArchiveAudioAssetAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> DeleteAudioAssetAsync(
+        long id,
+        CancellationToken cancellationToken = default);
+}
+17. Cache options
+
+Infrastructure/Options/VocabularyCacheOptions.cs
+
+namespace HanYu.Infrastructure.Options;
+
+public sealed class VocabularyCacheOptions
+{
+    public const string SectionName =
+        "VocabularyCache";
+
+    public int DetailMinutes { get; init; } = 30;
+
+    public int ListMinutes { get; init; } = 5;
+
+    public int TaxonomyMinutes { get; init; } = 60;
+
+    public int GenerationDays { get; init; } = 365;
+}
+
+appsettings.Development.json:
+
+{
+  "VocabularyCache": {
+    "DetailMinutes": 10,
+    "ListMinutes": 2,
+    "TaxonomyMinutes": 15,
+    "GenerationDays": 365
+  }
+}
+18. VocabularyPublicService.cs
+using System.Security.Cryptography;
+using System.Text;
+using HanYu.Application.Common.Models;
+using HanYu.Application.Features.Vocabulary.Mapping;
+using HanYu.Application.Features.Vocabulary.Public.Notes;
+using HanYu.Application.Features.Vocabulary.Public.Taxonomy;
+using HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+using HanYu.Application.Interfaces.Caching;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Entities.Vocabulary;
+using HanYu.Domain.Enums;
+using HanYu.Infrastructure.Options;
+using HanYu.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace HanYu.Infrastructure.Vocabulary;
+
+public sealed class VocabularyPublicService
+    : IVocabularyPublicService
+{
+    private const string GenerationCacheKey =
+        "vocabulary:public:generation";
+
+    private readonly HanYuDbContext _db;
+    private readonly ICacheService _cache;
+    private readonly VocabularyCacheOptions _options;
+
+    public VocabularyPublicService(
+        HanYuDbContext db,
+        ICacheService cache,
+        IOptions<VocabularyCacheOptions> options)
+    {
+        _db = db;
+        _cache = cache;
+        _options = options.Value;
+    }
+
+    public async Task<Result<
+        PagedResult<VocabularyListItemResponse>>>
+        GetVocabulariesAsync(
+            VocabularyQuery query,
+            CancellationToken cancellationToken = default)
+    {
+        var generation =
+            await GetGenerationAsync(
+                cancellationToken);
+
+        var rawCacheKey =
+            string.Join(
+                "|",
+                query.Q,
+                query.HskLevel,
+                query.Topic,
+                query.PartOfSpeech,
+                query.Difficulty,
+                query.Sort,
+                query.NormalizedPage,
+                query.NormalizedPageSize);
+
+        var cacheKey =
+            $"vocabulary:public:{generation}:list:" +
+            Hash(rawCacheKey);
+
+        var cached =
+            await _cache.GetAsync<
+                PagedResult<VocabularyListItemResponse>>(
+                cacheKey,
+                cancellationToken);
+
+        if (cached is not null)
+        {
+            return Result.Success(cached);
+        }
+
+        var source =
+            _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .Where(
+                    x =>
+                        x.Status ==
+                        ContentStatus.Published)
+                .Include(x => x.HskLevel)
+                .Include(x => x.PartOfSpeech)
+                .Include(x => x.Topic)
+                .Include(x => x.AudioAsset)
+                .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.Q))
+        {
+            var keyword =
+                query.Q.Trim();
+
+            source =
+                source.Where(
+                    x =>
+                        EF.Functions.ILike(
+                            x.Simplified,
+                            $"%{keyword}%") ||
+                        (
+                            x.Traditional != null &&
+                            EF.Functions.ILike(
+                                x.Traditional,
+                                $"%{keyword}%")
+                        ) ||
+                        EF.Functions.ILike(
+                            x.Pinyin,
+                            $"%{keyword}%") ||
+                        EF.Functions.ILike(
+                            x.PinyinNormalized,
+                            $"%{keyword}%") ||
+                        EF.Functions.ILike(
+                            x.PrimaryMeaningVi,
+                            $"%{keyword}%"));
+        }
+
+        if (query.HskLevel.HasValue)
+        {
+            source =
+                source.Where(
+                    x =>
+                        x.HskLevelId ==
+                        query.HskLevel.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                query.Topic))
+        {
+            var topic =
+                query.Topic.Trim()
+                    .ToLowerInvariant();
+
+            source =
+                source.Where(
+                    x =>
+                        x.Topic != null &&
+                        x.Topic.Slug == topic);
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                query.PartOfSpeech))
+        {
+            var part =
+                query.PartOfSpeech.Trim()
+                    .ToLowerInvariant();
+
+            source =
+                source.Where(
+                    x =>
+                        x.PartOfSpeech != null &&
+                        x.PartOfSpeech.Code == part);
+        }
+
+        if (query.Difficulty.HasValue)
+        {
+            source =
+                source.Where(
+                    x =>
+                        x.Difficulty ==
+                        query.Difficulty.Value);
+        }
+
+        source =
+            ApplyPublicSort(
+                source,
+                query.Sort);
+
+        var total =
+            await source.LongCountAsync(
+                cancellationToken);
+
+        var entities =
+            await source
+                .Skip(
+                    (query.NormalizedPage - 1) *
+                    query.NormalizedPageSize)
+                .Take(query.NormalizedPageSize)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        var items =
+            entities
+                .Select(
+                    VocabularyMapper
+                        .ToPublicListItem)
+                .ToArray();
+
+        var response =
+            new PagedResult<
+                VocabularyListItemResponse>(
+                items,
+                query.NormalizedPage,
+                query.NormalizedPageSize,
+                total);
+
+        await _cache.SetAsync(
+            cacheKey,
+            response,
+            TimeSpan.FromMinutes(
+                _options.ListMinutes),
+            cancellationToken);
+
+        return Result.Success(response);
+    }
+
+    public async Task<Result<VocabularyDetailResponse>>
+        GetVocabularyAsync(
+            string simplified,
+            string? pinyinNormalized,
+            CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(
+                simplified))
+        {
+            return Result.Failure<
+                VocabularyDetailResponse>(
+                Error.Validation(
+                    "Vocabulary.InvalidSimplified",
+                    "Simplified không hợp lệ."));
+        }
+
+        simplified =
+            simplified.Trim();
+
+        pinyinNormalized =
+            string.IsNullOrWhiteSpace(
+                pinyinNormalized)
+                ? null
+                : pinyinNormalized.Trim();
+
+        var generation =
+            await GetGenerationAsync(
+                cancellationToken);
+
+        var cacheKey =
+            $"vocabulary:public:{generation}:detail:" +
+            Hash(
+                $"{simplified}|{pinyinNormalized}");
+
+        var cached =
+            await _cache.GetAsync<
+                VocabularyDetailResponse>(
+                cacheKey,
+                cancellationToken);
+
+        if (cached is not null)
+        {
+            return Result.Success(cached);
+        }
+
+        var query =
+            _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .Where(
+                    x =>
+                        x.Status ==
+                            ContentStatus.Published &&
+                        x.Simplified ==
+                            simplified);
+
+        if (pinyinNormalized is not null)
+        {
+            query =
+                query.Where(
+                    x =>
+                        x.PinyinNormalized ==
+                        pinyinNormalized);
+        }
+
+        var matches =
+            await query
+                .Include(x => x.HskLevel)
+                .Include(x => x.PartOfSpeech)
+                .Include(x => x.Topic)
+                .Include(x => x.AudioAsset)
+                .Include(x => x.Meanings)
+                .Include(x => x.Examples)
+                    .ThenInclude(x => x.AudioAsset)
+                .Take(2)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        if (matches.Length == 0)
+        {
+            return Result.Failure<
+                VocabularyDetailResponse>(
+                Error.NotFound(
+                    "Vocabulary.NotFound",
+                    "Không tìm thấy vocabulary."));
+        }
+
+        if (matches.Length > 1 &&
+            pinyinNormalized is null)
+        {
+            return Result.Failure<
+                VocabularyDetailResponse>(
+                Error.Conflict(
+                    "Vocabulary.Ambiguous",
+                    "Có nhiều vocabulary cùng chữ. Hãy cung cấp pinyinNormalized."));
+        }
+
+        var entity =
+            matches[0];
+
+        var relations =
+            await _db.Set<VocabularyRelation>()
+                .AsNoTracking()
+                .Include(
+                    x => x.RelatedVocabulary)
+                .Where(
+                    x =>
+                        x.VocabularyId ==
+                            entity.Id &&
+                        x.RelatedVocabulary.Status ==
+                            ContentStatus.Published)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        var response =
+            VocabularyMapper.ToPublicDetail(
+                entity,
+                relations);
+
+        await _cache.SetAsync(
+            cacheKey,
+            response,
+            TimeSpan.FromMinutes(
+                _options.DetailMinutes),
+            cancellationToken);
+
+        return Result.Success(response);
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<PublicTopicResponse>>>
+        GetTopicsAsync(
+            CancellationToken cancellationToken = default)
+    {
+        var generation =
+            await GetGenerationAsync(
+                cancellationToken);
+
+        var key =
+            $"vocabulary:public:{generation}:topics";
+
+        var cached =
+            await _cache.GetAsync<
+                IReadOnlyCollection<
+                    PublicTopicResponse>>(
+                key,
+                cancellationToken);
+
+        if (cached is not null)
+        {
+            return Result.Success(cached);
+        }
+
+        var entities =
+            await _db.Set<Topic>()
+                .AsNoTracking()
+                .Where(
+                    x =>
+                        x.Status ==
+                        ContentStatus.Published)
+                .OrderBy(x => x.SortOrder)
+                .ThenBy(x => x.NameVi)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        var response =
+            entities
+                .Select(
+                    VocabularyMapper
+                        .ToPublicTopic)
+                .ToArray();
+
+        await _cache.SetAsync(
+            key,
+            (IReadOnlyCollection<
+                PublicTopicResponse>)response,
+            TimeSpan.FromMinutes(
+                _options.TaxonomyMinutes),
+            cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                PublicTopicResponse>>(
+            response);
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<
+            PublicPartOfSpeechResponse>>>
+        GetPartsOfSpeechAsync(
+            CancellationToken cancellationToken = default)
+    {
+        var entities =
+            await _db.Set<PartOfSpeech>()
+                .AsNoTracking()
+                .OrderBy(x => x.Code)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                PublicPartOfSpeechResponse>>(
+            entities
+                .Select(
+                    VocabularyMapper
+                        .ToPublicPartOfSpeech)
+                .ToArray());
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<PublicHskLevelResponse>>>
+        GetHskLevelsAsync(
+            CancellationToken cancellationToken = default)
+    {
+        var entities =
+            await _db.Set<HskLevel>()
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.SortOrder)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                PublicHskLevelResponse>>(
+            entities
+                .Select(
+                    VocabularyMapper.ToPublicHsk)
+                .ToArray());
+    }
+
+    public async Task<Result<VocabularyNoteResponse?>>
+        GetMyNoteAsync(
+            Guid userId,
+            string simplified,
+            string? pinyinNormalized,
+            CancellationToken cancellationToken = default)
+    {
+        var vocabularyResult =
+            await ResolveVocabularyAsync(
+                simplified,
+                pinyinNormalized,
+                cancellationToken);
+
+        if (vocabularyResult.IsFailure)
+        {
+            return Result.Failure<
+                VocabularyNoteResponse?>(
+                vocabularyResult.Error);
+        }
+
+        var note =
+            await _db.Set<UserVocabularyNote>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.UserId == userId &&
+                        x.VocabularyId ==
+                            vocabularyResult.Value.Id,
+                    cancellationToken);
+
+        return Result.Success<
+            VocabularyNoteResponse?>(
+            note is null
+                ? null
+                : VocabularyMapper
+                    .ToNoteResponse(note));
+    }
+
+    public async Task<Result<VocabularyNoteResponse>>
+        SaveMyNoteAsync(
+            Guid userId,
+            string simplified,
+            string? pinyinNormalized,
+            SaveVocabularyNoteRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        if (userId == Guid.Empty)
+        {
+            return Result.Failure<
+                VocabularyNoteResponse>(
+                Error.Unauthorized(
+                    "Identity.Unauthorized",
+                    "Người dùng chưa đăng nhập."));
+        }
+
+        var vocabularyResult =
+            await ResolveVocabularyAsync(
+                simplified,
+                pinyinNormalized,
+                cancellationToken);
+
+        if (vocabularyResult.IsFailure)
+        {
+            return Result.Failure<
+                VocabularyNoteResponse>(
+                vocabularyResult.Error);
+        }
+
+        var vocabulary =
+            vocabularyResult.Value;
+
+        var note =
+            await _db.Set<UserVocabularyNote>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.UserId == userId &&
+                        x.VocabularyId ==
+                            vocabulary.Id,
+                    cancellationToken);
+
+        if (note is null)
+        {
+            note =
+                new UserVocabularyNote(
+                    userId,
+                    vocabulary.Id,
+                    request.Content);
+
+            note.SetPinned(
+                request.IsPinned);
+
+            _db.Set<UserVocabularyNote>()
+                .Add(note);
+        }
+        else
+        {
+            note.UpdateContent(
+                request.Content);
+
+            note.SetPinned(
+                request.IsPinned);
+        }
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyMapper
+                .ToNoteResponse(note));
+    }
+
+    public async Task<Result>
+        DeleteMyNoteAsync(
+            Guid userId,
+            string simplified,
+            string? pinyinNormalized,
+            CancellationToken cancellationToken = default)
+    {
+        var vocabularyResult =
+            await ResolveVocabularyAsync(
+                simplified,
+                pinyinNormalized,
+                cancellationToken);
+
+        if (vocabularyResult.IsFailure)
+        {
+            return Result.Failure(
+                vocabularyResult.Error);
+        }
+
+        var note =
+            await _db.Set<UserVocabularyNote>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.UserId == userId &&
+                        x.VocabularyId ==
+                            vocabularyResult.Value.Id,
+                    cancellationToken);
+
+        if (note is null)
+        {
+            return Result.Failure(
+                Error.NotFound(
+                    "VocabularyNote.NotFound",
+                    "Không tìm thấy ghi chú."));
+        }
+
+        _db.Remove(note);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    private async Task<Result<
+        Domain.Entities.Vocabulary.Vocabulary>>
+        ResolveVocabularyAsync(
+            string simplified,
+            string? pinyinNormalized,
+            CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(
+                simplified))
+        {
+            return Result.Failure<
+                Domain.Entities.Vocabulary.Vocabulary>(
+                Error.Validation(
+                    "Vocabulary.InvalidSimplified",
+                    "Simplified không hợp lệ."));
+        }
+
+        simplified =
+            simplified.Trim();
+
+        var query =
+            _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .Where(
+                    x =>
+                        x.Status ==
+                            ContentStatus.Published &&
+                        x.Simplified ==
+                            simplified);
+
+        if (!string.IsNullOrWhiteSpace(
+                pinyinNormalized))
+        {
+            var normalized =
+                pinyinNormalized.Trim();
+
+            query =
+                query.Where(
+                    x =>
+                        x.PinyinNormalized ==
+                        normalized);
+        }
+
+        var values =
+            await query
+                .Take(2)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        if (values.Length == 0)
+        {
+            return Result.Failure<
+                Domain.Entities.Vocabulary.Vocabulary>(
+                Error.NotFound(
+                    "Vocabulary.NotFound",
+                    "Không tìm thấy vocabulary."));
+        }
+
+        if (values.Length > 1 &&
+            string.IsNullOrWhiteSpace(
+                pinyinNormalized))
+        {
+            return Result.Failure<
+                Domain.Entities.Vocabulary.Vocabulary>(
+                Error.Conflict(
+                    "Vocabulary.Ambiguous",
+                    "Có nhiều vocabulary cùng chữ."));
+        }
+
+        return Result.Success(values[0]);
+    }
+
+    private async Task<string>
+        GetGenerationAsync(
+            CancellationToken cancellationToken)
+    {
+        var generation =
+            await _cache.GetAsync<string>(
+                GenerationCacheKey,
+                cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(
+                generation))
+        {
+            return generation;
+        }
+
+        generation =
+            Guid.NewGuid()
+                .ToString("N");
+
+        await _cache.SetAsync(
+            GenerationCacheKey,
+            generation,
+            TimeSpan.FromDays(
+                _options.GenerationDays),
+            cancellationToken);
+
+        return generation;
+    }
+
+    private static string Hash(
+        string value)
+    {
+        var bytes =
+            SHA256.HashData(
+                Encoding.UTF8.GetBytes(
+                    value));
+
+        return Convert.ToHexString(
+                bytes);
+    }
+
+    private static IQueryable<
+        Domain.Entities.Vocabulary.Vocabulary>
+        ApplyPublicSort(
+            IQueryable<
+                Domain.Entities.Vocabulary.Vocabulary> source,
+            string? sort)
+    {
+        return sort?
+            .Trim()
+            .ToLowerInvariant()
+            switch
+        {
+            "-simplified" =>
+                source.OrderByDescending(
+                    x => x.Simplified),
+
+            "pinyin" =>
+                source.OrderBy(
+                    x => x.PinyinNormalized),
+
+            "-pinyin" =>
+                source.OrderByDescending(
+                    x => x.PinyinNormalized),
+
+            "hsk" =>
+                source
+                    .OrderBy(
+                        x => x.HskLevelId)
+                    .ThenBy(
+                        x => x.Simplified),
+
+            "-hsk" =>
+                source
+                    .OrderByDescending(
+                        x => x.HskLevelId)
+                    .ThenBy(
+                        x => x.Simplified),
+
+            "difficulty" =>
+                source
+                    .OrderBy(
+                        x => x.Difficulty),
+
+            "-difficulty" =>
+                source
+                    .OrderByDescending(
+                        x => x.Difficulty),
+
+            _ =>
+                source.OrderBy(
+                    x => x.Simplified)
+        };
+    }
+}
+19. VocabularyAdminService.cs
+
+File này khá dài nhưng đây là phần trung tâm.
+
+using HanYu.Application.Common.Models;
+using HanYu.Application.Features.Vocabulary.Admin.AudioAssets;
+using HanYu.Application.Features.Vocabulary.Admin.Examples;
+using HanYu.Application.Features.Vocabulary.Admin.HskLevels;
+using HanYu.Application.Features.Vocabulary.Admin.Meanings;
+using HanYu.Application.Features.Vocabulary.Admin.PartsOfSpeech;
+using HanYu.Application.Features.Vocabulary.Admin.Relations;
+using HanYu.Application.Features.Vocabulary.Admin.Topics;
+using HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
+using HanYu.Application.Features.Vocabulary.Mapping;
+using HanYu.Application.Interfaces.Caching;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Entities.Vocabulary;
+using HanYu.Domain.Enums;
+using HanYu.Infrastructure.Options;
+using HanYu.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace HanYu.Infrastructure.Vocabulary;
+
+public sealed class VocabularyAdminService
+    : IVocabularyAdminService
+{
+    private const string GenerationCacheKey =
+        "vocabulary:public:generation";
+
+    private readonly HanYuDbContext _db;
+    private readonly ICacheService _cache;
+    private readonly VocabularyCacheOptions _options;
+
+    public VocabularyAdminService(
+        HanYuDbContext db,
+        ICacheService cache,
+        IOptions<VocabularyCacheOptions> options)
+    {
+        _db = db;
+        _cache = cache;
+        _options = options.Value;
+    }
+
+    public async Task<Result<
+        PagedResult<AdminVocabularyResponse>>>
+        GetVocabulariesAsync(
+            AdminVocabularyQuery query,
+            CancellationToken cancellationToken = default)
+    {
+        var source =
+            _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .Include(x => x.HskLevel)
+                .Include(x => x.PartOfSpeech)
+                .Include(x => x.Topic)
+                .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(
+                query.Q))
+        {
+            var keyword =
+                query.Q.Trim();
+
+            source =
+                source.Where(
+                    x =>
+                        EF.Functions.ILike(
+                            x.Simplified,
+                            $"%{keyword}%") ||
+                        (
+                            x.Traditional != null &&
+                            EF.Functions.ILike(
+                                x.Traditional,
+                                $"%{keyword}%")
+                        ) ||
+                        EF.Functions.ILike(
+                            x.Pinyin,
+                            $"%{keyword}%") ||
+                        EF.Functions.ILike(
+                            x.PrimaryMeaningVi,
+                            $"%{keyword}%"));
+        }
+
+        if (query.HskLevelId.HasValue)
+            source = source.Where(
+                x => x.HskLevelId ==
+                     query.HskLevelId.Value);
+
+        if (query.PartOfSpeechId.HasValue)
+            source = source.Where(
+                x => x.PartOfSpeechId ==
+                     query.PartOfSpeechId.Value);
+
+        if (query.TopicId.HasValue)
+            source = source.Where(
+                x => x.TopicId ==
+                     query.TopicId.Value);
+
+        if (query.Difficulty.HasValue)
+            source = source.Where(
+                x => x.Difficulty ==
+                     query.Difficulty.Value);
+
+        if (query.Status.HasValue)
+            source = source.Where(
+                x => x.Status ==
+                     query.Status.Value);
+
+        source =
+            ApplyAdminSort(
+                source,
+                query.Sort);
+
+        var total =
+            await source.LongCountAsync(
+                cancellationToken);
+
+        var entities =
+            await source
+                .Skip(
+                    (query.NormalizedPage - 1) *
+                    query.NormalizedPageSize)
+                .Take(
+                    query.NormalizedPageSize)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success(
+            new PagedResult<
+                AdminVocabularyResponse>(
+                entities
+                    .Select(
+                        VocabularyMapper
+                            .ToAdminResponse)
+                    .ToArray(),
+                query.NormalizedPage,
+                query.NormalizedPageSize,
+                total));
+    }
+
+    public async Task<Result<AdminVocabularyResponse>>
+        GetVocabularyAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .Include(x => x.HskLevel)
+                .Include(x => x.PartOfSpeech)
+                .Include(x => x.Topic)
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+        {
+            return Result.Failure<
+                AdminVocabularyResponse>(
+                NotFound("Vocabulary"));
+        }
+
+        return Result.Success(
+            VocabularyMapper
+                .ToAdminResponse(entity));
+    }
+
+    public async Task<Result<AdminVocabularyResponse>>
+        CreateVocabularyAsync(
+            CreateVocabularyRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var references =
+            await ValidateReferencesAsync(
+                request.HskLevelId,
+                request.PartOfSpeechId,
+                request.TopicId,
+                request.AudioAssetId,
+                cancellationToken);
+
+        if (references.IsFailure)
+        {
+            return Result.Failure<
+                AdminVocabularyResponse>(
+                references.Error);
+        }
+
+        var duplicate =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AnyAsync(
+                    x =>
+                        x.Simplified ==
+                            request.Simplified.Trim() &&
+                        x.PinyinNormalized ==
+                            request.PinyinNormalized.Trim(),
+                    cancellationToken);
+
+        if (duplicate)
+        {
+            return Result.Failure<
+                AdminVocabularyResponse>(
+                Error.Conflict(
+                    "Vocabulary.Duplicate",
+                    "Vocabulary đã tồn tại."));
+        }
+
+        var entity =
+            new Domain.Entities.Vocabulary.Vocabulary(
+                request.HskLevelId,
+                request.Simplified,
+                request.Pinyin,
+                request.PinyinNormalized,
+                request.PrimaryMeaningVi,
+                request.Difficulty,
+                request.Traditional,
+                request.PartOfSpeechId,
+                request.TopicId,
+                request.AudioAssetId,
+                request.NotesVi);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return await GetVocabularyAsync(
+            entity.Id,
+            cancellationToken);
+    }
+
+    public async Task<Result<AdminVocabularyResponse>>
+        UpdateVocabularyAsync(
+            long id,
+            UpdateVocabularyRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+        {
+            return Result.Failure<
+                AdminVocabularyResponse>(
+                NotFound("Vocabulary"));
+        }
+
+        if (entity.Version != request.Version)
+        {
+            return Result.Failure<
+                AdminVocabularyResponse>(
+                Error.Conflict(
+                    "Vocabulary.VersionConflict",
+                    "Dữ liệu đã thay đổi. Hãy tải lại."));
+        }
+
+        if (entity.Status ==
+            ContentStatus.Archived)
+        {
+            return Result.Failure<
+                AdminVocabularyResponse>(
+                Error.Conflict(
+                    "Vocabulary.Archived",
+                    "Không thể sửa vocabulary Archived."));
+        }
+
+        var references =
+            await ValidateReferencesAsync(
+                request.HskLevelId,
+                request.PartOfSpeechId,
+                request.TopicId,
+                request.AudioAssetId,
+                cancellationToken);
+
+        if (references.IsFailure)
+        {
+            return Result.Failure<
+                AdminVocabularyResponse>(
+                references.Error);
+        }
+
+        entity.Update(
+            request.HskLevelId,
+            request.Simplified,
+            request.Traditional,
+            request.Pinyin,
+            request.PinyinNormalized,
+            request.PrimaryMeaningVi,
+            request.NotesVi,
+            request.Difficulty,
+            request.PartOfSpeechId,
+            request.TopicId,
+            request.AudioAssetId);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return await GetVocabularyAsync(
+            id,
+            cancellationToken);
+    }
+
+    public Task<Result>
+        SubmitVocabularyForReviewAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeVocabularyStatusAsync(
+            id,
+            x => x.SubmitForReview(),
+            cancellationToken);
+    }
+
+    public Task<Result>
+        ApproveVocabularyAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeVocabularyStatusAsync(
+            id,
+            x => x.Approve(),
+            cancellationToken);
+    }
+
+    public Task<Result>
+        PublishVocabularyAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeVocabularyStatusAsync(
+            id,
+            x => x.Publish(),
+            cancellationToken);
+    }
+
+    public Task<Result>
+        ArchiveVocabularyAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeVocabularyStatusAsync(
+            id,
+            x => x.Archive(),
+            cancellationToken);
+    }
+
+    public Task<Result>
+        RestoreVocabularyAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeVocabularyStatusAsync(
+            id,
+            x => x.Restore(),
+            cancellationToken);
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<
+            AdminVocabularyMeaningResponse>>>
+        GetMeaningsAsync(
+            long vocabularyId,
+            CancellationToken cancellationToken = default)
+    {
+        if (!await VocabularyExistsAsync(
+                vocabularyId,
+                cancellationToken))
+        {
+            return Result.Failure<
+                IReadOnlyCollection<
+                    AdminVocabularyMeaningResponse>>(
+                NotFound("Vocabulary"));
+        }
+
+        var values =
+            await _db.Set<VocabularyMeaning>()
+                .AsNoTracking()
+                .Where(
+                    x =>
+                        x.VocabularyId ==
+                        vocabularyId)
+                .OrderBy(
+                    x => x.SenseOrder)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                AdminVocabularyMeaningResponse>>(
+            values
+                .Select(
+                    VocabularyAdminMapper
+                        .ToMeaningResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<
+        AdminVocabularyMeaningResponse>>
+        CreateMeaningAsync(
+            long vocabularyId,
+            CreateVocabularyMeaningRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        if (!await VocabularyExistsAsync(
+                vocabularyId,
+                cancellationToken))
+        {
+            return Result.Failure<
+                AdminVocabularyMeaningResponse>(
+                NotFound("Vocabulary"));
+        }
+
+        var orderExists =
+            await _db.Set<VocabularyMeaning>()
+                .AnyAsync(
+                    x =>
+                        x.VocabularyId ==
+                            vocabularyId &&
+                        x.SenseOrder ==
+                            request.SenseOrder,
+                    cancellationToken);
+
+        if (orderExists)
+        {
+            return Result.Failure<
+                AdminVocabularyMeaningResponse>(
+                Error.Conflict(
+                    "VocabularyMeaning.DuplicateOrder",
+                    "SenseOrder đã tồn tại."));
+        }
+
+        var entity =
+            new VocabularyMeaning(
+                vocabularyId,
+                request.MeaningVi,
+                request.SenseOrder,
+                request.UsageNoteVi);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToMeaningResponse(entity));
+    }
+
+    public async Task<Result<
+        AdminVocabularyMeaningResponse>>
+        UpdateMeaningAsync(
+            long vocabularyId,
+            long meaningId,
+            UpdateVocabularyMeaningRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<VocabularyMeaning>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == meaningId &&
+                        x.VocabularyId ==
+                            vocabularyId,
+                    cancellationToken);
+
+        if (entity is null)
+        {
+            return Result.Failure<
+                AdminVocabularyMeaningResponse>(
+                NotFound("VocabularyMeaning"));
+        }
+
+        var duplicate =
+            await _db.Set<VocabularyMeaning>()
+                .AnyAsync(
+                    x =>
+                        x.Id != meaningId &&
+                        x.VocabularyId ==
+                            vocabularyId &&
+                        x.SenseOrder ==
+                            request.SenseOrder,
+                    cancellationToken);
+
+        if (duplicate)
+        {
+            return Result.Failure<
+                AdminVocabularyMeaningResponse>(
+                Error.Conflict(
+                    "VocabularyMeaning.DuplicateOrder",
+                    "SenseOrder đã tồn tại."));
+        }
+
+        entity.Update(
+            request.MeaningVi,
+            request.SenseOrder,
+            request.UsageNoteVi);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToMeaningResponse(entity));
+    }
+
+    public async Task<Result>
+        DeleteMeaningAsync(
+            long vocabularyId,
+            long meaningId,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<VocabularyMeaning>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == meaningId &&
+                        x.VocabularyId ==
+                            vocabularyId,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("VocabularyMeaning"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<
+            AdminVocabularyExampleResponse>>>
+        GetExamplesAsync(
+            long vocabularyId,
+            CancellationToken cancellationToken = default)
+    {
+        if (!await VocabularyExistsAsync(
+                vocabularyId,
+                cancellationToken))
+        {
+            return Result.Failure<
+                IReadOnlyCollection<
+                    AdminVocabularyExampleResponse>>(
+                NotFound("Vocabulary"));
+        }
+
+        var values =
+            await _db.Set<VocabularyExample>()
+                .AsNoTracking()
+                .Where(
+                    x =>
+                        x.VocabularyId ==
+                        vocabularyId)
+                .OrderBy(x => x.Id)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                AdminVocabularyExampleResponse>>(
+            values
+                .Select(
+                    VocabularyAdminMapper
+                        .ToExampleResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<
+        AdminVocabularyExampleResponse>>
+        CreateExampleAsync(
+            long vocabularyId,
+            CreateVocabularyExampleRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        if (!await VocabularyExistsAsync(
+                vocabularyId,
+                cancellationToken))
+        {
+            return Result.Failure<
+                AdminVocabularyExampleResponse>(
+                NotFound("Vocabulary"));
+        }
+
+        var audioValidation =
+            await ValidateAudioAsync(
+                request.AudioAssetId,
+                cancellationToken);
+
+        if (audioValidation.IsFailure)
+        {
+            return Result.Failure<
+                AdminVocabularyExampleResponse>(
+                audioValidation.Error);
+        }
+
+        var entity =
+            new VocabularyExample(
+                vocabularyId,
+                request.SentenceZh,
+                request.SentencePinyin,
+                request.SentenceVi,
+                request.Difficulty,
+                request.AudioAssetId,
+                request.SourceNote);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToExampleResponse(entity));
+    }
+
+    public async Task<Result<
+        AdminVocabularyExampleResponse>>
+        UpdateExampleAsync(
+            long vocabularyId,
+            long exampleId,
+            UpdateVocabularyExampleRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var result =
+            await FindExampleAsync(
+                vocabularyId,
+                exampleId,
+                cancellationToken);
+
+        if (result.IsFailure)
+        {
+            return Result.Failure<
+                AdminVocabularyExampleResponse>(
+                result.Error);
+        }
+
+        var audio =
+            await ValidateAudioAsync(
+                request.AudioAssetId,
+                cancellationToken);
+
+        if (audio.IsFailure)
+        {
+            return Result.Failure<
+                AdminVocabularyExampleResponse>(
+                audio.Error);
+        }
+
+        var entity =
+            result.Value;
+
+        entity.Update(
+            request.SentenceZh,
+            request.SentencePinyin,
+            request.SentenceVi,
+            request.Difficulty,
+            request.AudioAssetId,
+            request.SourceNote);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToExampleResponse(entity));
+    }
+
+    public Task<Result>
+        SubmitExampleForReviewAsync(
+            long vocabularyId,
+            long exampleId,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeExampleStatusAsync(
+            vocabularyId,
+            exampleId,
+            x => x.SubmitForReview(),
+            cancellationToken);
+    }
+
+    public Task<Result>
+        ApproveExampleAsync(
+            long vocabularyId,
+            long exampleId,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeExampleStatusAsync(
+            vocabularyId,
+            exampleId,
+            x => x.Approve(),
+            cancellationToken);
+    }
+
+    public Task<Result>
+        PublishExampleAsync(
+            long vocabularyId,
+            long exampleId,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeExampleStatusAsync(
+            vocabularyId,
+            exampleId,
+            x => x.Publish(),
+            cancellationToken);
+    }
+
+    public Task<Result>
+        ArchiveExampleAsync(
+            long vocabularyId,
+            long exampleId,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeExampleStatusAsync(
+            vocabularyId,
+            exampleId,
+            x => x.Archive(),
+            cancellationToken);
+    }
+
+    public Task<Result>
+        RestoreExampleAsync(
+            long vocabularyId,
+            long exampleId,
+            CancellationToken cancellationToken = default)
+    {
+        return ChangeExampleStatusAsync(
+            vocabularyId,
+            exampleId,
+            x => x.Restore(),
+            cancellationToken);
+    }
+
+    public async Task<Result>
+        DeleteExampleAsync(
+            long vocabularyId,
+            long exampleId,
+            CancellationToken cancellationToken = default)
+    {
+        var result =
+            await FindExampleAsync(
+                vocabularyId,
+                exampleId,
+                cancellationToken);
+
+        if (result.IsFailure)
+            return Result.Failure(
+                result.Error);
+
+        if (result.Value.Status ==
+            ContentStatus.Published)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "VocabularyExample.Published",
+                    "Hãy archive example trước khi xóa."));
+        }
+
+        _db.Remove(result.Value);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<
+            AdminVocabularyRelationResponse>>>
+        GetRelationsAsync(
+            long vocabularyId,
+            CancellationToken cancellationToken = default)
+    {
+        var values =
+            await _db.Set<VocabularyRelation>()
+                .AsNoTracking()
+                .Include(
+                    x => x.RelatedVocabulary)
+                .Where(
+                    x =>
+                        x.VocabularyId ==
+                        vocabularyId)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                AdminVocabularyRelationResponse>>(
+            values
+                .Select(
+                    VocabularyAdminMapper
+                        .ToRelationResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<
+        AdminVocabularyRelationResponse>>
+        CreateRelationAsync(
+            long vocabularyId,
+            CreateVocabularyRelationRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        if (vocabularyId ==
+            request.RelatedVocabularyId)
+        {
+            return Result.Failure<
+                AdminVocabularyRelationResponse>(
+                Error.Validation(
+                    "VocabularyRelation.SelfReference",
+                    "Không thể relation với chính nó."));
+        }
+
+        if (!await VocabularyExistsAsync(
+                vocabularyId,
+                cancellationToken) ||
+            !await VocabularyExistsAsync(
+                request.RelatedVocabularyId,
+                cancellationToken))
+        {
+            return Result.Failure<
+                AdminVocabularyRelationResponse>(
+                NotFound("Vocabulary"));
+        }
+
+        var duplicate =
+            await _db.Set<VocabularyRelation>()
+                .AnyAsync(
+                    x =>
+                        x.VocabularyId ==
+                            vocabularyId &&
+                        x.RelatedVocabularyId ==
+                            request.RelatedVocabularyId &&
+                        x.RelationType ==
+                            request.RelationType,
+                    cancellationToken);
+
+        if (duplicate)
+        {
+            return Result.Failure<
+                AdminVocabularyRelationResponse>(
+                Error.Conflict(
+                    "VocabularyRelation.Duplicate",
+                    "Relation đã tồn tại."));
+        }
+
+        var entity =
+            new VocabularyRelation(
+                vocabularyId,
+                request.RelatedVocabularyId,
+                request.RelationType,
+                request.NoteVi);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        var loaded =
+            await _db.Set<VocabularyRelation>()
+                .AsNoTracking()
+                .Include(
+                    x => x.RelatedVocabulary)
+                .FirstAsync(
+                    x => x.Id == entity.Id,
+                    cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToRelationResponse(loaded));
+    }
+
+    public async Task<Result<
+        AdminVocabularyRelationResponse>>
+        UpdateRelationAsync(
+            long vocabularyId,
+            long relationId,
+            UpdateVocabularyRelationRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<VocabularyRelation>()
+                .Include(
+                    x => x.RelatedVocabulary)
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == relationId &&
+                        x.VocabularyId ==
+                            vocabularyId,
+                    cancellationToken);
+
+        if (entity is null)
+        {
+            return Result.Failure<
+                AdminVocabularyRelationResponse>(
+                NotFound("VocabularyRelation"));
+        }
+
+        entity.UpdateRelation(
+            request.RelationType,
+            request.NoteVi);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToRelationResponse(entity));
+    }
+
+    public async Task<Result>
+        DeleteRelationAsync(
+            long vocabularyId,
+            long relationId,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<VocabularyRelation>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == relationId &&
+                        x.VocabularyId ==
+                            vocabularyId,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("VocabularyRelation"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<
+            AdminTopicResponse>>>
+        GetTopicsAsync(
+            CancellationToken cancellationToken = default)
+    {
+        var values =
+            await _db.Set<Topic>()
+                .AsNoTracking()
+                .OrderBy(x => x.SortOrder)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                AdminTopicResponse>>(
+            values
+                .Select(
+                    VocabularyAdminMapper
+                        .ToTopicResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<AdminTopicResponse>>
+        CreateTopicAsync(
+            CreateTopicRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var slug =
+            request.Slug.Trim()
+                .ToLowerInvariant();
+
+        if (await _db.Set<Topic>()
+                .AnyAsync(
+                    x => x.Slug == slug,
+                    cancellationToken))
+        {
+            return Result.Failure<
+                AdminTopicResponse>(
+                Error.Conflict(
+                    "Topic.DuplicateSlug",
+                    "Slug đã tồn tại."));
+        }
+
+        var entity =
+            new Topic(
+                request.Slug,
+                request.NameVi,
+                request.DescriptionVi,
+                request.SortOrder);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToTopicResponse(entity));
+    }
+
+    public async Task<Result<AdminTopicResponse>>
+        UpdateTopicAsync(
+            long id,
+            UpdateTopicRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<Topic>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure<
+                AdminTopicResponse>(
+                NotFound("Topic"));
+
+        entity.Update(
+            request.Slug,
+            request.NameVi,
+            request.DescriptionVi,
+            request.SortOrder);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToTopicResponse(entity));
+    }
+
+    public Task<Result> PublishTopicAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+        => ChangeTopicStatusAsync(
+            id,
+            x => x.Publish(),
+            cancellationToken);
+
+    public Task<Result> ArchiveTopicAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+        => ChangeTopicStatusAsync(
+            id,
+            x => x.Archive(),
+            cancellationToken);
+
+    public Task<Result> RestoreTopicAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+        => ChangeTopicStatusAsync(
+            id,
+            x => x.Restore(),
+            cancellationToken);
+
+    public async Task<Result>
+        DeleteTopicAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        if (await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AnyAsync(
+                    x => x.TopicId == id,
+                    cancellationToken))
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "Topic.InUse",
+                    "Topic đang được sử dụng."));
+        }
+
+        var entity =
+            await _db.Set<Topic>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("Topic"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<
+            AdminPartOfSpeechResponse>>>
+        GetPartsOfSpeechAsync(
+            CancellationToken cancellationToken = default)
+    {
+        var values =
+            await _db.Set<PartOfSpeech>()
+                .AsNoTracking()
+                .OrderBy(x => x.Code)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                AdminPartOfSpeechResponse>>(
+            values
+                .Select(
+                    VocabularyAdminMapper
+                        .ToPartOfSpeechResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<
+        AdminPartOfSpeechResponse>>
+        CreatePartOfSpeechAsync(
+            CreatePartOfSpeechRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var code =
+            request.Code.Trim()
+                .ToLowerInvariant();
+
+        if (await _db.Set<PartOfSpeech>()
+                .AnyAsync(
+                    x => x.Code == code,
+                    cancellationToken))
+        {
+            return Result.Failure<
+                AdminPartOfSpeechResponse>(
+                Error.Conflict(
+                    "PartOfSpeech.Duplicate",
+                    "Code đã tồn tại."));
+        }
+
+        var entity =
+            new PartOfSpeech(
+                request.Code,
+                request.NameVi,
+                request.NameEn);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToPartOfSpeechResponse(entity));
+    }
+
+    public async Task<Result<
+        AdminPartOfSpeechResponse>>
+        UpdatePartOfSpeechAsync(
+            long id,
+            UpdatePartOfSpeechRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<PartOfSpeech>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure<
+                AdminPartOfSpeechResponse>(
+                NotFound("PartOfSpeech"));
+
+        entity.Update(
+            request.Code,
+            request.NameVi,
+            request.NameEn);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToPartOfSpeechResponse(entity));
+    }
+
+    public async Task<Result>
+        DeletePartOfSpeechAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        if (await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AnyAsync(
+                    x =>
+                        x.PartOfSpeechId == id,
+                    cancellationToken))
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "PartOfSpeech.InUse",
+                    "PartOfSpeech đang được sử dụng."));
+        }
+
+        var entity =
+            await _db.Set<PartOfSpeech>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("PartOfSpeech"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<
+            AdminHskLevelResponse>>>
+        GetHskLevelsAsync(
+            CancellationToken cancellationToken = default)
+    {
+        var values =
+            await _db.Set<HskLevel>()
+                .AsNoTracking()
+                .OrderBy(x => x.SortOrder)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                AdminHskLevelResponse>>(
+            values
+                .Select(
+                    VocabularyAdminMapper
+                        .ToHskResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<
+        AdminHskLevelResponse>>
+        CreateHskLevelAsync(
+            CreateHskLevelRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        if (await _db.Set<HskLevel>()
+                .AnyAsync(
+                    x => x.Id == request.Id,
+                    cancellationToken))
+        {
+            return Result.Failure<
+                AdminHskLevelResponse>(
+                Error.Conflict(
+                    "HskLevel.Duplicate",
+                    "HSK level đã tồn tại."));
+        }
+
+        var entity =
+            new HskLevel(
+                request.Id,
+                request.Code,
+                request.NameVi,
+                request.SortOrder);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToHskResponse(entity));
+    }
+
+    public async Task<Result<
+        AdminHskLevelResponse>>
+        UpdateHskLevelAsync(
+            short id,
+            UpdateHskLevelRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<HskLevel>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure<
+                AdminHskLevelResponse>(
+                NotFound("HskLevel"));
+
+        entity.Update(
+            request.Code,
+            request.NameVi,
+            request.SortOrder);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToHskResponse(entity));
+    }
+
+    public Task<Result> ActivateHskLevelAsync(
+        short id,
+        CancellationToken cancellationToken = default)
+        => ChangeHskStateAsync(
+            id,
+            x => x.Activate(),
+            cancellationToken);
+
+    public Task<Result> DeactivateHskLevelAsync(
+        short id,
+        CancellationToken cancellationToken = default)
+        => ChangeHskStateAsync(
+            id,
+            x => x.Deactivate(),
+            cancellationToken);
+
+    public async Task<Result>
+        DeleteHskLevelAsync(
+            short id,
+            CancellationToken cancellationToken = default)
+    {
+        if (await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AnyAsync(
+                    x =>
+                        x.HskLevelId == id,
+                    cancellationToken))
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "HskLevel.InUse",
+                    "HSK level đang được sử dụng."));
+        }
+
+        var entity =
+            await _db.Set<HskLevel>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("HskLevel"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result<
+        PagedResult<AdminAudioAssetResponse>>>
+        GetAudioAssetsAsync(
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(
+            pageSize,
+            1,
+            100);
+
+        var source =
+            _db.Set<AudioAsset>()
+                .AsNoTracking()
+                .OrderByDescending(
+                    x => x.UpdatedAt);
+
+        var total =
+            await source.LongCountAsync(
+                cancellationToken);
+
+        var values =
+            await source
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success(
+            new PagedResult<
+                AdminAudioAssetResponse>(
+                values
+                    .Select(
+                        VocabularyAdminMapper
+                            .ToAudioResponse)
+                    .ToArray(),
+                page,
+                pageSize,
+                total));
+    }
+
+    public async Task<Result<
+        AdminAudioAssetResponse>>
+        CreateAudioAssetAsync(
+            CreateAudioAssetRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            new AudioAsset(
+                request.StoragePath,
+                request.Kind,
+                request.MimeType);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToAudioResponse(entity));
+    }
+
+    public async Task<Result<
+        AdminAudioAssetResponse>>
+        UpdateAudioAssetAsync(
+            long id,
+            UpdateAudioAssetRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<AudioAsset>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure<
+                AdminAudioAssetResponse>(
+                NotFound("AudioAsset"));
+
+        entity.UpdateFileInfo(
+            request.StoragePath,
+            request.MimeType,
+            request.FileSizeBytes,
+            request.DurationMs,
+            request.Checksum);
+
+        entity.UpdateAudioMetadata(
+            request.Voice,
+            request.Provider,
+            request.LanguageCode);
+
+        entity.UpdatePublicUrl(
+            request.PublicUrl);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success(
+            VocabularyAdminMapper
+                .ToAudioResponse(entity));
+    }
+
+    public async Task<Result>
+        PublishAudioAssetAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await FindAudioAsync(
+                id,
+                cancellationToken);
+
+        if (entity.IsFailure)
+            return Result.Failure(
+                entity.Error);
+
+        entity.Value.Publish();
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result>
+        ArchiveAudioAssetAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await FindAudioAsync(
+                id,
+                cancellationToken);
+
+        if (entity.IsFailure)
+            return Result.Failure(
+                entity.Error);
+
+        entity.Value.Archive();
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result>
+        DeleteAudioAssetAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+    {
+        var inVocabulary =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AnyAsync(
+                    x => x.AudioAssetId == id,
+                    cancellationToken);
+
+        var inExample =
+            await _db.Set<VocabularyExample>()
+                .AnyAsync(
+                    x => x.AudioAssetId == id,
+                    cancellationToken);
+
+        if (inVocabulary || inExample)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "AudioAsset.InUse",
+                    "AudioAsset đang được sử dụng."));
+        }
+
+        var entity =
+            await _db.Set<AudioAsset>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("AudioAsset"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    private async Task<Result>
+        ChangeVocabularyStatusAsync(
+            long id,
+            Action<
+                Domain.Entities.Vocabulary.Vocabulary> action,
+            CancellationToken cancellationToken)
+    {
+        var entity =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("Vocabulary"));
+
+        action(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    private async Task<Result>
+        ChangeExampleStatusAsync(
+            long vocabularyId,
+            long exampleId,
+            Action<VocabularyExample> action,
+            CancellationToken cancellationToken)
+    {
+        var result =
+            await FindExampleAsync(
+                vocabularyId,
+                exampleId,
+                cancellationToken);
+
+        if (result.IsFailure)
+            return Result.Failure(
+                result.Error);
+
+        action(result.Value);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    private async Task<Result>
+        ChangeTopicStatusAsync(
+            long id,
+            Action<Topic> action,
+            CancellationToken cancellationToken)
+    {
+        var entity =
+            await _db.Set<Topic>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("Topic"));
+
+        action(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    private async Task<Result>
+        ChangeHskStateAsync(
+            short id,
+            Action<HskLevel> action,
+            CancellationToken cancellationToken)
+    {
+        var entity =
+            await _db.Set<HskLevel>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("HskLevel"));
+
+        action(entity);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        await BumpCacheGenerationAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    private async Task<Result<VocabularyExample>>
+        FindExampleAsync(
+            long vocabularyId,
+            long exampleId,
+            CancellationToken cancellationToken)
+    {
+        var entity =
+            await _db.Set<VocabularyExample>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == exampleId &&
+                        x.VocabularyId ==
+                            vocabularyId,
+                    cancellationToken);
+
+        return entity is null
+            ? Result.Failure<VocabularyExample>(
+                NotFound("VocabularyExample"))
+            : Result.Success(entity);
+    }
+
+    private async Task<Result<AudioAsset>>
+        FindAudioAsync(
+            long id,
+            CancellationToken cancellationToken)
+    {
+        var entity =
+            await _db.Set<AudioAsset>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        return entity is null
+            ? Result.Failure<AudioAsset>(
+                NotFound("AudioAsset"))
+            : Result.Success(entity);
+    }
+
+    private Task<bool> VocabularyExistsAsync(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        return _db.Set<
+                Domain.Entities.Vocabulary.Vocabulary>()
+            .AnyAsync(
+                x => x.Id == id,
+                cancellationToken);
+    }
+
+    private async Task<Result>
+        ValidateReferencesAsync(
+            short hskLevelId,
+            long? partOfSpeechId,
+            long? topicId,
+            long? audioAssetId,
+            CancellationToken cancellationToken)
+    {
+        var hsk =
+            await _db.Set<HskLevel>()
+                .AnyAsync(
+                    x =>
+                        x.Id == hskLevelId &&
+                        x.IsActive,
+                    cancellationToken);
+
+        if (!hsk)
+            return Result.Failure(
+                Error.Validation(
+                    "Vocabulary.InvalidHsk",
+                    "HSK không hợp lệ."));
+
+        if (partOfSpeechId.HasValue &&
+            !await _db.Set<PartOfSpeech>()
+                .AnyAsync(
+                    x =>
+                        x.Id ==
+                        partOfSpeechId.Value,
+                    cancellationToken))
+        {
+            return Result.Failure(
+                Error.Validation(
+                    "Vocabulary.InvalidPartOfSpeech",
+                    "PartOfSpeech không tồn tại."));
+        }
+
+        if (topicId.HasValue &&
+            !await _db.Set<Topic>()
+                .AnyAsync(
+                    x =>
+                        x.Id ==
+                        topicId.Value,
+                    cancellationToken))
+        {
+            return Result.Failure(
+                Error.Validation(
+                    "Vocabulary.InvalidTopic",
+                    "Topic không tồn tại."));
+        }
+
+        return await ValidateAudioAsync(
+            audioAssetId,
+            cancellationToken);
+    }
+
+    private async Task<Result>
+        ValidateAudioAsync(
+            long? audioAssetId,
+            CancellationToken cancellationToken)
+    {
+        if (!audioAssetId.HasValue)
+            return Result.Success();
+
+        var audio =
+            await _db.Set<AudioAsset>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id ==
+                        audioAssetId.Value,
+                    cancellationToken);
+
+        if (audio is null)
+        {
+            return Result.Failure(
+                Error.Validation(
+                    "AudioAsset.NotFound",
+                    "AudioAsset không tồn tại."));
+        }
+
+        if (audio.Status ==
+            ContentStatus.Archived)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "AudioAsset.Archived",
+                    "AudioAsset đã Archived."));
+        }
+
+        return Result.Success();
+    }
+
+    private async Task
+        BumpCacheGenerationAsync(
+            CancellationToken cancellationToken)
+    {
+        await _cache.SetAsync(
+            GenerationCacheKey,
+            Guid.NewGuid().ToString("N"),
+            TimeSpan.FromDays(
+                _options.GenerationDays),
+            cancellationToken);
+    }
+
+    private static Error NotFound(
+        string resource)
+    {
+        return Error.NotFound(
+            $"{resource}.NotFound",
+            $"Không tìm thấy {resource}.");
+    }
+
+    private static IQueryable<
+        Domain.Entities.Vocabulary.Vocabulary>
+        ApplyAdminSort(
+            IQueryable<
+                Domain.Entities.Vocabulary.Vocabulary> source,
+            string? sort)
+    {
+        return sort?
+            .Trim()
+            .ToLowerInvariant()
+            switch
+        {
+            "simplified" =>
+                source.OrderBy(
+                    x => x.Simplified),
+
+            "-simplified" =>
+                source.OrderByDescending(
+                    x => x.Simplified),
+
+            "createdat" =>
+                source.OrderBy(
+                    x => x.CreatedAt),
+
+            "-createdat" =>
+                source.OrderByDescending(
+                    x => x.CreatedAt),
+
+            "updatedat" =>
+                source.OrderBy(
+                    x => x.UpdatedAt),
+
+            "-updatedat" =>
+                source.OrderByDescending(
+                    x => x.UpdatedAt),
+
+            _ =>
+                source.OrderByDescending(
+                    x => x.UpdatedAt)
+        };
+    }
+}
+20. Admin main controller
+
+VocabulariesController.cs
+
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+
+namespace HanYu.API.Controller.Admin.Vocabulary;
+
+[ApiController]
+[Authorize(Policy = Policies.AdminOnly)]
+[Route("api/v1/admin/vocabularies")]
+public sealed class VocabulariesController
+    : ControllerBase
+{
+    private readonly IVocabularyAdminService _service;
+
+    public VocabulariesController(
+        IVocabularyAdminService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] AdminVocabularyQuery query,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetVocabulariesAsync(
+                query,
+                cancellationToken));
+
+    [HttpGet("{id:long}")]
+    public async Task<IActionResult> Get(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetVocabularyAsync(
+                id,
+                cancellationToken));
+
+    [HttpPost]
+    [EnableRateLimiting(
+        ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
+    public async Task<IActionResult> Create(
+        CreateVocabularyRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.CreateVocabularyAsync(
+                request,
+                cancellationToken));
+
+    [HttpPut("{id:long}")]
+    [EnableRateLimiting(
+        ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
+    public async Task<IActionResult> Update(
+        long id,
+        UpdateVocabularyRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.UpdateVocabularyAsync(
+                id,
+                request,
+                cancellationToken));
+
+    [HttpPost("{id:long}/submit-review")]
+    public async Task<IActionResult> SubmitReview(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service
+                .SubmitVocabularyForReviewAsync(
+                    id,
+                    cancellationToken));
+
+    [HttpPost("{id:long}/approve")]
+    public async Task<IActionResult> Approve(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service
+                .ApproveVocabularyAsync(
+                    id,
+                    cancellationToken));
+
+    [HttpPost("{id:long}/publish")]
+    public async Task<IActionResult> Publish(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service
+                .PublishVocabularyAsync(
+                    id,
+                    cancellationToken));
+
+    [HttpPost("{id:long}/archive")]
+    public async Task<IActionResult> Archive(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service
+                .ArchiveVocabularyAsync(
+                    id,
+                    cancellationToken));
+
+    [HttpPost("{id:long}/restore")]
+    public async Task<IActionResult> Restore(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service
+                .RestoreVocabularyAsync(
+                    id,
+                    cancellationToken));
+}
+21. Meaning controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Admin.Meanings;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Admin.Vocabulary;
+
+[ApiController]
+[Authorize(Policy = Policies.AdminOnly)]
+[Route(
+    "api/v1/admin/vocabularies/{vocabularyId:long}/meanings")]
+public sealed class VocabularyMeaningsController
+    : ControllerBase
+{
+    private readonly IVocabularyAdminService _service;
+
+    public VocabularyMeaningsController(
+        IVocabularyAdminService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        long vocabularyId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetMeaningsAsync(
+                vocabularyId,
+                cancellationToken));
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        long vocabularyId,
+        CreateVocabularyMeaningRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.CreateMeaningAsync(
+                vocabularyId,
+                request,
+                cancellationToken));
+
+    [HttpPut("{meaningId:long}")]
+    public async Task<IActionResult> Update(
+        long vocabularyId,
+        long meaningId,
+        UpdateVocabularyMeaningRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.UpdateMeaningAsync(
+                vocabularyId,
+                meaningId,
+                request,
+                cancellationToken));
+
+    [HttpDelete("{meaningId:long}")]
+    public async Task<IActionResult> Delete(
+        long vocabularyId,
+        long meaningId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.DeleteMeaningAsync(
+                vocabularyId,
+                meaningId,
+                cancellationToken));
+}
+22. Example controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Admin.Examples;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Admin.Vocabulary;
+
+[ApiController]
+[Authorize(Policy = Policies.AdminOnly)]
+[Route(
+    "api/v1/admin/vocabularies/{vocabularyId:long}/examples")]
+public sealed class VocabularyExamplesController
+    : ControllerBase
+{
+    private readonly IVocabularyAdminService _service;
+
+    public VocabularyExamplesController(
+        IVocabularyAdminService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        long vocabularyId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetExamplesAsync(
+                vocabularyId,
+                cancellationToken));
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        long vocabularyId,
+        CreateVocabularyExampleRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.CreateExampleAsync(
+                vocabularyId,
+                request,
+                cancellationToken));
+
+    [HttpPut("{exampleId:long}")]
+    public async Task<IActionResult> Update(
+        long vocabularyId,
+        long exampleId,
+        UpdateVocabularyExampleRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.UpdateExampleAsync(
+                vocabularyId,
+                exampleId,
+                request,
+                cancellationToken));
+
+    [HttpPost("{exampleId:long}/submit-review")]
+    public async Task<IActionResult> SubmitReview(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service
+                .SubmitExampleForReviewAsync(
+                    vocabularyId,
+                    exampleId,
+                    cancellationToken));
+
+    [HttpPost("{exampleId:long}/approve")]
+    public async Task<IActionResult> Approve(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.ApproveExampleAsync(
+                vocabularyId,
+                exampleId,
+                cancellationToken));
+
+    [HttpPost("{exampleId:long}/publish")]
+    public async Task<IActionResult> Publish(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.PublishExampleAsync(
+                vocabularyId,
+                exampleId,
+                cancellationToken));
+
+    [HttpPost("{exampleId:long}/archive")]
+    public async Task<IActionResult> Archive(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.ArchiveExampleAsync(
+                vocabularyId,
+                exampleId,
+                cancellationToken));
+
+    [HttpPost("{exampleId:long}/restore")]
+    public async Task<IActionResult> Restore(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.RestoreExampleAsync(
+                vocabularyId,
+                exampleId,
+                cancellationToken));
+
+    [HttpDelete("{exampleId:long}")]
+    public async Task<IActionResult> Delete(
+        long vocabularyId,
+        long exampleId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.DeleteExampleAsync(
+                vocabularyId,
+                exampleId,
+                cancellationToken));
+}
+23. Relation controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Admin.Relations;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Admin.Vocabulary;
+
+[ApiController]
+[Authorize(Policy = Policies.AdminOnly)]
+[Route(
+    "api/v1/admin/vocabularies/{vocabularyId:long}/relations")]
+public sealed class VocabularyRelationsController
+    : ControllerBase
+{
+    private readonly IVocabularyAdminService _service;
+
+    public VocabularyRelationsController(
+        IVocabularyAdminService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        long vocabularyId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetRelationsAsync(
+                vocabularyId,
+                cancellationToken));
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        long vocabularyId,
+        CreateVocabularyRelationRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.CreateRelationAsync(
+                vocabularyId,
+                request,
+                cancellationToken));
+
+    [HttpPut("{relationId:long}")]
+    public async Task<IActionResult> Update(
+        long vocabularyId,
+        long relationId,
+        UpdateVocabularyRelationRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.UpdateRelationAsync(
+                vocabularyId,
+                relationId,
+                request,
+                cancellationToken));
+
+    [HttpDelete("{relationId:long}")]
+    public async Task<IActionResult> Delete(
+        long vocabularyId,
+        long relationId,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.DeleteRelationAsync(
+                vocabularyId,
+                relationId,
+                cancellationToken));
+}
+24. Topics controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Admin.Topics;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Admin.Vocabulary;
+
+[ApiController]
+[Authorize(Policy = Policies.AdminOnly)]
+[Route("api/v1/admin/vocabulary-topics")]
+public sealed class TopicsController
+    : ControllerBase
+{
+    private readonly IVocabularyAdminService _service;
+
+    public TopicsController(
+        IVocabularyAdminService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetTopicsAsync(
+                cancellationToken));
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        CreateTopicRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.CreateTopicAsync(
+                request,
+                cancellationToken));
+
+    [HttpPut("{id:long}")]
+    public async Task<IActionResult> Update(
+        long id,
+        UpdateTopicRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.UpdateTopicAsync(
+                id,
+                request,
+                cancellationToken));
+
+    [HttpPost("{id:long}/publish")]
+    public async Task<IActionResult> Publish(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.PublishTopicAsync(
+                id,
+                cancellationToken));
+
+    [HttpPost("{id:long}/archive")]
+    public async Task<IActionResult> Archive(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.ArchiveTopicAsync(
+                id,
+                cancellationToken));
+
+    [HttpPost("{id:long}/restore")]
+    public async Task<IActionResult> Restore(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.RestoreTopicAsync(
+                id,
+                cancellationToken));
+
+    [HttpDelete("{id:long}")]
+    public async Task<IActionResult> Delete(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.DeleteTopicAsync(
+                id,
+                cancellationToken));
+}
+25. PartsOfSpeech controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Admin.PartsOfSpeech;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Admin.Vocabulary;
+
+[ApiController]
+[Authorize(Policy = Policies.AdminOnly)]
+[Route("api/v1/admin/parts-of-speech")]
+public sealed class PartsOfSpeechController
+    : ControllerBase
+{
+    private readonly IVocabularyAdminService _service;
+
+    public PartsOfSpeechController(
+        IVocabularyAdminService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetPartsOfSpeechAsync(
+                cancellationToken));
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        CreatePartOfSpeechRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.CreatePartOfSpeechAsync(
+                request,
+                cancellationToken));
+
+    [HttpPut("{id:long}")]
+    public async Task<IActionResult> Update(
+        long id,
+        UpdatePartOfSpeechRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.UpdatePartOfSpeechAsync(
+                id,
+                request,
+                cancellationToken));
+
+    [HttpDelete("{id:long}")]
+    public async Task<IActionResult> Delete(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.DeletePartOfSpeechAsync(
+                id,
+                cancellationToken));
+}
+26. HSK controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Admin.HskLevels;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Admin.Vocabulary;
+
+[ApiController]
+[Authorize(Policy = Policies.AdminOnly)]
+[Route("api/v1/admin/hsk-levels")]
+public sealed class HskLevelsController
+    : ControllerBase
+{
+    private readonly IVocabularyAdminService _service;
+
+    public HskLevelsController(
+        IVocabularyAdminService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetHskLevelsAsync(
+                cancellationToken));
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        CreateHskLevelRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.CreateHskLevelAsync(
+                request,
+                cancellationToken));
+
+    [HttpPut("{id:short}")]
+    public async Task<IActionResult> Update(
+        short id,
+        UpdateHskLevelRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.UpdateHskLevelAsync(
+                id,
+                request,
+                cancellationToken));
+
+    [HttpPost("{id:short}/activate")]
+    public async Task<IActionResult> Activate(
+        short id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.ActivateHskLevelAsync(
+                id,
+                cancellationToken));
+
+    [HttpPost("{id:short}/deactivate")]
+    public async Task<IActionResult> Deactivate(
+        short id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.DeactivateHskLevelAsync(
+                id,
+                cancellationToken));
+
+    [HttpDelete("{id:short}")]
+    public async Task<IActionResult> Delete(
+        short id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.DeleteHskLevelAsync(
+                id,
+                cancellationToken));
+}
+27. Audio controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Admin.AudioAssets;
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Domain.Constants;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Admin.Vocabulary;
+
+[ApiController]
+[Authorize(Policy = Policies.AdminOnly)]
+[Route("api/v1/admin/audio-assets")]
+public sealed class AudioAssetsController
+    : ControllerBase
+{
+    private readonly IVocabularyAdminService _service;
+
+    public AudioAssetsController(
+        IVocabularyAdminService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+        => this.ToActionResult(
+            await _service.GetAudioAssetsAsync(
+                page,
+                pageSize,
+                cancellationToken));
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        CreateAudioAssetRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.CreateAudioAssetAsync(
+                request,
+                cancellationToken));
+
+    [HttpPut("{id:long}")]
+    public async Task<IActionResult> Update(
+        long id,
+        UpdateAudioAssetRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.UpdateAudioAssetAsync(
+                id,
+                request,
+                cancellationToken));
+
+    [HttpPost("{id:long}/publish")]
+    public async Task<IActionResult> Publish(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.PublishAudioAssetAsync(
+                id,
+                cancellationToken));
+
+    [HttpPost("{id:long}/archive")]
+    public async Task<IActionResult> Archive(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.ArchiveAudioAssetAsync(
+                id,
+                cancellationToken));
+
+    [HttpDelete("{id:long}")]
+    public async Task<IActionResult> Delete(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.DeleteAudioAssetAsync(
+                id,
+                cancellationToken));
+}
+28. Public Vocabulary controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Public.Vocabulary;
+using HanYu.Application.Interfaces.Vocabulary;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Public.Vocabulary;
+
+[ApiController]
+[AllowAnonymous]
+[Route("api/v1/public/vocabularies")]
+public sealed class VocabulariesController
+    : ControllerBase
+{
+    private readonly IVocabularyPublicService _service;
+
+    public VocabulariesController(
+        IVocabularyPublicService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] VocabularyQuery query,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetVocabulariesAsync(
+                query,
+                cancellationToken));
+
+    [HttpGet("{simplified}")]
+    public async Task<IActionResult> Get(
+        string simplified,
+        [FromQuery] string? pinyinNormalized,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetVocabularyAsync(
+                simplified,
+                pinyinNormalized,
+                cancellationToken));
+}
+29. Public Taxonomy controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Interfaces.Vocabulary;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Public.Vocabulary;
+
+[ApiController]
+[AllowAnonymous]
+[Route("api/v1/public/vocabulary-taxonomy")]
+public sealed class VocabularyTaxonomyController
+    : ControllerBase
+{
+    private readonly IVocabularyPublicService _service;
+
+    public VocabularyTaxonomyController(
+        IVocabularyPublicService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet("topics")]
+    public async Task<IActionResult> Topics(
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetTopicsAsync(
+                cancellationToken));
+
+    [HttpGet("parts-of-speech")]
+    public async Task<IActionResult> PartsOfSpeech(
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetPartsOfSpeechAsync(
+                cancellationToken));
+
+    [HttpGet("hsk-levels")]
+    public async Task<IActionResult> HskLevels(
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _service.GetHskLevelsAsync(
+                cancellationToken));
+}
+30. Public notes controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Vocabulary.Public.Notes;
+using HanYu.Application.Interfaces.Authentication;
+using HanYu.Application.Interfaces.Vocabulary;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Public.Vocabulary;
+
+[ApiController]
+[Authorize]
+[Route(
+    "api/v1/public/users/me/vocabulary-notes")]
+public sealed class VocabularyNotesController
+    : ControllerBase
+{
+    private readonly IVocabularyPublicService _service;
+    private readonly ICurrentUserService _currentUser;
+
+    public VocabularyNotesController(
+        IVocabularyPublicService service,
+        ICurrentUserService currentUser)
+    {
+        _service = service;
+        _currentUser = currentUser;
+    }
+
+    [HttpGet("{simplified}")]
+    public async Task<IActionResult> Get(
+        string simplified,
+        [FromQuery] string? pinyinNormalized,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.GetMyNoteAsync(
+                _currentUser.UserId.Value,
+                simplified,
+                pinyinNormalized,
+                cancellationToken));
+    }
+
+    [HttpPut("{simplified}")]
+    public async Task<IActionResult> Save(
+        string simplified,
+        [FromQuery] string? pinyinNormalized,
+        SaveVocabularyNoteRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.SaveMyNoteAsync(
+                _currentUser.UserId.Value,
+                simplified,
+                pinyinNormalized,
+                request,
+                cancellationToken));
+    }
+
+    [HttpDelete("{simplified}")]
+    public async Task<IActionResult> Delete(
+        string simplified,
+        [FromQuery] string? pinyinNormalized,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.DeleteMyNoteAsync(
+                _currentUser.UserId.Value,
+                simplified,
+                pinyinNormalized,
+                cancellationToken));
+    }
+}
+31. Dependency Injection
+
+Trong DependencyInjection.cs:
+
+using HanYu.Application.Interfaces.Vocabulary;
+using HanYu.Infrastructure.Options;
+using HanYu.Infrastructure.Vocabulary;
+
+Thêm method:
+
+private static void AddVocabulary(
+    IServiceCollection services,
+    IConfiguration configuration)
+{
+    services
+        .AddOptions<VocabularyCacheOptions>()
+        .Bind(
+            configuration.GetSection(
+                VocabularyCacheOptions.SectionName))
+        .Validate(
+            options =>
+                options.DetailMinutes > 0 &&
+                options.ListMinutes > 0 &&
+                options.TaxonomyMinutes > 0 &&
+                options.GenerationDays > 0,
+            "VocabularyCache configuration is invalid.")
+        .ValidateOnStart();
+
+    services.AddScoped<
+        IVocabularyAdminService,
+        VocabularyAdminService>();
+
+    services.AddScoped<
+        IVocabularyPublicService,
+        VocabularyPublicService>();
+}
+
+Trong AddInfrastructure(...):
+
+AddVocabulary(
+    services,
+    configuration);
+32. Sửa Foundation Exception Handler
+
+Do Domain của bạn cố tình throw InvalidOperationException khi lifecycle sai, ví dụ Example chưa Approved mà gọi Publish().
+
+Trong:
+
+GlobalExceptionHandler.cs
+
+thêm trước _ =>:
+
+InvalidOperationException =>
+    new ExceptionMapping(
+        StatusCodes.Status409Conflict,
+        "Operation conflict",
+        exception.Message,
+        "Common.Conflict"),
+
+Nếu không thêm thì lifecycle domain có thể bị trả 500, không đúng.
+
+Sau khi copy toàn bộ phần này
+
+Vocabulary của bạn sẽ có đầy đủ:
+
+Vocabulary                  ✅ CRUD + lifecycle + version
+VocabularyMeaning           ✅ CRUD + ordering
+VocabularyExample           ✅ CRUD + review lifecycle
+VocabularyRelation          ✅ CRUD
+Topic                       ✅ CRUD + publish/archive/restore
+PartOfSpeech                ✅ CRUD
+HskLevel                    ✅ CRUD + activate/deactivate
+AudioAsset                  ✅ CRUD + publish/archive
+UserVocabularyNote          ✅ self-service
+Public search               ✅
+Public filter               ✅
+Public detail               ✅
+Public Meanings             ✅
+Public Examples             ✅
+Public Relations            ✅
+Public taxonomy             ✅
+Pagination                  ✅
+Memory cache                ✅
+Cache invalidation          ✅ generation strategy
+Admin authorization         ✅ Policies.AdminOnly
+Rate limiting foundation    ✅
+ProblemDetails              ✅
+BOLA note ownership         ✅
+
+Một điểm mình chủ động không thêm là migration/PublicId. Vocabulary hiện không có PublicId; entity thật chỉ có internal Id từ AuditableEntity và các dữ liệu từ vựng. Vì vậy Public API phía trên dùng Simplified + pinyinNormalized để xử lý cả trường hợp một chữ có nhiều cách đọc, thay vì leak long Id.
+
+Và không cần migration cho Application/Infrastructure/API code trên, miễn là bạn giữ nguyên 9 entity/database schema hiện có. Sau khi copy xong, chạy:
+
+dotnet clean
+dotnet build
+
+Nếu 0 Error, lúc đó có thể coi Vocabulary khóa xong và chuyển sang Lesson.

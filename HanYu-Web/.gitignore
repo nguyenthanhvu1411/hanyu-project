@@ -1,0 +1,38 @@
+# ─── Secrets & Sensitive Configuration ────────────────────────────────────────
+# NEVER commit these files. All secrets must go through environment variables
+# or a secrets manager (Doppler, Azure Key Vault, AWS Secrets Manager, etc.)
+
+# User Secrets (dotnet user-secrets — development only)
+**/secrets.json
+**/*secrets*.json
+
+# Production secrets
+appsettings.Production.local.json
+.env
+.env.local
+.env.production
+
+# ─── Build output ─────────────────────────────────────────────────────────────
+**/bin/
+**/obj/
+
+# ─── IDE & OS ─────────────────────────────────────────────────────────────────
+.vs/
+.idea/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+.dockerignore
+
+# ─── Test results ─────────────────────────────────────────────────────────────
+TestResults/
+coverage/
+*.trx
+*.xml

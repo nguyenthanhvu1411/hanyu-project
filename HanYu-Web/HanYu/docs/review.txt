@@ -1,0 +1,2284 @@
+Được. Mình sẽ làm Review/SRS + Flashcard theo đúng kiểu đã làm với Vocabulary/Lesson: chốt Domain behavior trước, sau đó Application DTO → Interfaces → Scheduler → Infrastructure Service → Controllers → DI → nối Lesson Complete sang SRS.
+
+4 entity bạn vừa gửi đã đủ nền rất tốt:
+
+FlashcardSession: quản lý mode/source, current index, accuracy, complete/abandon.
+FlashcardSessionItem: một từ trong session, chỉ được answer một lần.
+ReviewEvent: immutable lịch sử từng lần review, lưu mastery/interval trước-sau.
+UserVocabularyState: trạng thái SRS chính của từng user/từng từ, đã có mastery, correct/wrong, next review, interval và LearningState.
+1. Cấu trúc cuối cùng
+Application/
+├── Features/
+│   └── Review/
+│       ├── Public/
+│       │   ├── Queue/
+│       │   │   ├── ReviewQueueQuery.cs
+│       │   │   ├── ReviewQueueItemResponse.cs
+│       │   │   └── ReviewQueueSummaryResponse.cs
+│       │   │
+│       │   ├── Review/
+│       │   │   ├── SubmitReviewRequest.cs
+│       │   │   ├── ReviewResultResponse.cs
+│       │   │   └── VocabularyLearningStateResponse.cs
+│       │   │
+│       │   ├── Flashcards/
+│       │   │   ├── CreateFlashcardSessionRequest.cs
+│       │   │   ├── FlashcardSessionResponse.cs
+│       │   │   ├── FlashcardItemResponse.cs
+│       │   │   ├── AnswerFlashcardRequest.cs
+│       │   │   └── FlashcardAnswerResponse.cs
+│       │   │
+│       │   └── Favorites/
+│       │       └── FavoriteVocabularyResponse.cs
+│       │
+│       └── Mapping/
+│           └── ReviewMapper.cs
+│
+├── Interfaces/
+│   └── Review/
+│       ├── IReviewService.cs
+│       ├── IFlashcardService.cs
+│       └── IReviewScheduler.cs
+│
+└── Common/
+    └── Models/
+        └── ReviewScheduleResult.cs
+
+
+Domain/
+└── Constants/
+    └── ReviewConstants.cs
+
+
+Infrastructure/
+└── Review/
+    ├── ReviewScheduler.cs
+    ├── ReviewService.cs
+    └── FlashcardService.cs
+
+
+API/Controller/Public/Review/
+├── ReviewsController.cs
+├── ReviewQueueController.cs
+├── FlashcardSessionsController.cs
+└── VocabularyFavoritesController.cs
+2. ReviewConstants.cs
+namespace HanYu.Domain.Constants;
+
+public static class ReviewConstants
+{
+    public const int AgainIntervalMinutes = 10;
+
+    public const int HardFirstIntervalMinutes = 60;
+
+    public const int GoodFirstIntervalMinutes = 1440;
+
+    public const int EasyFirstIntervalMinutes = 4320;
+
+    public const int InitialLessonIntervalMinutes = 60;
+
+    public const int MaxIntervalMinutes =
+        60 * 24 * 180;
+
+    public const decimal AgainMasteryDelta = -12m;
+
+    public const decimal HardMasteryDelta = 5m;
+
+    public const decimal GoodMasteryDelta = 10m;
+
+    public const decimal EasyMasteryDelta = 15m;
+
+    public const int DefaultReviewQueueSize = 20;
+
+    public const int MaxReviewQueueSize = 100;
+
+    public const int DefaultFlashcardSize = 20;
+
+    public const int MaxFlashcardSize = 100;
+}
+3. Bổ sung UserVocabularyState
+
+Entity hiện đã có ApplyReview() rất đầy đủ. Khi review đúng, nó tăng CorrectCount, ConsecutiveCorrect, số ngày đúng khác nhau; khi sai tăng WrongCount; sau đó cập nhật mastery, interval và NextReviewAt.
+
+Nhưng còn thiếu một behavior quan trọng:
+
+Khi user vừa hoàn thành Lesson, từ vựng phải được đưa vào hệ thống SRS trước khi có review đầu tiên.
+
+Thêm vào UserVocabularyState.cs:
+
+public void StartLearning(
+    DateTimeOffset learnedAt,
+    int initialIntervalMinutes)
+{
+    if (initialIntervalMinutes <= 0)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(initialIntervalMinutes));
+    }
+
+    if (LearningState !=
+        LearningState.NotStarted)
+    {
+        return;
+    }
+
+    LearningState =
+        LearningState.Learning;
+
+    FirstLearnedAt =
+        learnedAt;
+
+    CurrentIntervalMinutes =
+        initialIntervalMinutes;
+
+    NextReviewAt =
+        learnedAt.AddMinutes(
+            initialIntervalMinutes);
+
+    MarkUpdated();
+}
+
+Không thêm property nên không cần migration.
+
+4. SRS Result
+
+Application/Common/Models/ReviewScheduleResult.cs
+
+namespace HanYu.Application.Common.Models;
+
+public sealed record ReviewScheduleResult(
+    decimal MasteryBefore,
+    decimal MasteryAfter,
+    int? IntervalBeforeMinutes,
+    int IntervalAfterMinutes,
+    DateTimeOffset ReviewedAt,
+    DateTimeOffset NextReviewAt);
+5. IReviewScheduler.cs
+using HanYu.Application.Common.Models;
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Interfaces.Review;
+
+public interface IReviewScheduler
+{
+    ReviewScheduleResult Calculate(
+        decimal masteryBefore,
+        int? currentIntervalMinutes,
+        ReviewRating rating,
+        bool wasCorrect,
+        DateTimeOffset reviewedAt);
+}
+6. ReviewScheduler.cs
+
+Đây là SRS engine đầu tiên của HanYu.
+
+using HanYu.Application.Common.Models;
+using HanYu.Application.Interfaces.Review;
+using HanYu.Domain.Constants;
+using HanYu.Domain.Enums;
+
+namespace HanYu.Infrastructure.Review;
+
+public sealed class ReviewScheduler
+    : IReviewScheduler
+{
+    public ReviewScheduleResult Calculate(
+        decimal masteryBefore,
+        int? currentIntervalMinutes,
+        ReviewRating rating,
+        bool wasCorrect,
+        DateTimeOffset reviewedAt)
+    {
+        if (masteryBefore < 0 ||
+            masteryBefore > 100)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(masteryBefore));
+        }
+
+        if (currentIntervalMinutes.HasValue &&
+            currentIntervalMinutes.Value <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(currentIntervalMinutes));
+        }
+
+        decimal masteryAfter;
+        int nextInterval;
+
+        /*
+         * WasCorrect có ưu tiên cao hơn Rating.
+         *
+         * Nếu answer sai thì luôn đưa về interval ngắn,
+         * tránh trường hợp client gửi Rating=Easy nhưng
+         * WasCorrect=false.
+         */
+        if (!wasCorrect)
+        {
+            masteryAfter =
+                masteryBefore +
+                ReviewConstants.AgainMasteryDelta;
+
+            nextInterval =
+                ReviewConstants.AgainIntervalMinutes;
+        }
+        else
+        {
+            switch (rating)
+            {
+                case ReviewRating.Again:
+                    masteryAfter =
+                        masteryBefore +
+                        ReviewConstants.AgainMasteryDelta;
+
+                    nextInterval =
+                        ReviewConstants.AgainIntervalMinutes;
+
+                    break;
+
+                case ReviewRating.Hard:
+                    masteryAfter =
+                        masteryBefore +
+                        ReviewConstants.HardMasteryDelta;
+
+                    nextInterval =
+                        currentIntervalMinutes.HasValue
+                            ? MultiplyInterval(
+                                currentIntervalMinutes.Value,
+                                1.5m)
+                            : ReviewConstants
+                                .HardFirstIntervalMinutes;
+
+                    break;
+
+                case ReviewRating.Good:
+                    masteryAfter =
+                        masteryBefore +
+                        ReviewConstants.GoodMasteryDelta;
+
+                    nextInterval =
+                        currentIntervalMinutes.HasValue
+                            ? MultiplyInterval(
+                                currentIntervalMinutes.Value,
+                                2.5m)
+                            : ReviewConstants
+                                .GoodFirstIntervalMinutes;
+
+                    break;
+
+                case ReviewRating.Easy:
+                    masteryAfter =
+                        masteryBefore +
+                        ReviewConstants.EasyMasteryDelta;
+
+                    nextInterval =
+                        currentIntervalMinutes.HasValue
+                            ? MultiplyInterval(
+                                currentIntervalMinutes.Value,
+                                4m)
+                            : ReviewConstants
+                                .EasyFirstIntervalMinutes;
+
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(rating));
+            }
+        }
+
+        masteryAfter =
+            Math.Clamp(
+                masteryAfter,
+                0m,
+                100m);
+
+        nextInterval =
+            Math.Clamp(
+                nextInterval,
+                1,
+                ReviewConstants.MaxIntervalMinutes);
+
+        return new ReviewScheduleResult(
+            masteryBefore,
+            masteryAfter,
+            currentIntervalMinutes,
+            nextInterval,
+            reviewedAt,
+            reviewedAt.AddMinutes(
+                nextInterval));
+    }
+
+    private static int MultiplyInterval(
+        int currentInterval,
+        decimal multiplier)
+    {
+        var result =
+            decimal.Round(
+                currentInterval * multiplier,
+                0,
+                MidpointRounding.AwayFromZero);
+
+        if (result >
+            ReviewConstants.MaxIntervalMinutes)
+        {
+            return ReviewConstants.MaxIntervalMinutes;
+        }
+
+        return Math.Max(
+            1,
+            (int)result);
+    }
+}
+7. Review Queue DTO
+ReviewQueueQuery.cs
+namespace HanYu.Application.Features.Review.Public.Queue;
+
+public sealed record ReviewQueueQuery
+{
+    public int Limit { get; init; } = 20;
+
+    public bool IncludeNew { get; init; }
+
+    public short? HskLevel { get; init; }
+
+    public string? Topic { get; init; }
+}
+ReviewQueueItemResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Review.Public.Queue;
+
+public sealed record ReviewQueueItemResponse(
+    Guid VocabularyPublicId,
+    string Simplified,
+    string? Traditional,
+    string Pinyin,
+    string PrimaryMeaningVi,
+    short HskLevel,
+    LearningState LearningState,
+    decimal MasteryScore,
+    int CorrectCount,
+    int WrongCount,
+    int ConsecutiveCorrect,
+    DateTimeOffset? LastReviewedAt,
+    DateTimeOffset? NextReviewAt,
+    int? CurrentIntervalMinutes,
+    bool IsFavorite);
+ReviewQueueSummaryResponse.cs
+namespace HanYu.Application.Features.Review.Public.Queue;
+
+public sealed record ReviewQueueSummaryResponse(
+    int DueCount,
+    int NewCount,
+    int LearningCount,
+    int KnownCount,
+    int MasteredCount);
+8. Review DTO
+SubmitReviewRequest.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Review.Public.Review;
+
+public sealed record SubmitReviewRequest(
+    Guid VocabularyPublicId,
+    ReviewRating Rating,
+    bool WasCorrect,
+    int? ResponseTimeMs);
+VocabularyLearningStateResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Review.Public.Review;
+
+public sealed record VocabularyLearningStateResponse(
+    Guid VocabularyPublicId,
+    LearningState LearningState,
+    bool IsFavorite,
+    decimal MasteryScore,
+    int CorrectCount,
+    int WrongCount,
+    int ConsecutiveCorrect,
+    int DistinctCorrectDays,
+    DateTimeOffset? FirstLearnedAt,
+    DateTimeOffset? LastReviewedAt,
+    DateTimeOffset? NextReviewAt,
+    int? CurrentIntervalMinutes,
+    DateTimeOffset? MasteredAt);
+ReviewResultResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Review.Public.Review;
+
+public sealed record ReviewResultResponse(
+    Guid VocabularyPublicId,
+    ReviewRating Rating,
+    bool WasCorrect,
+    decimal MasteryBefore,
+    decimal MasteryAfter,
+    int? IntervalBeforeMinutes,
+    int IntervalAfterMinutes,
+    DateTimeOffset NextReviewAt,
+    LearningState LearningState);
+9. Flashcard DTO
+CreateFlashcardSessionRequest.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Review.Public.Flashcards;
+
+public sealed record CreateFlashcardSessionRequest(
+    FlashcardMode Mode,
+    FlashcardSourceType SourceType,
+    Guid? SourcePublicId,
+    IReadOnlyCollection<Guid>? VocabularyPublicIds,
+    int Limit = 20);
+
+Ý nghĩa:
+
+SourceType.Lesson
+    SourcePublicId = Lesson.PublicId
+
+SourceType.Topic
+    SourcePublicId = Topic.PublicId
+
+SourceType.ReviewQueue
+    SourcePublicId = null
+
+SourceType.Custom
+    VocabularyPublicIds = [...]
+FlashcardItemResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Review.Public.Flashcards;
+
+public sealed record FlashcardItemResponse(
+    Guid PublicId,
+    Guid VocabularyPublicId,
+    int SortOrder,
+    string Simplified,
+    string? Traditional,
+    string Pinyin,
+    string PrimaryMeaningVi,
+    FlashcardMode Mode,
+    bool IsAnswered,
+    ReviewRating? Rating,
+    bool? WasCorrect,
+    int? ResponseTimeMs);
+FlashcardSessionResponse.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Review.Public.Flashcards;
+
+public sealed record FlashcardSessionResponse(
+    Guid PublicId,
+    FlashcardMode Mode,
+    FlashcardSourceType SourceType,
+    FlashcardSessionStatus Status,
+    int CurrentIndex,
+    int TotalItems,
+    int CorrectItems,
+    int WrongItems,
+    decimal AccuracyPercent,
+    DateTimeOffset StartedAt,
+    DateTimeOffset? CompletedAt,
+    IReadOnlyCollection<FlashcardItemResponse> Items);
+
+WrongItems và AccuracyPercent đã được entity tính sẵn.
+
+AnswerFlashcardRequest.cs
+using HanYu.Domain.Enums;
+
+namespace HanYu.Application.Features.Review.Public.Flashcards;
+
+public sealed record AnswerFlashcardRequest(
+    ReviewRating Rating,
+    bool WasCorrect,
+    int? ResponseTimeMs);
+FlashcardAnswerResponse.cs
+namespace HanYu.Application.Features.Review.Public.Flashcards;
+
+public sealed record FlashcardAnswerResponse(
+    FlashcardSessionResponse Session,
+    ReviewResultResponse Review);
+10. Favorite DTO
+namespace HanYu.Application.Features.Review.Public.Favorites;
+
+public sealed record FavoriteVocabularyResponse(
+    Guid VocabularyPublicId,
+    string Simplified,
+    string? Traditional,
+    string Pinyin,
+    string PrimaryMeaningVi,
+    decimal MasteryScore,
+    DateTimeOffset? NextReviewAt);
+11. ReviewMapper.cs
+using HanYu.Application.Features.Review.Public.Favorites;
+using HanYu.Application.Features.Review.Public.Queue;
+using HanYu.Application.Features.Review.Public.Review;
+using HanYu.Domain.Entities.Review;
+
+namespace HanYu.Application.Features.Review.Mapping;
+
+public static class ReviewMapper
+{
+    public static ReviewQueueItemResponse ToQueueItem(
+        UserVocabularyState state)
+    {
+        return new ReviewQueueItemResponse(
+            state.Vocabulary.PublicId,
+            state.Vocabulary.Simplified,
+            state.Vocabulary.Traditional,
+            state.Vocabulary.Pinyin,
+            state.Vocabulary.PrimaryMeaningVi,
+            state.Vocabulary.HskLevelId,
+            state.LearningState,
+            state.MasteryScore,
+            state.CorrectCount,
+            state.WrongCount,
+            state.ConsecutiveCorrect,
+            state.LastReviewedAt,
+            state.NextReviewAt,
+            state.CurrentIntervalMinutes,
+            state.IsFavorite);
+    }
+
+    public static VocabularyLearningStateResponse
+        ToStateResponse(
+            UserVocabularyState state)
+    {
+        return new VocabularyLearningStateResponse(
+            state.Vocabulary.PublicId,
+            state.LearningState,
+            state.IsFavorite,
+            state.MasteryScore,
+            state.CorrectCount,
+            state.WrongCount,
+            state.ConsecutiveCorrect,
+            state.DistinctCorrectDays,
+            state.FirstLearnedAt,
+            state.LastReviewedAt,
+            state.NextReviewAt,
+            state.CurrentIntervalMinutes,
+            state.MasteredAt);
+    }
+
+    public static FavoriteVocabularyResponse
+        ToFavoriteResponse(
+            UserVocabularyState state)
+    {
+        return new FavoriteVocabularyResponse(
+            state.Vocabulary.PublicId,
+            state.Vocabulary.Simplified,
+            state.Vocabulary.Traditional,
+            state.Vocabulary.Pinyin,
+            state.Vocabulary.PrimaryMeaningVi,
+            state.MasteryScore,
+            state.NextReviewAt);
+    }
+}
+12. IReviewService.cs
+using HanYu.Application.Common.Models;
+using HanYu.Application.Features.Review.Public.Favorites;
+using HanYu.Application.Features.Review.Public.Queue;
+using HanYu.Application.Features.Review.Public.Review;
+
+namespace HanYu.Application.Interfaces.Review;
+
+public interface IReviewService
+{
+    Task<Result<IReadOnlyCollection<ReviewQueueItemResponse>>>
+        GetQueueAsync(
+            Guid userId,
+            ReviewQueueQuery query,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<ReviewQueueSummaryResponse>>
+        GetSummaryAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<VocabularyLearningStateResponse>>
+        GetStateAsync(
+            Guid userId,
+            Guid vocabularyPublicId,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<ReviewResultResponse>>
+        SubmitReviewAsync(
+            Guid userId,
+            SubmitReviewRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> FavoriteAsync(
+        Guid userId,
+        Guid vocabularyPublicId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result> UnfavoriteAsync(
+        Guid userId,
+        Guid vocabularyPublicId,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyCollection<FavoriteVocabularyResponse>>>
+        GetFavoritesAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default);
+}
+13. IFlashcardService.cs
+using HanYu.Application.Common.Models;
+using HanYu.Application.Features.Review.Public.Flashcards;
+
+namespace HanYu.Application.Interfaces.Review;
+
+public interface IFlashcardService
+{
+    Task<Result<FlashcardSessionResponse>>
+        CreateSessionAsync(
+            Guid userId,
+            CreateFlashcardSessionRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<FlashcardSessionResponse>>
+        GetSessionAsync(
+            Guid userId,
+            Guid sessionPublicId,
+            CancellationToken cancellationToken = default);
+
+    Task<Result<FlashcardAnswerResponse>>
+        AnswerAsync(
+            Guid userId,
+            Guid sessionPublicId,
+            Guid itemPublicId,
+            AnswerFlashcardRequest request,
+            CancellationToken cancellationToken = default);
+
+    Task<Result> AbandonAsync(
+        Guid userId,
+        Guid sessionPublicId,
+        CancellationToken cancellationToken = default);
+}
+14. ReviewService.cs
+using HanYu.Application.Common.Models;
+using HanYu.Application.Features.Review.Mapping;
+using HanYu.Application.Features.Review.Public.Favorites;
+using HanYu.Application.Features.Review.Public.Queue;
+using HanYu.Application.Features.Review.Public.Review;
+using HanYu.Application.Interfaces.Review;
+using HanYu.Domain.Constants;
+using HanYu.Domain.Entities.Review;
+using HanYu.Domain.Enums;
+using HanYu.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.Infrastructure.Review;
+
+public sealed class ReviewService : IReviewService
+{
+    private readonly HanYuDbContext _db;
+    private readonly IReviewScheduler _scheduler;
+
+    public ReviewService(
+        HanYuDbContext db,
+        IReviewScheduler scheduler)
+    {
+        _db = db;
+        _scheduler = scheduler;
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<ReviewQueueItemResponse>>>
+        GetQueueAsync(
+            Guid userId,
+            ReviewQueueQuery query,
+            CancellationToken cancellationToken = default)
+    {
+        if (userId == Guid.Empty)
+        {
+            return Result.Failure<
+                IReadOnlyCollection<ReviewQueueItemResponse>>(
+                Error.Unauthorized(
+                    "Identity.Unauthorized",
+                    "Người dùng chưa đăng nhập."));
+        }
+
+        var limit =
+            Math.Clamp(
+                query.Limit,
+                1,
+                ReviewConstants.MaxReviewQueueSize);
+
+        var now =
+            DateTimeOffset.UtcNow;
+
+        var source =
+            _db.Set<UserVocabularyState>()
+                .AsNoTracking()
+                .Include(x => x.Vocabulary)
+                    .ThenInclude(x => x.Topic)
+                .Where(
+                    x =>
+                        x.UserId == userId &&
+                        x.Vocabulary.Status ==
+                            ContentStatus.Published &&
+                        (
+                            x.NextReviewAt == null ||
+                            x.NextReviewAt <= now
+                        ));
+
+        if (query.HskLevel.HasValue)
+        {
+            source =
+                source.Where(
+                    x =>
+                        x.Vocabulary.HskLevelId ==
+                        query.HskLevel.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(
+                query.Topic))
+        {
+            var topic =
+                query.Topic.Trim()
+                    .ToLowerInvariant();
+
+            source =
+                source.Where(
+                    x =>
+                        x.Vocabulary.Topic != null &&
+                        x.Vocabulary.Topic.Slug ==
+                            topic);
+        }
+
+        var states =
+            await source
+                .OrderBy(
+                    x => x.NextReviewAt ?? DateTimeOffset.MinValue)
+                .ThenBy(x => x.MasteryScore)
+                .Take(limit)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<ReviewQueueItemResponse>>(
+            states
+                .Select(ReviewMapper.ToQueueItem)
+                .ToArray());
+    }
+
+    public async Task<Result<ReviewQueueSummaryResponse>>
+        GetSummaryAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+    {
+        var now =
+            DateTimeOffset.UtcNow;
+
+        var source =
+            _db.Set<UserVocabularyState>()
+                .AsNoTracking()
+                .Where(
+                    x => x.UserId == userId);
+
+        var dueCount =
+            await source.CountAsync(
+                x =>
+                    x.NextReviewAt == null ||
+                    x.NextReviewAt <= now,
+                cancellationToken);
+
+        var newCount =
+            await source.CountAsync(
+                x =>
+                    x.LearningState ==
+                    LearningState.NotStarted,
+                cancellationToken);
+
+        var learningCount =
+            await source.CountAsync(
+                x =>
+                    x.LearningState ==
+                    LearningState.Learning,
+                cancellationToken);
+
+        var knownCount =
+            await source.CountAsync(
+                x =>
+                    x.LearningState ==
+                    LearningState.Known,
+                cancellationToken);
+
+        var masteredCount =
+            await source.CountAsync(
+                x =>
+                    x.LearningState ==
+                    LearningState.Mastered,
+                cancellationToken);
+
+        return Result.Success(
+            new ReviewQueueSummaryResponse(
+                dueCount,
+                newCount,
+                learningCount,
+                knownCount,
+                masteredCount));
+    }
+
+    public async Task<Result<
+        VocabularyLearningStateResponse>>
+        GetStateAsync(
+            Guid userId,
+            Guid vocabularyPublicId,
+            CancellationToken cancellationToken = default)
+    {
+        var state =
+            await _db.Set<UserVocabularyState>()
+                .AsNoTracking()
+                .Include(x => x.Vocabulary)
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.UserId == userId &&
+                        x.Vocabulary.PublicId ==
+                            vocabularyPublicId,
+                    cancellationToken);
+
+        if (state is null)
+        {
+            return Result.Failure<
+                VocabularyLearningStateResponse>(
+                Error.NotFound(
+                    "Review.StateNotFound",
+                    "Chưa có trạng thái học cho vocabulary."));
+        }
+
+        return Result.Success(
+            ReviewMapper.ToStateResponse(
+                state));
+    }
+
+    public async Task<Result<ReviewResultResponse>>
+        SubmitReviewAsync(
+            Guid userId,
+            SubmitReviewRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var vocabulary =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.PublicId ==
+                            request.VocabularyPublicId &&
+                        x.Status ==
+                            ContentStatus.Published,
+                    cancellationToken);
+
+        if (vocabulary is null)
+        {
+            return Result.Failure<
+                ReviewResultResponse>(
+                Error.NotFound(
+                    "Vocabulary.NotFound",
+                    "Không tìm thấy vocabulary."));
+        }
+
+        var state =
+            await _db.Set<UserVocabularyState>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.UserId == userId &&
+                        x.VocabularyId ==
+                            vocabulary.Id,
+                    cancellationToken);
+
+        if (state is null)
+        {
+            state =
+                new UserVocabularyState(
+                    userId,
+                    vocabulary.Id);
+
+            _db.Add(state);
+        }
+
+        var reviewedAt =
+            DateTimeOffset.UtcNow;
+
+        var schedule =
+            _scheduler.Calculate(
+                state.MasteryScore,
+                state.CurrentIntervalMinutes,
+                request.Rating,
+                request.WasCorrect,
+                reviewedAt);
+
+        var localLearningDate =
+            DateOnly.FromDateTime(
+                reviewedAt.UtcDateTime);
+
+        state.ApplyReview(
+            request.Rating,
+            request.WasCorrect,
+            schedule.MasteryAfter,
+            schedule.IntervalAfterMinutes,
+            schedule.ReviewedAt,
+            schedule.NextReviewAt,
+            localLearningDate);
+
+        var reviewEvent =
+            new ReviewEvent(
+                userId,
+                vocabulary.Id,
+                request.Rating,
+                request.WasCorrect,
+                schedule.MasteryBefore,
+                schedule.MasteryAfter,
+                schedule.IntervalAfterMinutes,
+                schedule.IntervalBeforeMinutes,
+                request.ResponseTimeMs);
+
+        _db.Add(reviewEvent);
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        return Result.Success(
+            new ReviewResultResponse(
+                vocabulary.PublicId,
+                request.Rating,
+                request.WasCorrect,
+                schedule.MasteryBefore,
+                schedule.MasteryAfter,
+                schedule.IntervalBeforeMinutes,
+                schedule.IntervalAfterMinutes,
+                schedule.NextReviewAt,
+                state.LearningState));
+    }
+
+    public async Task<Result> FavoriteAsync(
+        Guid userId,
+        Guid vocabularyPublicId,
+        CancellationToken cancellationToken = default)
+    {
+        var stateResult =
+            await GetOrCreateStateAsync(
+                userId,
+                vocabularyPublicId,
+                cancellationToken);
+
+        if (stateResult.IsFailure)
+            return Result.Failure(
+                stateResult.Error);
+
+        stateResult.Value.MarkFavorite();
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result> UnfavoriteAsync(
+        Guid userId,
+        Guid vocabularyPublicId,
+        CancellationToken cancellationToken = default)
+    {
+        var state =
+            await _db.Set<UserVocabularyState>()
+                .Include(x => x.Vocabulary)
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.UserId == userId &&
+                        x.Vocabulary.PublicId ==
+                            vocabularyPublicId,
+                    cancellationToken);
+
+        if (state is null)
+            return Result.Success();
+
+        state.Unfavorite();
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result<
+        IReadOnlyCollection<FavoriteVocabularyResponse>>>
+        GetFavoritesAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+    {
+        var states =
+            await _db.Set<UserVocabularyState>()
+                .AsNoTracking()
+                .Include(x => x.Vocabulary)
+                .Where(
+                    x =>
+                        x.UserId == userId &&
+                        x.IsFavorite &&
+                        x.Vocabulary.Status ==
+                            ContentStatus.Published)
+                .OrderBy(
+                    x => x.Vocabulary.Simplified)
+                .ToArrayAsync(
+                    cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<FavoriteVocabularyResponse>>(
+            states
+                .Select(
+                    ReviewMapper.ToFavoriteResponse)
+                .ToArray());
+    }
+
+    private async Task<Result<UserVocabularyState>>
+        GetOrCreateStateAsync(
+            Guid userId,
+            Guid vocabularyPublicId,
+            CancellationToken cancellationToken)
+    {
+        var vocabulary =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.PublicId ==
+                            vocabularyPublicId &&
+                        x.Status ==
+                            ContentStatus.Published,
+                    cancellationToken);
+
+        if (vocabulary is null)
+        {
+            return Result.Failure<UserVocabularyState>(
+                Error.NotFound(
+                    "Vocabulary.NotFound",
+                    "Không tìm thấy vocabulary."));
+        }
+
+        var state =
+            await _db.Set<UserVocabularyState>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.UserId == userId &&
+                        x.VocabularyId ==
+                            vocabulary.Id,
+                    cancellationToken);
+
+        if (state is not null)
+            return Result.Success(state);
+
+        state =
+            new UserVocabularyState(
+                userId,
+                vocabulary.Id);
+
+        _db.Add(state);
+
+        return Result.Success(state);
+    }
+}
+
+ReviewEvent chính xác được thiết kế để lưu cả MasteryBefore/MasteryAfter, IntervalBeforeMinutes/IntervalAfterMinutes, response time và FlashcardSessionId.
+
+15. FlashcardService.cs
+using HanYu.Application.Common.Models;
+using HanYu.Application.Features.Review.Public.Flashcards;
+using HanYu.Application.Features.Review.Public.Review;
+using HanYu.Application.Interfaces.Review;
+using HanYu.Domain.Constants;
+using HanYu.Domain.Entities.Lesson;
+using HanYu.Domain.Entities.Review;
+using HanYu.Domain.Entities.Vocabulary;
+using HanYu.Domain.Enums;
+using HanYu.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace HanYu.Infrastructure.Review;
+
+public sealed class FlashcardService
+    : IFlashcardService
+{
+    private readonly HanYuDbContext _db;
+    private readonly IReviewScheduler _scheduler;
+
+    public FlashcardService(
+        HanYuDbContext db,
+        IReviewScheduler scheduler)
+    {
+        _db = db;
+        _scheduler = scheduler;
+    }
+
+    public async Task<Result<FlashcardSessionResponse>>
+        CreateSessionAsync(
+            Guid userId,
+            CreateFlashcardSessionRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var limit =
+            Math.Clamp(
+                request.Limit,
+                1,
+                ReviewConstants.MaxFlashcardSize);
+
+        var vocabularyIdsResult =
+            await ResolveVocabularyIdsAsync(
+                userId,
+                request,
+                limit,
+                cancellationToken);
+
+        if (vocabularyIdsResult.IsFailure)
+        {
+            return Result.Failure<
+                FlashcardSessionResponse>(
+                vocabularyIdsResult.Error);
+        }
+
+        var vocabularyIds =
+            vocabularyIdsResult.Value;
+
+        if (vocabularyIds.Count == 0)
+        {
+            return Result.Failure<
+                FlashcardSessionResponse>(
+                Error.NotFound(
+                    "Flashcard.NoVocabulary",
+                    "Không có vocabulary phù hợp để tạo flashcard session."));
+        }
+
+        long? sourceId =
+            null;
+
+        if (request.SourceType ==
+                FlashcardSourceType.Lesson &&
+            request.SourcePublicId.HasValue)
+        {
+            sourceId =
+                await _db.Set<Lesson>()
+                    .AsNoTracking()
+                    .Where(
+                        x =>
+                            x.PublicId ==
+                            request.SourcePublicId.Value)
+                    .Select(x => (long?)x.Id)
+                    .FirstOrDefaultAsync(
+                        cancellationToken);
+        }
+        else if (
+            request.SourceType ==
+                FlashcardSourceType.Topic &&
+            request.SourcePublicId.HasValue)
+        {
+            sourceId =
+                await _db.Set<Topic>()
+                    .AsNoTracking()
+                    .Where(
+                        x =>
+                            x.PublicId ==
+                            request.SourcePublicId.Value)
+                    .Select(x => (long?)x.Id)
+                    .FirstOrDefaultAsync(
+                        cancellationToken);
+        }
+
+        await using var tx =
+            await _db.Database.BeginTransactionAsync(
+                cancellationToken);
+
+        try
+        {
+            var session =
+                new FlashcardSession(
+                    userId,
+                    request.Mode,
+                    request.SourceType,
+                    vocabularyIds.Count,
+                    sourceId);
+
+            _db.Add(session);
+
+            /*
+             * SessionItem constructor cần FlashcardSessionId,
+             * nên save session trước để lấy BIGINT Id.
+             */
+            await _db.SaveChangesAsync(
+                cancellationToken);
+
+            for (var i = 0;
+                 i < vocabularyIds.Count;
+                 i++)
+            {
+                _db.Add(
+                    new FlashcardSessionItem(
+                        session.Id,
+                        vocabularyIds[i],
+                        i));
+            }
+
+            await _db.SaveChangesAsync(
+                cancellationToken);
+
+            await tx.CommitAsync(
+                cancellationToken);
+
+            return await GetSessionAsync(
+                userId,
+                session.PublicId,
+                cancellationToken);
+        }
+        catch
+        {
+            await tx.RollbackAsync(
+                cancellationToken);
+
+            throw;
+        }
+    }
+
+    public async Task<Result<FlashcardSessionResponse>>
+        GetSessionAsync(
+            Guid userId,
+            Guid sessionPublicId,
+            CancellationToken cancellationToken = default)
+    {
+        var session =
+            await _db.Set<FlashcardSession>()
+                .AsNoTracking()
+                .Include(x => x.Items)
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.PublicId ==
+                            sessionPublicId &&
+                        x.UserId == userId,
+                    cancellationToken);
+
+        if (session is null)
+        {
+            return Result.Failure<
+                FlashcardSessionResponse>(
+                Error.NotFound(
+                    "Flashcard.SessionNotFound",
+                    "Không tìm thấy Flashcard Session."));
+        }
+
+        var vocabularyIds =
+            session.Items
+                .Select(x => x.VocabularyId)
+                .Distinct()
+                .ToArray();
+
+        var vocabulary =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .Where(
+                    x => vocabularyIds.Contains(x.Id))
+                .ToDictionaryAsync(
+                    x => x.Id,
+                    cancellationToken);
+
+        var items =
+            session.Items
+                .OrderBy(x => x.SortOrder)
+                .Select(
+                    item =>
+                    {
+                        var word =
+                            vocabulary[
+                                item.VocabularyId];
+
+                        return new FlashcardItemResponse(
+                            item.PublicId,
+                            word.PublicId,
+                            item.SortOrder,
+                            word.Simplified,
+                            word.Traditional,
+                            word.Pinyin,
+                            word.PrimaryMeaningVi,
+                            session.Mode,
+                            item.IsAnswered,
+                            item.Rating,
+                            item.WasCorrect,
+                            item.ResponseTimeMs);
+                    })
+                .ToArray();
+
+        return Result.Success(
+            new FlashcardSessionResponse(
+                session.PublicId,
+                session.Mode,
+                session.SourceType,
+                session.Status,
+                session.CurrentIndex,
+                session.TotalItems,
+                session.CorrectItems,
+                session.WrongItems,
+                session.AccuracyPercent,
+                session.StartedAt,
+                session.CompletedAt,
+                items));
+    }
+
+    public async Task<Result<FlashcardAnswerResponse>>
+        AnswerAsync(
+            Guid userId,
+            Guid sessionPublicId,
+            Guid itemPublicId,
+            AnswerFlashcardRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var session =
+            await _db.Set<FlashcardSession>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.PublicId ==
+                            sessionPublicId &&
+                        x.UserId == userId,
+                    cancellationToken);
+
+        if (session is null)
+        {
+            return Result.Failure<
+                FlashcardAnswerResponse>(
+                Error.NotFound(
+                    "Flashcard.SessionNotFound",
+                    "Không tìm thấy Flashcard Session."));
+        }
+
+        if (session.Status !=
+            FlashcardSessionStatus.Active)
+        {
+            return Result.Failure<
+                FlashcardAnswerResponse>(
+                Error.Conflict(
+                    "Flashcard.SessionNotActive",
+                    "Flashcard session không còn Active."));
+        }
+
+        var item =
+            await _db.Set<FlashcardSessionItem>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.PublicId == itemPublicId &&
+                        x.FlashcardSessionId ==
+                            session.Id,
+                    cancellationToken);
+
+        if (item is null)
+        {
+            return Result.Failure<
+                FlashcardAnswerResponse>(
+                Error.NotFound(
+                    "Flashcard.ItemNotFound",
+                    "Không tìm thấy Flashcard Item."));
+        }
+
+        if (item.IsAnswered)
+        {
+            return Result.Failure<
+                FlashcardAnswerResponse>(
+                Error.Conflict(
+                    "Flashcard.AlreadyAnswered",
+                    "Flashcard Item đã được trả lời."));
+        }
+
+        /*
+         * Enforce answer đúng thứ tự.
+         *
+         * CurrentIndex bắt đầu 0.
+         */
+        if (item.SortOrder !=
+            session.CurrentIndex)
+        {
+            return Result.Failure<
+                FlashcardAnswerResponse>(
+                Error.Conflict(
+                    "Flashcard.InvalidOrder",
+                    "Flashcard phải được trả lời đúng thứ tự."));
+        }
+
+        var state =
+            await _db.Set<UserVocabularyState>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.UserId == userId &&
+                        x.VocabularyId ==
+                            item.VocabularyId,
+                    cancellationToken);
+
+        if (state is null)
+        {
+            state =
+                new UserVocabularyState(
+                    userId,
+                    item.VocabularyId);
+
+            _db.Add(state);
+        }
+
+        var reviewedAt =
+            DateTimeOffset.UtcNow;
+
+        var schedule =
+            _scheduler.Calculate(
+                state.MasteryScore,
+                state.CurrentIntervalMinutes,
+                request.Rating,
+                request.WasCorrect,
+                reviewedAt);
+
+        await using var tx =
+            await _db.Database.BeginTransactionAsync(
+                cancellationToken);
+
+        try
+        {
+            item.Answer(
+                request.Rating,
+                request.WasCorrect,
+                request.ResponseTimeMs);
+
+            state.ApplyReview(
+                request.Rating,
+                request.WasCorrect,
+                schedule.MasteryAfter,
+                schedule.IntervalAfterMinutes,
+                schedule.ReviewedAt,
+                schedule.NextReviewAt,
+                DateOnly.FromDateTime(
+                    reviewedAt.UtcDateTime));
+
+            var reviewEvent =
+                new ReviewEvent(
+                    userId,
+                    item.VocabularyId,
+                    request.Rating,
+                    request.WasCorrect,
+                    schedule.MasteryBefore,
+                    schedule.MasteryAfter,
+                    schedule.IntervalAfterMinutes,
+                    schedule.IntervalBeforeMinutes,
+                    request.ResponseTimeMs,
+                    session.Id);
+
+            _db.Add(reviewEvent);
+
+            session.RegisterAnswer(
+                request.WasCorrect);
+
+            await _db.SaveChangesAsync(
+                cancellationToken);
+
+            await tx.CommitAsync(
+                cancellationToken);
+        }
+        catch
+        {
+            await tx.RollbackAsync(
+                cancellationToken);
+
+            throw;
+        }
+
+        var loadedSession =
+            await GetSessionAsync(
+                userId,
+                sessionPublicId,
+                cancellationToken);
+
+        if (loadedSession.IsFailure)
+        {
+            return Result.Failure<
+                FlashcardAnswerResponse>(
+                loadedSession.Error);
+        }
+
+        var vocabularyPublicId =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .Where(
+                    x =>
+                        x.Id ==
+                        item.VocabularyId)
+                .Select(x => x.PublicId)
+                .FirstAsync(
+                    cancellationToken);
+
+        var reviewResponse =
+            new ReviewResultResponse(
+                vocabularyPublicId,
+                request.Rating,
+                request.WasCorrect,
+                schedule.MasteryBefore,
+                schedule.MasteryAfter,
+                schedule.IntervalBeforeMinutes,
+                schedule.IntervalAfterMinutes,
+                schedule.NextReviewAt,
+                state.LearningState);
+
+        return Result.Success(
+            new FlashcardAnswerResponse(
+                loadedSession.Value,
+                reviewResponse));
+    }
+
+    public async Task<Result> AbandonAsync(
+        Guid userId,
+        Guid sessionPublicId,
+        CancellationToken cancellationToken = default)
+    {
+        var session =
+            await _db.Set<FlashcardSession>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.UserId == userId &&
+                        x.PublicId ==
+                            sessionPublicId,
+                    cancellationToken);
+
+        if (session is null)
+        {
+            return Result.Failure(
+                Error.NotFound(
+                    "Flashcard.SessionNotFound",
+                    "Không tìm thấy Flashcard Session."));
+        }
+
+        session.Abandon();
+
+        await _db.SaveChangesAsync(
+            cancellationToken);
+
+        return Result.Success();
+    }
+
+    private async Task<Result<List<long>>>
+        ResolveVocabularyIdsAsync(
+            Guid userId,
+            CreateFlashcardSessionRequest request,
+            int limit,
+            CancellationToken cancellationToken)
+    {
+        switch (request.SourceType)
+        {
+            case FlashcardSourceType.ReviewQueue:
+            {
+                var now =
+                    DateTimeOffset.UtcNow;
+
+                var ids =
+                    await _db.Set<UserVocabularyState>()
+                        .AsNoTracking()
+                        .Where(
+                            x =>
+                                x.UserId == userId &&
+                                (
+                                    x.NextReviewAt == null ||
+                                    x.NextReviewAt <= now
+                                ) &&
+                                x.Vocabulary.Status ==
+                                    ContentStatus.Published)
+                        .OrderBy(
+                            x =>
+                                x.NextReviewAt ??
+                                DateTimeOffset.MinValue)
+                        .Take(limit)
+                        .Select(
+                            x => x.VocabularyId)
+                        .ToListAsync(
+                            cancellationToken);
+
+                return Result.Success(ids);
+            }
+
+            case FlashcardSourceType.Lesson:
+            {
+                if (!request.SourcePublicId.HasValue)
+                {
+                    return Result.Failure<List<long>>(
+                        Error.Validation(
+                            "Flashcard.SourceRequired",
+                            "Lesson PublicId là bắt buộc."));
+                }
+
+                var lessonId =
+                    await _db.Set<Lesson>()
+                        .AsNoTracking()
+                        .Where(
+                            x =>
+                                x.PublicId ==
+                                    request.SourcePublicId.Value &&
+                                x.Status ==
+                                    ContentStatus.Published)
+                        .Select(x => (long?)x.Id)
+                        .FirstOrDefaultAsync(
+                            cancellationToken);
+
+                if (!lessonId.HasValue)
+                {
+                    return Result.Failure<List<long>>(
+                        Error.NotFound(
+                            "Lesson.NotFound",
+                            "Không tìm thấy Lesson."));
+                }
+
+                var ids =
+                    await _db.Set<LessonVocabulary>()
+                        .AsNoTracking()
+                        .Where(
+                            x =>
+                                x.LessonId ==
+                                    lessonId.Value &&
+                                x.Vocabulary.Status ==
+                                    ContentStatus.Published)
+                        .OrderBy(x => x.SortOrder)
+                        .Take(limit)
+                        .Select(x => x.VocabularyId)
+                        .ToListAsync(
+                            cancellationToken);
+
+                return Result.Success(ids);
+            }
+
+            case FlashcardSourceType.Topic:
+            {
+                if (!request.SourcePublicId.HasValue)
+                {
+                    return Result.Failure<List<long>>(
+                        Error.Validation(
+                            "Flashcard.SourceRequired",
+                            "Topic PublicId là bắt buộc."));
+                }
+
+                var topicId =
+                    await _db.Set<Topic>()
+                        .AsNoTracking()
+                        .Where(
+                            x =>
+                                x.PublicId ==
+                                request.SourcePublicId.Value &&
+                                x.Status ==
+                                    ContentStatus.Published)
+                        .Select(x => (long?)x.Id)
+                        .FirstOrDefaultAsync(
+                            cancellationToken);
+
+                if (!topicId.HasValue)
+                {
+                    return Result.Failure<List<long>>(
+                        Error.NotFound(
+                            "Topic.NotFound",
+                            "Không tìm thấy Topic."));
+                }
+
+                var ids =
+                    await _db.Set<
+                            Domain.Entities.Vocabulary.Vocabulary>()
+                        .AsNoTracking()
+                        .Where(
+                            x =>
+                                x.TopicId ==
+                                    topicId.Value &&
+                                x.Status ==
+                                    ContentStatus.Published)
+                        .OrderBy(
+                            x => x.Simplified)
+                        .Take(limit)
+                        .Select(x => x.Id)
+                        .ToListAsync(
+                            cancellationToken);
+
+                return Result.Success(ids);
+            }
+
+            case FlashcardSourceType.Custom:
+            {
+                if (request.VocabularyPublicIds is null ||
+                    request.VocabularyPublicIds.Count == 0)
+                {
+                    return Result.Failure<List<long>>(
+                        Error.Validation(
+                            "Flashcard.VocabularyRequired",
+                            "Custom session phải có vocabulary."));
+                }
+
+                var publicIds =
+                    request.VocabularyPublicIds
+                        .Distinct()
+                        .Take(limit)
+                        .ToArray();
+
+                var values =
+                    await _db.Set<
+                            Domain.Entities.Vocabulary.Vocabulary>()
+                        .AsNoTracking()
+                        .Where(
+                            x =>
+                                publicIds.Contains(
+                                    x.PublicId) &&
+                                x.Status ==
+                                    ContentStatus.Published)
+                        .Select(
+                            x => new
+                            {
+                                x.Id,
+                                x.PublicId
+                            })
+                        .ToArrayAsync(
+                            cancellationToken);
+
+                var map =
+                    values.ToDictionary(
+                        x => x.PublicId,
+                        x => x.Id);
+
+                var result =
+                    publicIds
+                        .Where(map.ContainsKey)
+                        .Select(x => map[x])
+                        .ToList();
+
+                return Result.Success(result);
+            }
+
+            default:
+                return Result.Failure<List<long>>(
+                    Error.Validation(
+                        "Flashcard.InvalidSource",
+                        "Flashcard source không hợp lệ."));
+        }
+    }
+}
+
+FlashcardSession.RegisterAnswer() đã tự tăng CurrentIndex, tăng correct khi đúng và tự Complete() khi hết card.
+
+FlashcardSessionItem.Answer() cũng đã chặn answer lần hai.
+
+16. Review Queue Controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Review.Public.Queue;
+using HanYu.Application.Interfaces.Authentication;
+using HanYu.Application.Interfaces.Review;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Public.Review;
+
+[ApiController]
+[Authorize]
+[Route("api/v1/public/review-queue")]
+public sealed class ReviewQueueController
+    : ControllerBase
+{
+    private readonly IReviewService _service;
+    private readonly ICurrentUserService _currentUser;
+
+    public ReviewQueueController(
+        IReviewService service,
+        ICurrentUserService currentUser)
+    {
+        _service = service;
+        _currentUser = currentUser;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Get(
+        [FromQuery] ReviewQueueQuery query,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.GetQueueAsync(
+                _currentUser.UserId.Value,
+                query,
+                cancellationToken));
+    }
+
+    [HttpGet("summary")]
+    public async Task<IActionResult> Summary(
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.GetSummaryAsync(
+                _currentUser.UserId.Value,
+                cancellationToken));
+    }
+}
+17. Reviews Controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Review.Public.Review;
+using HanYu.Application.Interfaces.Authentication;
+using HanYu.Application.Interfaces.Review;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Public.Review;
+
+[ApiController]
+[Authorize]
+[Route("api/v1/public/reviews")]
+public sealed class ReviewsController
+    : ControllerBase
+{
+    private readonly IReviewService _service;
+    private readonly ICurrentUserService _currentUser;
+
+    public ReviewsController(
+        IReviewService service,
+        ICurrentUserService currentUser)
+    {
+        _service = service;
+        _currentUser = currentUser;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Submit(
+        SubmitReviewRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.SubmitReviewAsync(
+                _currentUser.UserId.Value,
+                request,
+                cancellationToken));
+    }
+
+    [HttpGet("vocabularies/{vocabularyPublicId:guid}/state")]
+    public async Task<IActionResult> GetState(
+        Guid vocabularyPublicId,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.GetStateAsync(
+                _currentUser.UserId.Value,
+                vocabularyPublicId,
+                cancellationToken));
+    }
+}
+18. Flashcard Controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Features.Review.Public.Flashcards;
+using HanYu.Application.Interfaces.Authentication;
+using HanYu.Application.Interfaces.Review;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Public.Review;
+
+[ApiController]
+[Authorize]
+[Route("api/v1/public/flashcard-sessions")]
+public sealed class FlashcardSessionsController
+    : ControllerBase
+{
+    private readonly IFlashcardService _service;
+    private readonly ICurrentUserService _currentUser;
+
+    public FlashcardSessionsController(
+        IFlashcardService service,
+        ICurrentUserService currentUser)
+    {
+        _service = service;
+        _currentUser = currentUser;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        CreateFlashcardSessionRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.CreateSessionAsync(
+                _currentUser.UserId.Value,
+                request,
+                cancellationToken));
+    }
+
+    [HttpGet("{sessionPublicId:guid}")]
+    public async Task<IActionResult> Get(
+        Guid sessionPublicId,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.GetSessionAsync(
+                _currentUser.UserId.Value,
+                sessionPublicId,
+                cancellationToken));
+    }
+
+    [HttpPost(
+        "{sessionPublicId:guid}/items/{itemPublicId:guid}/answer")]
+    public async Task<IActionResult> Answer(
+        Guid sessionPublicId,
+        Guid itemPublicId,
+        AnswerFlashcardRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.AnswerAsync(
+                _currentUser.UserId.Value,
+                sessionPublicId,
+                itemPublicId,
+                request,
+                cancellationToken));
+    }
+
+    [HttpPost("{sessionPublicId:guid}/abandon")]
+    public async Task<IActionResult> Abandon(
+        Guid sessionPublicId,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.AbandonAsync(
+                _currentUser.UserId.Value,
+                sessionPublicId,
+                cancellationToken));
+    }
+}
+19. Favorites Controller
+using HanYu.API.Common.Extensions;
+using HanYu.Application.Interfaces.Authentication;
+using HanYu.Application.Interfaces.Review;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HanYu.API.Controller.Public.Review;
+
+[ApiController]
+[Authorize]
+[Route("api/v1/public/vocabulary-favorites")]
+public sealed class VocabularyFavoritesController
+    : ControllerBase
+{
+    private readonly IReviewService _service;
+    private readonly ICurrentUserService _currentUser;
+
+    public VocabularyFavoritesController(
+        IReviewService service,
+        ICurrentUserService currentUser)
+    {
+        _service = service;
+        _currentUser = currentUser;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.GetFavoritesAsync(
+                _currentUser.UserId.Value,
+                cancellationToken));
+    }
+
+    [HttpPost("{vocabularyPublicId:guid}")]
+    public async Task<IActionResult> Add(
+        Guid vocabularyPublicId,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.FavoriteAsync(
+                _currentUser.UserId.Value,
+                vocabularyPublicId,
+                cancellationToken));
+    }
+
+    [HttpDelete("{vocabularyPublicId:guid}")]
+    public async Task<IActionResult> Delete(
+        Guid vocabularyPublicId,
+        CancellationToken cancellationToken)
+    {
+        if (!_currentUser.UserId.HasValue)
+            return Unauthorized();
+
+        return this.ToActionResult(
+            await _service.UnfavoriteAsync(
+                _currentUser.UserId.Value,
+                vocabularyPublicId,
+                cancellationToken));
+    }
+}
+20. Dependency Injection
+
+Thêm:
+
+using HanYu.Application.Interfaces.Review;
+using HanYu.Infrastructure.Review;
+
+Registration:
+
+private static void AddReview(
+    IServiceCollection services)
+{
+    services.AddSingleton<
+        IReviewScheduler,
+        ReviewScheduler>();
+
+    services.AddScoped<
+        IReviewService,
+        ReviewService>();
+
+    services.AddScoped<
+        IFlashcardService,
+        FlashcardService>();
+}
+
+Trong AddInfrastructure(...):
+
+AddReview(services);
+21. Nối Lesson Complete → SRS
+
+Đây là phần rất quan trọng.
+
+Sau khi Lesson được complete, các Vocabulary IsRequired của Lesson nên được đưa vào UserVocabularyState.
+
+Trong LessonPublicService.CompleteLessonAsync(), sau:
+
+progress.Complete();
+
+thêm:
+
+var lessonVocabularyIds =
+    await _db.Set<LessonVocabulary>()
+        .AsNoTracking()
+        .Where(
+            x =>
+                x.LessonId ==
+                    lesson.Value.Id &&
+                x.IsRequired)
+        .Select(x => x.VocabularyId)
+        .ToArrayAsync(
+            cancellationToken);
+
+var existingStates =
+    await _db.Set<UserVocabularyState>()
+        .Where(
+            x =>
+                x.UserId == userId &&
+                lessonVocabularyIds.Contains(
+                    x.VocabularyId))
+        .ToDictionaryAsync(
+            x => x.VocabularyId,
+            cancellationToken);
+
+var learnedAt =
+    DateTimeOffset.UtcNow;
+
+foreach (var vocabularyId
+         in lessonVocabularyIds)
+{
+    if (!existingStates.TryGetValue(
+            vocabularyId,
+            out var state))
+    {
+        state =
+            new UserVocabularyState(
+                userId,
+                vocabularyId);
+
+        _db.Add(state);
+    }
+
+    state.StartLearning(
+        learnedAt,
+        ReviewConstants
+            .InitialLessonIntervalMinutes);
+}
+
+Nhớ:
+
+using HanYu.Domain.Constants;
+using HanYu.Domain.Entities.Review;
+
+Sau đó mới:
+
+await _db.SaveChangesAsync(
+    cancellationToken);
+
+Kết quả:
+
+User học Lesson
+    ↓
+Complete Lesson
+    ↓
+Vocabulary bắt buộc được seed SRS
+    ↓
+60 phút sau vào Review Queue
+    ↓
+User review
+    ↓
+Again / Hard / Good / Easy
+    ↓
+Mastery + Interval thay đổi
+    ↓
+NextReviewAt
+22. LearningState hiện tại hoạt động rất hợp lý
+
+Entity UserVocabularyState của bạn đang có rule:
+
+mastery < 60
+→ Learning
+
+mastery >= 60
+→ Known
+
+mastery >= 80
++ đúng ít nhất 3 ngày khác nhau
+→ Mastered
+
+Đây chính xác là behavior trong EvaluateLearningState().
+
+Mình giữ nguyên, không cần sửa.
+
+23. Review flow đầy đủ
+Lesson Complete
+      │
+      ▼
+UserVocabularyState
+Learning
+NextReviewAt = +60 phút
+      │
+      ▼
+Review Queue
+      │
+      ▼
+Flashcard Session
+      │
+      ▼
+Answer
+      │
+      ├──── wrong
+      │       ↓
+      │     mastery -12
+      │     interval 10m
+      │
+      ├──── Hard
+      │       ↓
+      │     mastery +5
+      │     interval ×1.5
+      │
+      ├──── Good
+      │       ↓
+      │     mastery +10
+      │     interval ×2.5
+      │
+      └──── Easy
+              ↓
+            mastery +15
+            interval ×4
+
+      ↓
+UserVocabularyState.ApplyReview()
+      ↓
+ReviewEvent immutable
+      ↓
+NextReviewAt
+
+ReviewEvent nên không có Update/Delete API. Nó là historical event và entity hiện cũng không có behavior sửa/xóa.
+
+24. API sau khi hoàn thành
+REVIEW
+
+GET
+/api/v1/public/review-queue
+
+GET
+/api/v1/public/review-queue/summary
+
+POST
+/api/v1/public/reviews
+
+GET
+/api/v1/public/reviews/vocabularies/{publicId}/state
+
+
+FLASHCARD
+
+POST
+/api/v1/public/flashcard-sessions
+
+GET
+/api/v1/public/flashcard-sessions/{sessionPublicId}
+
+POST
+/api/v1/public/flashcard-sessions/{sessionPublicId}/items/{itemPublicId}/answer
+
+POST
+/api/v1/public/flashcard-sessions/{sessionPublicId}/abandon
+
+
+FAVORITES
+
+GET
+/api/v1/public/vocabulary-favorites
+
+POST
+/api/v1/public/vocabulary-favorites/{vocabularyPublicId}
+
+DELETE
+/api/v1/public/vocabulary-favorites/{vocabularyPublicId}
+Sau phần này kiến trúc học của HanYu đã nối được thành chuỗi
+Identity
+   ↓
+Vocabulary
+   ↓
+Lesson
+   ↓
+Lesson Complete
+   ↓
+UserVocabularyState
+   ↓
+Review Queue / SRS
+   ↓
+Flashcard Session
+   ↓
+FlashcardSessionItem
+   ↓
+ReviewEvent
+   ↓
+Mastery / NextReviewAt
+   ↓
+Known / Mastered
+
+Với 4 entity hiện tại không cần thêm bảng mới và không cần migration; chỉ cần bổ sung StartLearning() vào UserVocabularyState rồi thêm Application/Infrastructure/API phía trên.
+
+Sau khi copy xong chạy:
+
+dotnet clean
+dotnet build
+
+Nếu build sạch thì bước tiếp theo hợp lý nhất là Quiz, vì lúc đó HanYu đã có đủ Vocabulary → Lesson → Review/SRS/Flashcard, và Quiz có thể dùng lại UserVocabularyState, ReviewEvent và Lesson progression thay vì tự tạo một hệ thống tiến độ khác.

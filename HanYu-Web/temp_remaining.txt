@@ -1,0 +1,1049 @@
+    // =========================================================
+    // SECTIONS
+    // =========================================================
+
+    public async Task<Result<
+        IReadOnlyCollection<AdminLessonSectionResponse>>>
+        GetSectionsAsync(
+            long lessonId,
+            CancellationToken cancellationToken = default)
+    {
+        if (!await LessonExistsAsync(
+                lessonId,
+                cancellationToken))
+        {
+            return Result.Failure<
+                IReadOnlyCollection<AdminLessonSectionResponse>>(
+                NotFound("Lesson"));
+        }
+
+        var values =
+            await _db.Set<LessonSection>()
+                .AsNoTracking()
+                .Where(x => x.LessonId == lessonId)
+                .OrderBy(x => x.SortOrder)
+                .ToArrayAsync(cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<AdminLessonSectionResponse>>(
+            values
+                .Select(LessonAdminMapper.ToSectionResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<AdminLessonSectionResponse>>
+        CreateSectionAsync(
+            long lessonId,
+            CreateLessonSectionRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var parent =
+            await GetEditableLessonAsync(
+                lessonId,
+                cancellationToken);
+
+        if (parent.IsFailure)
+            return Result.Failure<AdminLessonSectionResponse>(
+                parent.Error);
+
+        var duplicateOrder =
+            await _db.Set<LessonSection>()
+                .AnyAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.SortOrder == request.SortOrder,
+                    cancellationToken);
+
+        if (duplicateOrder)
+        {
+            return Result.Failure<AdminLessonSectionResponse>(
+                Error.Conflict(
+                    "LessonSection.DuplicateOrder",
+                    "SortOrder đã tồn tại."));
+        }
+
+        var entity =
+            new LessonSection(
+                lessonId,
+                request.SectionType,
+                request.SortOrder,
+                request.TitleVi);
+
+        entity.UpdateContent(
+            request.TitleVi,
+            request.ContentVi);
+
+        entity.SetRequired(
+            request.IsRequired);
+
+        entity.UpdateEstimatedTime(
+            request.EstimatedSeconds);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success(
+            LessonAdminMapper.ToSectionResponse(entity));
+    }
+
+    public async Task<Result<AdminLessonSectionResponse>>
+        UpdateSectionAsync(
+            long lessonId,
+            long sectionId,
+            UpdateLessonSectionRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var parent =
+            await GetEditableLessonAsync(
+                lessonId,
+                cancellationToken);
+
+        if (parent.IsFailure)
+            return Result.Failure<AdminLessonSectionResponse>(
+                parent.Error);
+
+        var entity =
+            await _db.Set<LessonSection>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == sectionId &&
+                        x.LessonId == lessonId,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure<AdminLessonSectionResponse>(
+                NotFound("LessonSection"));
+
+        var duplicateOrder =
+            await _db.Set<LessonSection>()
+                .AnyAsync(
+                    x =>
+                        x.Id != sectionId &&
+                        x.LessonId == lessonId &&
+                        x.SortOrder == request.SortOrder,
+                    cancellationToken);
+
+        if (duplicateOrder)
+        {
+            return Result.Failure<AdminLessonSectionResponse>(
+                Error.Conflict(
+                    "LessonSection.DuplicateOrder",
+                    "SortOrder đã tồn tại."));
+        }
+
+        entity.ChangeType(request.SectionType);
+        entity.UpdateContent(
+            request.TitleVi,
+            request.ContentVi);
+        entity.ChangeOrder(request.SortOrder);
+        entity.SetRequired(request.IsRequired);
+        entity.UpdateEstimatedTime(
+            request.EstimatedSeconds);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success(
+            LessonAdminMapper.ToSectionResponse(entity));
+    }
+
+    public async Task<Result> DeleteSectionAsync(
+        long lessonId,
+        long sectionId,
+        CancellationToken cancellationToken = default)
+    {
+        var parent =
+            await GetEditableLessonAsync(
+                lessonId,
+                cancellationToken);
+
+        if (parent.IsFailure)
+            return Result.Failure(parent.Error);
+
+        var hasProgress =
+            await _db.Set<UserLessonSectionProgress>()
+                .AnyAsync(
+                    x => x.LessonSectionId == sectionId,
+                    cancellationToken);
+
+        if (hasProgress)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "LessonSection.HasProgress",
+                    "Section đã có dữ liệu học và không thể xóa."));
+        }
+
+        var entity =
+            await _db.Set<LessonSection>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == sectionId &&
+                        x.LessonId == lessonId,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("LessonSection"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success();
+    }
+
+    // =========================================================
+    // ASSETS
+    // =========================================================
+
+    public async Task<Result<
+        IReadOnlyCollection<AdminLessonAssetResponse>>>
+        GetAssetsAsync(
+            long lessonId,
+            CancellationToken cancellationToken = default)
+    {
+        var values =
+            await _db.Set<LessonAsset>()
+                .AsNoTracking()
+                .Where(x => x.LessonId == lessonId)
+                .OrderBy(x => x.SortOrder)
+                .ToArrayAsync(cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<AdminLessonAssetResponse>>(
+            values.Select(
+                    LessonAdminMapper.ToAssetResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<AdminLessonAssetResponse>>
+        CreateAssetAsync(
+            long lessonId,
+            CreateLessonAssetRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var parent =
+            await GetEditableLessonAsync(
+                lessonId,
+                cancellationToken);
+
+        if (parent.IsFailure)
+            return Result.Failure<AdminLessonAssetResponse>(
+                parent.Error);
+
+        var audioValidation =
+            await ValidateAudioAsync(
+                request.AudioAssetId,
+                cancellationToken);
+
+        if (audioValidation.IsFailure)
+            return Result.Failure<AdminLessonAssetResponse>(
+                audioValidation.Error);
+
+        var entity =
+            new LessonAsset(
+                lessonId,
+                request.AssetType,
+                request.SortOrder);
+
+        entity.Update(
+            request.Url,
+            request.CaptionVi,
+            request.AudioAssetId,
+            request.SortOrder);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success(
+            LessonAdminMapper.ToAssetResponse(entity));
+    }
+
+    public async Task<Result<AdminLessonAssetResponse>>
+        UpdateAssetAsync(
+            long lessonId,
+            long assetId,
+            UpdateLessonAssetRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var parent =
+            await GetEditableLessonAsync(
+                lessonId,
+                cancellationToken);
+
+        if (parent.IsFailure)
+            return Result.Failure<AdminLessonAssetResponse>(
+                parent.Error);
+
+        var audioValidation =
+            await ValidateAudioAsync(
+                request.AudioAssetId,
+                cancellationToken);
+
+        if (audioValidation.IsFailure)
+            return Result.Failure<AdminLessonAssetResponse>(
+                audioValidation.Error);
+
+        var entity =
+            await _db.Set<LessonAsset>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == assetId &&
+                        x.LessonId == lessonId,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure<AdminLessonAssetResponse>(
+                NotFound("LessonAsset"));
+
+        entity.Update(
+            request.Url,
+            request.CaptionVi,
+            request.AudioAssetId,
+            request.SortOrder);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success(
+            LessonAdminMapper.ToAssetResponse(entity));
+    }
+
+    public async Task<Result> DeleteAssetAsync(
+        long lessonId,
+        long assetId,
+        CancellationToken cancellationToken = default)
+    {
+        var parent =
+            await GetEditableLessonAsync(
+                lessonId,
+                cancellationToken);
+
+        if (parent.IsFailure)
+            return Result.Failure(parent.Error);
+
+        var entity =
+            await _db.Set<LessonAsset>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.Id == assetId &&
+                        x.LessonId == lessonId,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("LessonAsset"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success();
+    }
+
+    // =========================================================
+    // VOCABULARY
+    // =========================================================
+
+    public async Task<Result<
+        IReadOnlyCollection<AdminLessonVocabularyResponse>>>
+        GetVocabularyAsync(
+            long lessonId,
+            CancellationToken cancellationToken = default)
+    {
+        var values =
+            await _db.Set<LessonVocabulary>()
+                .AsNoTracking()
+                .Include(x => x.Vocabulary)
+                .Where(x => x.LessonId == lessonId)
+                .OrderBy(x => x.SortOrder)
+                .ToArrayAsync(cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<AdminLessonVocabularyResponse>>(
+            values
+                .Select(
+                    LessonAdminMapper.ToVocabularyResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<AdminLessonVocabularyResponse>>
+        AttachVocabularyAsync(
+            long lessonId,
+            AttachLessonVocabularyRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var parent =
+            await GetEditableLessonAsync(
+                lessonId,
+                cancellationToken);
+
+        if (parent.IsFailure)
+            return Result.Failure<AdminLessonVocabularyResponse>(
+                parent.Error);
+
+        var vocabulary =
+            await _db.Set<
+                    Domain.Entities.Vocabulary.Vocabulary>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.Id == request.VocabularyId,
+                    cancellationToken);
+
+        if (vocabulary is null)
+            return Result.Failure<AdminLessonVocabularyResponse>(
+                Error.NotFound(
+                    "Vocabulary.NotFound",
+                    "Không tìm thấy Vocabulary."));
+
+        if (vocabulary.Status ==
+            ContentStatus.Archived)
+        {
+            return Result.Failure<AdminLessonVocabularyResponse>(
+                Error.Conflict(
+                    "Vocabulary.Archived",
+                    "Không thể thêm Vocabulary Archived."));
+        }
+
+        var duplicate =
+            await _db.Set<LessonVocabulary>()
+                .AnyAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.VocabularyId ==
+                            request.VocabularyId,
+                    cancellationToken);
+
+        if (duplicate)
+        {
+            return Result.Failure<AdminLessonVocabularyResponse>(
+                Error.Conflict(
+                    "LessonVocabulary.Duplicate",
+                    "Vocabulary đã tồn tại trong Lesson."));
+        }
+
+        var entity =
+            new LessonVocabulary(
+                lessonId,
+                request.VocabularyId,
+                request.SortOrder,
+                request.IsRequired);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var loaded =
+            await _db.Set<LessonVocabulary>()
+                .AsNoTracking()
+                .Include(x => x.Vocabulary)
+                .FirstAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.VocabularyId ==
+                            request.VocabularyId,
+                    cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success(
+            LessonAdminMapper.ToVocabularyResponse(
+                loaded));
+    }
+
+    public async Task<Result<AdminLessonVocabularyResponse>>
+        UpdateVocabularyAsync(
+            long lessonId,
+            long vocabularyId,
+            UpdateLessonVocabularyRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<LessonVocabulary>()
+                .Include(x => x.Vocabulary)
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.VocabularyId == vocabularyId,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure<AdminLessonVocabularyResponse>(
+                NotFound("LessonVocabulary"));
+
+        entity.ChangeOrder(request.SortOrder);
+        entity.SetRequired(request.IsRequired);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success(
+            LessonAdminMapper.ToVocabularyResponse(entity));
+    }
+
+    public async Task<Result> DetachVocabularyAsync(
+        long lessonId,
+        long vocabularyId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<LessonVocabulary>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.VocabularyId == vocabularyId,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("LessonVocabulary"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success();
+    }
+
+    // =========================================================
+    // PREREQUISITES
+    // =========================================================
+
+    public async Task<Result<
+        IReadOnlyCollection<AdminLessonPrerequisiteResponse>>>
+        GetPrerequisitesAsync(
+            long lessonId,
+            CancellationToken cancellationToken = default)
+    {
+        var values =
+            await _db.Set<LessonPrerequisite>()
+                .AsNoTracking()
+                .Include(x => x.RequiredLesson)
+                .Where(x => x.LessonId == lessonId)
+                .ToArrayAsync(cancellationToken);
+
+        return Result.Success<
+            IReadOnlyCollection<
+                AdminLessonPrerequisiteResponse>>(
+            values
+                .Select(
+                    LessonAdminMapper
+                        .ToPrerequisiteResponse)
+                .ToArray());
+    }
+
+    public async Task<Result<AdminLessonPrerequisiteResponse>>
+        AddPrerequisiteAsync(
+            long lessonId,
+            AddLessonPrerequisiteRequest request,
+            CancellationToken cancellationToken = default)
+    {
+        if (lessonId == request.RequiredLessonId)
+        {
+            return Result.Failure<
+                AdminLessonPrerequisiteResponse>(
+                Error.Validation(
+                    "LessonPrerequisite.SelfReference",
+                    "Lesson không thể prerequisite chính nó."));
+        }
+
+        if (!await LessonExistsAsync(
+                lessonId,
+                cancellationToken) ||
+            !await LessonExistsAsync(
+                request.RequiredLessonId,
+                cancellationToken))
+        {
+            return Result.Failure<
+                AdminLessonPrerequisiteResponse>(
+                NotFound("Lesson"));
+        }
+
+        var duplicate =
+            await _db.Set<LessonPrerequisite>()
+                .AnyAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.RequiredLessonId ==
+                            request.RequiredLessonId,
+                    cancellationToken);
+
+        if (duplicate)
+        {
+            return Result.Failure<
+                AdminLessonPrerequisiteResponse>(
+                Error.Conflict(
+                    "LessonPrerequisite.Duplicate",
+                    "Prerequisite đã tồn tại."));
+        }
+
+        if (await WouldCreateCycleAsync(
+                lessonId,
+                request.RequiredLessonId,
+                cancellationToken))
+        {
+            return Result.Failure<
+                AdminLessonPrerequisiteResponse>(
+                Error.Conflict(
+                    "LessonPrerequisite.Cycle",
+                    "Prerequisite sẽ tạo vòng lặp giữa các Lesson."));
+        }
+
+        var entity =
+            new LessonPrerequisite(
+                lessonId,
+                request.RequiredLessonId);
+
+        _db.Add(entity);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var loaded =
+            await _db.Set<LessonPrerequisite>()
+                .AsNoTracking()
+                .Include(x => x.RequiredLesson)
+                .FirstAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.RequiredLessonId ==
+                            request.RequiredLessonId,
+                    cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success(
+            LessonAdminMapper
+                .ToPrerequisiteResponse(loaded));
+    }
+
+    public async Task<Result> RemovePrerequisiteAsync(
+        long lessonId,
+        long requiredLessonId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity =
+            await _db.Set<LessonPrerequisite>()
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.RequiredLessonId ==
+                            requiredLessonId,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure(
+                NotFound("LessonPrerequisite"));
+
+        _db.Remove(entity);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Result.Success();
+    }
+
+    // =========================================================
+    // VALIDATION / HELPERS
+    // =========================================================
+
+    private async Task<Result> ValidatePublishableGraphAsync(
+        long lessonId,
+        CancellationToken cancellationToken)
+    {
+        var hasSections =
+            await _db.Set<LessonSection>()
+                .AnyAsync(
+                    x => x.LessonId == lessonId,
+                    cancellationToken);
+
+        if (!hasSections)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "Lesson.NoSections",
+                    "Lesson phải có ít nhất một Section."));
+        }
+
+        var invalidVocabulary =
+            await _db.Set<LessonVocabulary>()
+                .Include(x => x.Vocabulary)
+                .AnyAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.IsRequired &&
+                        x.Vocabulary.Status !=
+                            ContentStatus.Published,
+                    cancellationToken);
+
+        if (invalidVocabulary)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "Lesson.InvalidVocabulary",
+                    "Vocabulary bắt buộc phải Published trước khi publish Lesson."));
+        }
+
+        var invalidPrerequisite =
+            await _db.Set<LessonPrerequisite>()
+                .Include(x => x.RequiredLesson)
+                .AnyAsync(
+                    x =>
+                        x.LessonId == lessonId &&
+                        x.RequiredLesson.Status !=
+                            ContentStatus.Published,
+                    cancellationToken);
+
+        if (invalidPrerequisite)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "Lesson.InvalidPrerequisite",
+                    "Các prerequisite Lesson phải Published."));
+        }
+
+        return Result.Success();
+    }
+
+    private async Task<bool> WouldCreateCycleAsync(
+        long lessonId,
+        long requiredLessonId,
+        CancellationToken cancellationToken)
+    {
+        var edges =
+            await _db.Set<LessonPrerequisite>()
+                .AsNoTracking()
+                .Select(x => new
+                {
+                    x.LessonId,
+                    x.RequiredLessonId
+                })
+                .ToListAsync(cancellationToken);
+
+        var graph =
+            edges
+                .GroupBy(x => x.LessonId)
+                .ToDictionary(
+                    x => x.Key,
+                    x => x.Select(
+                            y => y.RequiredLessonId)
+                        .ToArray());
+
+        var stack =
+            new Stack<long>();
+
+        var visited =
+            new HashSet<long>();
+
+        stack.Push(requiredLessonId);
+
+        while (stack.Count > 0)
+        {
+            var current =
+                stack.Pop();
+
+            if (current == lessonId)
+                return true;
+
+            if (!visited.Add(current))
+                continue;
+
+            if (!graph.TryGetValue(
+                    current,
+                    out var next))
+                continue;
+
+            foreach (var value in next)
+                stack.Push(value);
+        }
+
+        return false;
+    }
+
+    private async Task<Result>
+        CheckDeleteDependenciesAsync(
+            long lessonId,
+            CancellationToken cancellationToken)
+    {
+        var progress =
+            await _db.Set<UserLessonProgress>()
+                .AnyAsync(
+                    x => x.LessonId == lessonId,
+                    cancellationToken);
+
+        if (progress)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "Lesson.HasProgress",
+                    "Lesson đã có dữ liệu học. Hãy Archive thay vì xóa."));
+        }
+
+        var isRequiredByAnotherLesson =
+            await _db.Set<LessonPrerequisite>()
+                .AnyAsync(
+                    x =>
+                        x.RequiredLessonId == lessonId &&
+                        x.LessonId != lessonId,
+                    cancellationToken);
+
+        if (isRequiredByAnotherLesson)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "Lesson.IsPrerequisite",
+                    "Lesson đang là prerequisite của Lesson khác."));
+        }
+
+        var relatedQuizzes = await _db.Set<HanYu.Domain.Entities.Quiz.Quiz>()
+                .AnyAsync(
+                    x => x.LessonId == lessonId,
+                    cancellationToken);
+
+        if (relatedQuizzes)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "Lesson.HasQuiz",
+                    "Lesson đang được Quiz sử dụng."));
+        }
+
+        var bookmark =
+            await _db.Set<UserLessonBookmark>()
+                .AnyAsync(
+                    x => x.LessonId == lessonId,
+                    cancellationToken);
+
+        if (bookmark)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "Lesson.HasBookmarks",
+                    "Lesson đã được người dùng bookmark."));
+        }
+
+        return Result.Success();
+    }
+
+    private async Task<Result>
+        ValidateReferencesAsync(
+            long hskLevelId,
+            long? topicId,
+            long? courseChapterId,
+            CancellationToken cancellationToken)
+    {
+        var hsk =
+            await _db.Set<HskLevel>()
+                .AnyAsync(
+                    x =>
+                        x.Id == hskLevelId &&
+                        x.IsActive,
+                    cancellationToken);
+
+        if (!hsk)
+        {
+            return Result.Failure(
+                Error.Validation(
+                    "Lesson.InvalidHsk",
+                    "HSK Level không hợp lệ."));
+        }
+
+        if (topicId.HasValue)
+        {
+            var topic =
+                await _db.Set<Topic>()
+                    .AnyAsync(
+                        x => x.Id == topicId.Value,
+                        cancellationToken);
+
+            if (!topic)
+            {
+                return Result.Failure(
+                    Error.Validation(
+                        "Lesson.InvalidTopic",
+                        "Topic không tồn tại."));
+            }
+        }
+
+        return Result.Success();
+    }
+
+    private async Task<Result> ValidateAudioAsync(
+        long? audioAssetId,
+        CancellationToken cancellationToken)
+    {
+        if (!audioAssetId.HasValue)
+            return Result.Success();
+
+        var audio =
+            await _db.Set<AudioAsset>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.Id == audioAssetId.Value,
+                    cancellationToken);
+
+        if (audio is null)
+        {
+            return Result.Failure(
+                Error.Validation(
+                    "AudioAsset.NotFound",
+                    "AudioAsset không tồn tại."));
+        }
+
+        if (audio.Status ==
+            ContentStatus.Archived)
+        {
+            return Result.Failure(
+                Error.Conflict(
+                    "AudioAsset.Archived",
+                    "AudioAsset đã Archived."));
+        }
+
+        return Result.Success();
+    }
+
+    private async Task<Result<
+        Domain.Entities.Lesson.Lesson>>
+        GetEditableLessonAsync(
+            long id,
+            CancellationToken cancellationToken)
+    {
+        var entity =
+            await _db.Set<Domain.Entities.Lesson.Lesson>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        if (entity is null)
+            return Result.Failure<
+                Domain.Entities.Lesson.Lesson>(
+                NotFound("Lesson"));
+
+        if (entity.Status ==
+            ContentStatus.Archived)
+        {
+            return Result.Failure<
+                Domain.Entities.Lesson.Lesson>(
+                Error.Conflict(
+                    "Lesson.Archived",
+                    "Lesson Archived không thể chỉnh sửa."));
+        }
+
+        return Result.Success(entity);
+    }
+
+    private async Task<Result<
+        Domain.Entities.Lesson.Lesson>>
+        FindLessonAsync(
+            long id,
+            CancellationToken cancellationToken)
+    {
+        var entity =
+            await _db.Set<Domain.Entities.Lesson.Lesson>()
+                .FirstOrDefaultAsync(
+                    x => x.Id == id,
+                    cancellationToken);
+
+        return entity is null
+            ? Result.Failure<
+                Domain.Entities.Lesson.Lesson>(
+                NotFound("Lesson"))
+            : Result.Success(entity);
+    }
+
+    private Task<bool> LessonExistsAsync(
+        long id,
+        CancellationToken cancellationToken)
+        => _db.Set<Domain.Entities.Lesson.Lesson>()
+            .AnyAsync(
+                x => x.Id == id,
+                cancellationToken);
+
+    private IQueryable<Domain.Entities.Lesson.Lesson>
+        QueryLesson()
+        => _db.Set<Domain.Entities.Lesson.Lesson>()
+            .Include(x => x.HskLevel)
+            .Include(x => x.Topic);
+
+    private async Task BumpCacheGenerationAsync(
+        CancellationToken cancellationToken)
+    {
+        await _cache.SetAsync(
+            GenerationCacheKey,
+            Guid.NewGuid().ToString("N"),
+            TimeSpan.FromDays(
+                _options.GenerationDays),
+            cancellationToken);
+
+        await _courseCacheInvalidator.InvalidatePublicCourseCacheAsync(cancellationToken);
+    }
+
+    private static Error NotFound(
+        string resource)
+        => Error.NotFound(
+            $"{resource}.NotFound",
+            $"Không tìm thấy {resource}.");
+
+    private static string NormalizeSlug(
+        string value)
+        => string.Join(
+            '-',
+            value.Trim()
+                .ToLowerInvariant()
+                .Split(
+                    [' ', '-'],
+                    StringSplitOptions.RemoveEmptyEntries));
+
+    private static IQueryable<
+        Domain.Entities.Lesson.Lesson>
+        ApplySort(
+            IQueryable<
+                Domain.Entities.Lesson.Lesson> source,
+            string? sort)
+        => sort?.Trim()
+            .ToLowerInvariant()
+            switch
+        {
+            "sortorder" =>
+                source.OrderBy(x => x.SortOrder),
+
+            "-sortorder" =>
+                source.OrderByDescending(x => x.SortOrder),
+
+            "title" =>
+                source.OrderBy(x => x.TitleVi),
+
+            "-title" =>
+                source.OrderByDescending(x => x.TitleVi),
+
+            "createdat" =>
+                source.OrderBy(x => x.CreatedAt),
+
+            "-createdat" =>
+                source.OrderByDescending(x => x.CreatedAt),
+
+            "updatedat" =>
+                source.OrderBy(x => x.UpdatedAt),
+
+            "-updatedat" =>
+                source.OrderByDescending(x => x.UpdatedAt),
+
+            _ =>
+                source.OrderByDescending(x => x.UpdatedAt)
+        };
