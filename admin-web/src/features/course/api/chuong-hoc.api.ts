@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api/api-client";
-import { AdminCourseChapter } from "@/features/khoa-hoc/types/khoa-hoc.types";
+import type { AdminCourseChapter } from "@/features/course/types/course.types";
 
 export interface CreateCourseChapterRequest {
   titleVi: string;
