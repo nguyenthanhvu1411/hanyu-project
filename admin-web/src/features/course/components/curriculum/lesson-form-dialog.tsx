@@ -38,15 +38,8 @@ interface LessonFormDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function LessonFormDialog({
-  chapterId,
-  hskLevelId,
-  lesson,
-  open,
-  onOpenChange,
-}: LessonFormDialogProps) {
+export function LessonFormDialog({ chapterId, hskLevelId, lesson, open, onOpenChange }: LessonFormDialogProps) {
   const queryClient = useQueryClient();
-
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -58,12 +51,11 @@ export function LessonFormDialog({
       difficulty: lesson?.difficulty || 1,
     },
   });
-
-  const isEditing = !!lesson;
+  const isEditing = Boolean(lesson);
 
   const mutation = useMutation({
     mutationFn: async (values: FormData) => {
-      if (isEditing) {
+      if (isEditing && lesson) {
         const payload: UpdateLessonRequest = {
           ...values,
           courseChapterId: chapterId,
@@ -71,16 +63,15 @@ export function LessonFormDialog({
           isFeatured: lesson.isFeatured,
           version: lesson.version,
         };
-        return lessonApi.capNhat(lesson.id, payload);
+        return lessonApi.update(lesson.id, payload);
       }
-
       const payload: CreateLessonRequest = {
         ...values,
         courseChapterId: chapterId,
         hskLevelId,
         isFeatured: false,
       };
-      return lessonApi.tao(payload);
+      return lessonApi.create(payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lessons", "by-chapter", chapterId] });
@@ -89,8 +80,6 @@ export function LessonFormDialog({
     },
   });
 
-  const onSubmit = (values: FormData) => mutation.mutate(values);
-
   return (
     <Dialog
       open={open}
@@ -98,62 +87,30 @@ export function LessonFormDialog({
       title={isEditing ? "Sửa bài giảng" : "Thêm bài giảng mới"}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Hủy
-          </Button>
-          <Button type="button" loading={mutation.isPending} onClick={form.handleSubmit(onSubmit)}>
-            Lưu
-          </Button>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Hủy</Button>
+          <Button type="button" loading={mutation.isPending} onClick={form.handleSubmit((values) => mutation.mutate(values))}>Lưu</Button>
         </div>
       }
     >
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          label="Tên bài giảng"
-          required
-          error={form.formState.errors.titleVi?.message}
-        >
+      <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="space-y-4">
+        <FormField label="Tên bài giảng" required error={form.formState.errors.titleVi?.message}>
           <Input placeholder="Nhập tên bài giảng..." {...form.register("titleVi")} />
         </FormField>
-
-        <FormField
-          label="Slug"
-          required
-          error={form.formState.errors.slug?.message}
-        >
+        <FormField label="Slug" required error={form.formState.errors.slug?.message}>
           <Input placeholder="vd: xin-chao" {...form.register("slug")} />
         </FormField>
-
         <FormRow columns={3}>
           <FormField label="Thứ tự" error={form.formState.errors.sortOrder?.message}>
             <Input type="number" min={0} {...form.register("sortOrder", { valueAsNumber: true })} />
           </FormField>
-
-          <FormField
-            label="Thời lượng (phút)"
-            error={form.formState.errors.estimatedMinutes?.message}
-          >
-            <Input
-              type="number"
-              min={1}
-              {...form.register("estimatedMinutes", { valueAsNumber: true })}
-            />
+          <FormField label="Thời lượng (phút)" error={form.formState.errors.estimatedMinutes?.message}>
+            <Input type="number" min={1} {...form.register("estimatedMinutes", { valueAsNumber: true })} />
           </FormField>
-
           <FormField label="Độ khó" error={form.formState.errors.difficulty?.message}>
-            <Input
-              type="number"
-              min={1}
-              max={5}
-              {...form.register("difficulty", { valueAsNumber: true })}
-            />
+            <Input type="number" min={1} max={5} {...form.register("difficulty", { valueAsNumber: true })} />
           </FormField>
         </FormRow>
-
-        <FormField
-          label="Mô tả ngắn"
-          error={form.formState.errors.shortDescriptionVi?.message}
-        >
+        <FormField label="Mô tả ngắn" error={form.formState.errors.shortDescriptionVi?.message}>
           <Textarea placeholder="Nhập mô tả..." {...form.register("shortDescriptionVi")} />
         </FormField>
       </form>
