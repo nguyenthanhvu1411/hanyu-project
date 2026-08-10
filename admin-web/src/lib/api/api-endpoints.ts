@@ -16,6 +16,7 @@ export const API_ENDPOINTS = {
     SESSIONS: "/admin/sessions",
     SESSION: (id: string) => `/admin/sessions/${id}`,
     SESSION_RESTORE: (id: string) => `/admin/sessions/${id}/restore`,
+    UPLOAD_IMAGE: "/admin/uploads/images",
   },
 
   LEARNING: {
