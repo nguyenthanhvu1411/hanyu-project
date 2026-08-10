@@ -39,12 +39,10 @@ public sealed class CourseChapter : AuditableEntity
     {
         if (courseId <= 0)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(courseId));
+            throw new ArgumentOutOfRangeException(nameof(courseId));
         }
 
         CourseId = courseId;
-
         SetTitleVi(titleVi);
         SetDescriptionVi(descriptionVi);
         SetSortOrder(sortOrder);
@@ -59,91 +57,65 @@ public sealed class CourseChapter : AuditableEntity
         Guid updatedById)
     {
         EnsureNotDeleted();
-
         SetTitleVi(titleVi);
         SetDescriptionVi(descriptionVi);
         SetSortOrder(sortOrder);
         IsActive = isActive;
-
         RotateConcurrencyToken();
         Touch(updatedById);
     }
 
-    public void ChangeSortOrder(
-        int sortOrder,
-        Guid updatedById)
+    public void ChangeSortOrder(int sortOrder, Guid updatedById)
     {
         EnsureNotDeleted();
-
         SetSortOrder(sortOrder);
-
         RotateConcurrencyToken();
         Touch(updatedById);
     }
 
-    public void Activate(
-        Guid updatedById)
+    public void Activate(Guid updatedById)
     {
         EnsureNotDeleted();
-
-        if (IsActive)
-            return;
-
+        if (IsActive) return;
         IsActive = true;
-
         RotateConcurrencyToken();
         Touch(updatedById);
     }
 
-    public void Deactivate(
-        Guid updatedById)
+    public void Deactivate(Guid updatedById)
     {
         EnsureNotDeleted();
-
-        if (!IsActive)
-            return;
-
+        if (!IsActive) return;
         IsActive = false;
-
         RotateConcurrencyToken();
         Touch(updatedById);
     }
 
-    public void Delete(
-        Guid deletedById)
+    public void Delete(Guid deletedById)
     {
         EnsureUserId(deletedById, nameof(deletedById));
-
-        if (IsDeleted)
-            return;
-
+        if (IsDeleted) return;
         SoftDelete(deletedById);
         IsActive = false;
         RotateConcurrencyToken();
     }
 
-    public new void Restore(
-        Guid restoredById)
+    public new void Restore(Guid restoredById)
     {
         EnsureUserId(restoredById, nameof(restoredById));
-
-        if (!IsDeleted)
-            return;
-
+        if (!IsDeleted) return;
         base.Restore(restoredById);
         IsActive = true;
         RotateConcurrencyToken();
     }
 
-    public void RestoreDeleted(
-        Guid restoredById)
+    public void RestoreDeleted(Guid restoredById)
         => Restore(restoredById);
 
     private void RotateConcurrencyToken()
         => ConcurrencyToken = Guid.NewGuid();
 
-    private void SetTitleVi(
-        string titleVi)
+    private void SetTitleVi(string titleVi)
     {
         if (string.IsNullOrWhiteSpace(titleVi))
         {
@@ -153,7 +125,6 @@ public sealed class CourseChapter : AuditableEntity
         }
 
         titleVi = titleVi.Trim();
-
         if (titleVi.Length > 200)
         {
             throw new ArgumentException(
@@ -164,16 +135,14 @@ public sealed class CourseChapter : AuditableEntity
         TitleVi = titleVi;
     }
 
-    private void SetDescriptionVi(
-        string? descriptionVi)
+    private void SetDescriptionVi(string? descriptionVi)
     {
         DescriptionVi = string.IsNullOrWhiteSpace(descriptionVi)
             ? null
             : descriptionVi.Trim();
     }
 
-    private void SetSortOrder(
-        int sortOrder)
+    private void SetSortOrder(int sortOrder)
     {
         if (sortOrder < 0)
         {
@@ -185,9 +154,22 @@ public sealed class CourseChapter : AuditableEntity
         SortOrder = sortOrder;
     }
 
-    private static void EnsureUserId(
-        Guid userId,
-        string parameterName)
+    private void EnsureNotDeleted()
+    {
+        if (IsDeleted)
+        {
+            throw new InvalidOperationException(
+                "Chapter đã bị xóa và không thể chỉnh sửa.");
+        }
+    }
+
+    private void Touch(Guid userId)
+    {
+        EnsureUserId(userId, nameof(userId));
+        MarkAsUpdated(userId);
+    }
+
+    private static void EnsureUserId(Guid userId, string parameterName)
     {
         if (userId == Guid.Empty)
         {
