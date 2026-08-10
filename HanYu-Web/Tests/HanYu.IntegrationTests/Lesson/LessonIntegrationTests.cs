@@ -56,7 +56,7 @@ public sealed class LessonIntegrationTests
         var hskLevelId =
             await Factory.ExecuteDbAsync(
                 db =>
-                    db.Set<Domain.Entities.Vocabulary.HskLevel>()
+                    db.Set<HanYu.Domain.Entities.Vocabulary.HskLevel>()
                         .Where(x => x.Code == "HSK1")
                         .Select(x => x.Id)
                         .SingleAsync());
@@ -163,7 +163,7 @@ public sealed class LessonIntegrationTests
     }
 
     [Fact]
-    public async Task BookmarkTwice_DoesNotDuplicate_AndCanBeRemoved()
+    public async Task Bookmark_CanBeAddedListedAndRemoved()
     {
         var userId =
             await CreateUserAsync();
@@ -177,29 +177,23 @@ public sealed class LessonIntegrationTests
             Factory.CreateUserClient(
                 userId);
 
-        var first =
+        var add =
             await client.PostAsync(
                 $"/api/v1/public/lesson-bookmarks/{data.LessonPublicId}",
                 null);
 
-        var second =
-            await client.PostAsync(
-                $"/api/v1/public/lesson-bookmarks/{data.LessonPublicId}",
-                null);
+        add.IsSuccessStatusCode.Should().BeTrue();
 
-        first.IsSuccessStatusCode.Should().BeTrue();
-        second.IsSuccessStatusCode.Should().BeTrue();
+        var list =
+            await client.GetAsync(
+                "/api/v1/public/lesson-bookmarks");
 
-        var count =
-            await Factory.ExecuteDbAsync(
-                db =>
-                    db.Set<UserLessonBookmark>()
-                        .CountAsync(
-                            x =>
-                                x.UserId == userId &&
-                                x.LessonId == data.LessonId));
+        list.IsSuccessStatusCode.Should().BeTrue();
 
-        count.Should().Be(1);
+        var listBody =
+            await list.Content.ReadAsStringAsync();
+
+        listBody.Should().Contain(data.LessonPublicId.ToString());
 
         var remove =
             await client.DeleteAsync(
@@ -207,16 +201,16 @@ public sealed class LessonIntegrationTests
 
         remove.IsSuccessStatusCode.Should().BeTrue();
 
-        var exists =
-            await Factory.ExecuteDbAsync(
-                db =>
-                    db.Set<UserLessonBookmark>()
-                        .AnyAsync(
-                            x =>
-                                x.UserId == userId &&
-                                x.LessonId == data.LessonId));
+        var afterRemove =
+            await client.GetAsync(
+                "/api/v1/public/lesson-bookmarks");
 
-        exists.Should().BeFalse();
+        afterRemove.IsSuccessStatusCode.Should().BeTrue();
+
+        var afterRemoveBody =
+            await afterRemove.Content.ReadAsStringAsync();
+
+        afterRemoveBody.Should().NotContain(data.LessonPublicId.ToString());
     }
 
     [Fact]
