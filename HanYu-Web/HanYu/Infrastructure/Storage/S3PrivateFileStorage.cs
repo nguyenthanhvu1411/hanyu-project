@@ -28,23 +28,15 @@ public sealed class S3PrivateFileStorage
         if (content.CanSeek)
             content.Position = 0;
 
-        var request =
-            new PutObjectRequest
-            {
-                BucketName = _options.BucketName,
-                Key = objectKey,
-                InputStream = content,
-                ContentType = contentType,
+        var request = new PutObjectRequest
+        {
+            BucketName = _options.ExportBucketName,
+            Key = objectKey,
+            InputStream = content,
+            ContentType = contentType
+        };
 
-                // Private object.
-                CannedACL =
-                    S3CannedACL.Private
-            };
-
-        await _s3.PutObjectAsync(
-            request,
-            cancellationToken);
-
+        await _s3.PutObjectAsync(request, cancellationToken);
         return objectKey;
     }
 
@@ -53,23 +45,15 @@ public sealed class S3PrivateFileStorage
         TimeSpan lifetime,
         CancellationToken cancellationToken = default)
     {
-        var request =
-            new GetPreSignedUrlRequest
-            {
-                BucketName =
-                    _options.BucketName,
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _options.ExportBucketName,
+            Key = objectKey,
+            Verb = HttpVerb.GET,
+            Expires = DateTime.UtcNow.Add(lifetime)
+        };
 
-                Key = objectKey,
-
-                Verb = HttpVerb.GET,
-
-                Expires =
-                    DateTime.UtcNow.Add(
-                        lifetime)
-            };
-
-        return await _s3.GetPreSignedURLAsync(
-            request);
+        return await _s3.GetPreSignedURLAsync(request);
     }
 
     public Task DeleteAsync(
@@ -77,7 +61,7 @@ public sealed class S3PrivateFileStorage
         CancellationToken cancellationToken = default)
     {
         return _s3.DeleteObjectAsync(
-            _options.BucketName,
+            _options.ExportBucketName,
             objectKey,
             cancellationToken);
     }
