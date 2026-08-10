@@ -16,26 +16,13 @@ import { appToast } from "@/components/ui/toast";
 import { normalizeApiError } from "@/lib/api/api-error";
 
 import { courseApi } from "../api/course.api";
-import type {
-  AdminCourseDetail,
-  CreateCourseRequest,
-} from "../types/course.types";
+import type { AdminCourseDetail, CreateCourseRequest } from "../types/course.types";
 
-interface CourseFormProps {
-  courseId?: number;
-}
+interface CourseFormProps { courseId?: number; }
 
 const EMPTY_FORM: CreateCourseRequest = {
-  code: "",
-  slug: "",
-  titleVi: "",
-  shortDescriptionVi: "",
-  descriptionVi: "",
-  hskLevelId: null,
-  coverImageUrl: "",
-  sortOrder: 0,
-  estimatedMinutes: null,
-  isFeatured: false,
+  code: "", slug: "", titleVi: "", shortDescriptionVi: "", descriptionVi: "",
+  hskLevelId: null, coverImageUrl: "", sortOrder: 0, estimatedMinutes: null, isFeatured: false,
 };
 
 function normalizeRequest(form: CreateCourseRequest): CreateCourseRequest {
@@ -56,7 +43,6 @@ function normalizeRequest(form: CreateCourseRequest): CreateCourseRequest {
 export function CourseForm({ courseId }: CourseFormProps) {
   const router = useRouter();
   const editing = Number.isSafeInteger(courseId) && Number(courseId) > 0;
-
   const [detail, setDetail] = useState<AdminCourseDetail | null>(null);
   const [form, setForm] = useState<CreateCourseRequest>(EMPTY_FORM);
   const [loading, setLoading] = useState(editing);
@@ -65,13 +51,10 @@ export function CourseForm({ courseId }: CourseFormProps) {
 
   useEffect(() => {
     if (!editing || !courseId) return;
-
     let active = true;
     setLoading(true);
     setError(null);
-
-    void courseApi
-      .chiTiet(courseId)
+    void courseApi.getById(courseId)
       .then((course) => {
         if (!active) return;
         setDetail(course);
@@ -88,52 +71,32 @@ export function CourseForm({ courseId }: CourseFormProps) {
           isFeatured: course.isFeatured,
         });
       })
-      .catch((caught) => {
-        setError(caught instanceof Error ? caught : new Error("Không thể tải khóa học."));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+      .catch((caught) => setError(caught instanceof Error ? caught : new Error("Không thể tải khóa học.")))
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [courseId, editing]);
 
-  const valid = useMemo(
-    () =>
-      form.code.trim().length > 0 &&
-      form.slug.trim().length > 0 &&
-      form.titleVi.trim().length > 0 &&
-      Number.isInteger(form.sortOrder) &&
-      form.sortOrder >= 0,
-    [form],
-  );
+  const valid = useMemo(() =>
+    form.code.trim().length > 0 && form.slug.trim().length > 0 && form.titleVi.trim().length > 0 &&
+    Number.isInteger(form.sortOrder) && form.sortOrder >= 0,
+  [form]);
 
-  function setField<K extends keyof CreateCourseRequest>(
-    key: K,
-    value: CreateCourseRequest[K],
-  ) {
+  function setField<K extends keyof CreateCourseRequest>(key: K, value: CreateCourseRequest[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!valid || saving) return;
-
     setSaving(true);
     setError(null);
-
     try {
       if (editing && courseId && detail) {
-        await courseApi.capNhat(courseId, {
-          ...normalizeRequest(form),
-          concurrencyToken: detail.concurrencyToken,
-        });
+        await courseApi.update(courseId, { ...normalizeRequest(form), concurrencyToken: detail.concurrencyToken });
         appToast.success("Cập nhật khóa học thành công.");
         router.push(`/khoa-hoc/${courseId}`);
       } else {
-        const created = await courseApi.tao(normalizeRequest(form));
+        const created = await courseApi.create(normalizeRequest(form));
         appToast.success("Tạo khóa học thành công.");
         router.replace(`/khoa-hoc/${created.id}`);
       }
@@ -141,183 +104,44 @@ export function CourseForm({ courseId }: CourseFormProps) {
     } catch (caught) {
       const apiError = normalizeApiError(caught);
       setError(new Error(apiError.message));
-      appToast.error(
-        editing ? "Không thể cập nhật khóa học" : "Không thể tạo khóa học",
-        apiError.message,
-      );
-    } finally {
-      setSaving(false);
-    }
+      appToast.error(editing ? "Không thể cập nhật khóa học" : "Không thể tạo khóa học", apiError.message);
+    } finally { setSaving(false); }
   }
 
   if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="h-[220px] animate-pulse rounded-[11px] bg-[#f3f1ed]" />
-        <div className="h-[180px] animate-pulse rounded-[11px] bg-[#f3f1ed]" />
-      </div>
-    );
+    return <div className="space-y-4"><div className="h-[220px] animate-pulse rounded-[11px] bg-[#f3f1ed]" /><div className="h-[180px] animate-pulse rounded-[11px] bg-[#f3f1ed]" /></div>;
   }
-
   if (error && editing && !detail) {
-    return (
-      <ErrorState
-        title="Không thể tải khóa học"
-        description={error.message}
-        onRetry={() => window.location.reload()}
-      />
-    );
+    return <ErrorState title="Không thể tải khóa học" description={error.message} onRetry={() => window.location.reload()} />;
   }
 
   return (
     <form onSubmit={submit} className="space-y-5">
-      {error ? (
-        <ErrorState
-          title="Không thể lưu khóa học"
-          description={error.message}
-        />
-      ) : null}
-
-      <FormSection
-        title="Thông tin khóa học"
-        description="Thông tin định danh và nội dung chính của khóa học."
-        icon={<BookOpen size={18} />}
-      >
+      {error ? <ErrorState title="Không thể lưu khóa học" description={error.message} /> : null}
+      <FormSection title="Thông tin khóa học" description="Thông tin định danh và nội dung chính của khóa học." icon={<BookOpen size={18} />}>
         <FormRow columns={2}>
-          <FormField label="Mã khóa học" required>
-            <Input
-              value={form.code}
-              onChange={(event) => setField("code", event.target.value)}
-              maxLength={50}
-              placeholder="Ví dụ: HSK1-A"
-            />
-          </FormField>
-
-          <FormField label="Slug" required>
-            <Input
-              value={form.slug}
-              onChange={(event) => setField("slug", event.target.value)}
-              maxLength={200}
-              placeholder="hsk-1-can-ban"
-            />
-          </FormField>
+          <FormField label="Mã khóa học" required><Input value={form.code} onChange={(e) => setField("code", e.target.value)} maxLength={50} placeholder="Ví dụ: HSK1-A" /></FormField>
+          <FormField label="Slug" required><Input value={form.slug} onChange={(e) => setField("slug", e.target.value)} maxLength={200} placeholder="hsk-1-can-ban" /></FormField>
         </FormRow>
-
-        <FormRow columns={1}>
-          <FormField label="Tên khóa học" required>
-            <Input
-              value={form.titleVi}
-              onChange={(event) => setField("titleVi", event.target.value)}
-              maxLength={250}
-              placeholder="HSK 1 - Tiếng Trung căn bản"
-            />
-          </FormField>
-        </FormRow>
-
-        <FormRow columns={1}>
-          <FormField label="Mô tả ngắn">
-            <Textarea
-              value={form.shortDescriptionVi ?? ""}
-              onChange={(event) => setField("shortDescriptionVi", event.target.value)}
-              rows={3}
-            />
-          </FormField>
-        </FormRow>
-
-        <FormRow columns={1}>
-          <FormField label="Mô tả chi tiết">
-            <Textarea
-              value={form.descriptionVi ?? ""}
-              onChange={(event) => setField("descriptionVi", event.target.value)}
-              rows={6}
-            />
-          </FormField>
-        </FormRow>
+        <FormField label="Tên khóa học" required><Input value={form.titleVi} onChange={(e) => setField("titleVi", e.target.value)} maxLength={250} /></FormField>
+        <FormField label="Mô tả ngắn"><Textarea value={form.shortDescriptionVi ?? ""} onChange={(e) => setField("shortDescriptionVi", e.target.value)} rows={3} /></FormField>
+        <FormField label="Mô tả chi tiết"><Textarea value={form.descriptionVi ?? ""} onChange={(e) => setField("descriptionVi", e.target.value)} rows={6} /></FormField>
       </FormSection>
 
-      <FormSection
-        title="Phân loại và hiển thị"
-        description="Thiết lập HSK, thứ tự, thời lượng và trạng thái nổi bật."
-        icon={<Settings2 size={18} />}
-      >
+      <FormSection title="Phân loại và hiển thị" description="Thiết lập HSK, thứ tự, thời lượng và trạng thái nổi bật." icon={<Settings2 size={18} />}>
         <FormRow columns={3}>
-          <FormField
-            label="HSK Level ID"
-            description="Backend sử dụng long HskLevelId."
-          >
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              value={form.hskLevelId ?? ""}
-              onChange={(event) =>
-                setField(
-                  "hskLevelId",
-                  event.target.value ? Number(event.target.value) : null,
-                )
-              }
-              placeholder="Không bắt buộc"
-            />
-          </FormField>
-
-          <FormField label="Thứ tự" required>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              value={form.sortOrder}
-              onChange={(event) => setField("sortOrder", Number(event.target.value))}
-            />
-          </FormField>
-
-          <FormField label="Thời lượng (phút)">
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              value={form.estimatedMinutes ?? ""}
-              onChange={(event) =>
-                setField(
-                  "estimatedMinutes",
-                  event.target.value ? Number(event.target.value) : null,
-                )
-              }
-              placeholder="Không bắt buộc"
-            />
-          </FormField>
+          <FormField label="HSK Level ID"><Input type="number" min={1} step={1} value={form.hskLevelId ?? ""} onChange={(e) => setField("hskLevelId", e.target.value ? Number(e.target.value) : null)} /></FormField>
+          <FormField label="Thứ tự" required><Input type="number" min={0} step={1} value={form.sortOrder} onChange={(e) => setField("sortOrder", Number(e.target.value))} /></FormField>
+          <FormField label="Thời lượng (phút)"><Input type="number" min={1} step={1} value={form.estimatedMinutes ?? ""} onChange={(e) => setField("estimatedMinutes", e.target.value ? Number(e.target.value) : null)} /></FormField>
         </FormRow>
-
-        <FormField label="Nổi bật">
-          <Switch
-            checked={form.isFeatured}
-            onCheckedChange={(value) => setField("isFeatured", value)}
-            label={form.isFeatured ? "Khóa học nổi bật" : "Khóa học thường"}
-            description="Dùng cho khu vực ưu tiên hiển thị trong hệ thống."
-          />
-        </FormField>
+        <FormField label="Nổi bật"><Switch checked={form.isFeatured} onCheckedChange={(value) => setField("isFeatured", value)} label={form.isFeatured ? "Khóa học nổi bật" : "Khóa học thường"} /></FormField>
       </FormSection>
 
-      <FormSection
-        title="Ảnh bìa"
-        description="URL ảnh được backend lưu trong CoverImageUrl."
-        icon={<ImageIcon size={18} />}
-      >
-        <FormField label="URL ảnh bìa">
-          <Input
-            type="url"
-            value={form.coverImageUrl ?? ""}
-            onChange={(event) => setField("coverImageUrl", event.target.value)}
-            placeholder="https://..."
-          />
-        </FormField>
+      <FormSection title="Ảnh bìa" description="URL ảnh được backend lưu trong CoverImageUrl." icon={<ImageIcon size={18} />}>
+        <FormField label="URL ảnh bìa"><Input type="url" value={form.coverImageUrl ?? ""} onChange={(e) => setField("coverImageUrl", e.target.value)} placeholder="https://..." /></FormField>
       </FormSection>
 
-      <FormActions
-        loading={saving}
-        disabled={!valid}
-        submitText={editing ? "Lưu thay đổi" : "Tạo khóa học"}
-        onCancel={() => router.push(editing && courseId ? `/khoa-hoc/${courseId}` : "/khoa-hoc")}
-      />
+      <FormActions loading={saving} disabled={!valid} submitText={editing ? "Lưu thay đổi" : "Tạo khóa học"} onCancel={() => router.push(editing && courseId ? `/khoa-hoc/${courseId}` : "/khoa-hoc")} />
     </form>
   );
 }
