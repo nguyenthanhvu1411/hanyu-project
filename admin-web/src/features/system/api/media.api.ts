@@ -3,7 +3,7 @@ import { API_ENDPOINTS } from "@/lib/api/api-endpoints";
 
 export interface UploadedImage {
   url: string;
-  relativeUrl: string;
+  objectKey: string;
   fileName: string;
   contentType: string;
   size: number;
