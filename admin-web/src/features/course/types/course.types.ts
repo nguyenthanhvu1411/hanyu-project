@@ -24,13 +24,17 @@ export interface AdminCourseListItem {
 export interface AdminCourseChapter {
   id: number;
   publicId: string;
+  courseId: number;
   titleVi: string;
   descriptionVi?: string | null;
   sortOrder: number;
   isActive: boolean;
   lessonCount: number;
+  concurrencyToken: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
+  deletedById?: string | null;
 }
 
 export interface AdminCoursePrerequisite {
