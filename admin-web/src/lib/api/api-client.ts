@@ -2,17 +2,40 @@ import { ApiError, ApiProblemDetails } from "./api-error";
 import { refreshAccessToken } from "./refresh-token-manager";
 import { getAuthState } from "@/stores/auth.store";
 
-// Prefer the repository-standard NEXT_PUBLIC_API_BASE_URL used by .env.development/.env.example.
-// NEXT_PUBLIC_API_URL remains supported for compatibility.
-const API_URL =
+// Canonical contract:
+// - NEXT_PUBLIC_API_BASE_URL includes the API version prefix, e.g. http://localhost:5216/api/v1
+// - feature endpoints are relative to that prefix, e.g. /admin/hsk-levels
+// Legacy feature paths that still start with /api/v1 are normalized here to prevent
+// accidental URLs such as /api/v1/api/v1/admin/...
+const API_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ??
   process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:5216";
+  "http://localhost:5216/api/v1"
+).replace(/\/+$/, "");
+
+const API_VERSION_PREFIX = "/api/v1";
 
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
   skipAuthRefresh?: boolean;
 };
+
+function buildApiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  let normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (
+    API_URL.endsWith(API_VERSION_PREFIX) &&
+    (normalizedPath === API_VERSION_PREFIX || normalizedPath.startsWith(`${API_VERSION_PREFIX}/`))
+  ) {
+    normalizedPath = normalizedPath.slice(API_VERSION_PREFIX.length) || "/";
+  }
+
+  return `${API_URL}${normalizedPath}`;
+}
 
 async function parseError(response: Response): Promise<ApiError> {
   let problem: ApiProblemDetails | null = null;
@@ -56,7 +79,7 @@ async function sendRequest(
 ): Promise<Response> {
   const { skipAuthRefresh: _skipAuthRefresh, ...requestOptions } = options;
 
-  return fetch(`${API_URL}${path}`, {
+  return fetch(buildApiUrl(path), {
     ...requestOptions,
     credentials: "include",
     headers: buildHeaders(options, accessToken),
