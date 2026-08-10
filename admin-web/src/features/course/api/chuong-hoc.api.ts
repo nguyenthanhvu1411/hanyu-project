@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api/api-client";
-import type { AdminCourseChapter } from "@/features/course/types/course.types";
+import type { CourseChapter } from "@/features/course/types/curriculum.types";
 
 export interface CreateCourseChapterRequest {
   titleVi: string;
@@ -22,22 +22,22 @@ function base(courseId: number) {
 
 export const chuongHocApi = {
   danhSach(courseId: number, includeDeleted = false) {
-    return apiClient<AdminCourseChapter[]>(`${base(courseId)}?includeDeleted=${includeDeleted}`);
+    return apiClient<CourseChapter[]>(`${base(courseId)}?includeDeleted=${includeDeleted}`);
   },
 
   chiTiet(courseId: number, chapterId: number) {
-    return apiClient<AdminCourseChapter>(`${base(courseId)}/${chapterId}`);
+    return apiClient<CourseChapter>(`${base(courseId)}/${chapterId}`);
   },
 
   tao(courseId: number, request: CreateCourseChapterRequest) {
-    return apiClient<AdminCourseChapter>(base(courseId), {
+    return apiClient<CourseChapter>(base(courseId), {
       method: "POST",
       body: request,
     });
   },
 
   capNhat(courseId: number, chapterId: number, request: UpdateCourseChapterRequest) {
-    return apiClient<AdminCourseChapter>(`${base(courseId)}/${chapterId}`, {
+    return apiClient<CourseChapter>(`${base(courseId)}/${chapterId}`, {
       method: "PUT",
       body: request,
     });
@@ -51,7 +51,7 @@ export const chuongHocApi = {
   },
 
   khoiPhuc(courseId: number, chapterId: number, request: EntityWorkflowRequest) {
-    return apiClient<AdminCourseChapter>(`${base(courseId)}/${chapterId}/restore`, {
+    return apiClient<CourseChapter>(`${base(courseId)}/${chapterId}/restore`, {
       method: "POST",
       body: request,
     });
