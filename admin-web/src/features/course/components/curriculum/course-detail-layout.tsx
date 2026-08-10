@@ -1,14 +1,14 @@
 "use client";
 
+import { ReactNode } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { courseApi } from "@/features/course/api/course.api";
+import { ErrorState } from "@/components/common/error-state";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SendHorizontal } from "lucide-react";
-import { useParams, usePathname, useRouter } from "next/navigation";
-import { ReactNode } from "react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getContentStatusLabel } from "@/lib/constants/content-status";
 
 export function CourseDetailLayout({ children }: { children: ReactNode }) {
@@ -17,55 +17,39 @@ export function CourseDetailLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const courseId = Number(params.id);
 
-  const { data: course, isLoading } = useQuery({
+  const { data: course, isLoading, error, refetch } = useQuery({
     queryKey: ["course", courseId],
-    queryFn: () => courseApi.chiTiet(courseId),
+    queryFn: () => courseApi.getById(courseId),
     enabled: Number.isSafeInteger(courseId) && courseId > 0,
   });
 
   if (isLoading) {
-    return (
-      <div className="space-y-4 p-6">
-        <Skeleton className="h-10 w-1/3" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
+    return <div className="space-y-4"><Skeleton className="h-28 w-full rounded-[11px]" /><Skeleton className="h-12 w-full rounded-[11px]" /><Skeleton className="h-64 w-full rounded-[11px]" /></div>;
   }
 
   if (!course) {
-    return <div className="p-6">Không tìm thấy khóa học.</div>;
+    return <ErrorState title="Không tìm thấy khóa học" description={error instanceof Error ? error.message : "Dữ liệu khóa học không tồn tại."} onRetry={() => void refetch()} />;
   }
 
-  const currentTab = pathname.includes("/noi-dung")
-    ? "noi-dung"
-    : pathname.includes("/tien-quyet")
-      ? "tien-quyet"
-      : pathname.includes("/lich-su")
-        ? "lich-su"
-        : "tong-quan";
+  const currentTab = pathname.includes("/noi-dung") ? "noi-dung" : pathname.includes("/tien-quyet") ? "tien-quyet" : pathname.includes("/lich-su") ? "lich-su" : "tong-quan";
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between border-b pb-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">{course.titleVi}</h1>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Badge variant="primary">{course.hskCode || "Chưa có HSK"}</Badge>
-            <Badge variant="info">{getContentStatusLabel(course.status)}</Badge>
+    <div className="space-y-5">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="truncate text-[18px]">{course.titleVi}</CardTitle>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Badge>{course.code}</Badge>
+              <Badge variant="primary">{course.hskCode || "Chưa có HSK"}</Badge>
+              <Badge variant="info">{getContentStatusLabel(course.status)}</Badge>
+            </div>
           </div>
-        </div>
-
-        {course.status === 0 && (
-          <Button variant="primary" size="sm">
-            <SendHorizontal className="mr-2 h-4 w-4" />
-            Gửi duyệt
-          </Button>
-        )}
-      </div>
+        </CardHeader>
+      </Card>
 
       <Tabs value={currentTab} onValueChange={(value) => router.push(`/khoa-hoc/${courseId}/${value}`)}>
-        <TabsList className="mb-4">
+        <TabsList className="rounded-[11px] border border-[#e8e3dc] bg-white px-2">
           <TabsTrigger value="tong-quan">Tổng quan</TabsTrigger>
           <TabsTrigger value="noi-dung">Nội dung</TabsTrigger>
           <TabsTrigger value="tien-quyet">Tiên quyết</TabsTrigger>
@@ -73,7 +57,7 @@ export function CourseDetailLayout({ children }: { children: ReactNode }) {
         </TabsList>
       </Tabs>
 
-      <div className="flex-1 rounded-lg border bg-card p-6 shadow-sm">{children}</div>
+      <Card><CardContent className="p-5">{children}</CardContent></Card>
     </div>
   );
 }
