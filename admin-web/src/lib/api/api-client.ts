@@ -2,7 +2,9 @@ import { ApiError, ApiProblemDetails } from "./api-error";
 import { refreshAccessToken } from "./refresh-token-manager";
 import { getAuthState } from "@/stores/auth.store";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+// Keep this aligned with HanYu/Properties/launchSettings.json for local development.
+// Production/staging must override it with NEXT_PUBLIC_API_URL.
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5216";
 
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
