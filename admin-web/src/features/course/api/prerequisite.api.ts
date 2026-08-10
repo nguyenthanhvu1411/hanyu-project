@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api/api-client";
+import { API_ENDPOINTS } from "@/lib/api/api-endpoints";
 
 import type {
   CoursePrerequisite,
@@ -7,84 +8,34 @@ import type {
   UpdatePrerequisiteRequest,
 } from "../types/curriculum.types";
 
-function base(
-  courseId: number,
-) {
-  return `/api/v1/admin/courses/${courseId}/prerequisites`;
-}
-
 export const prerequisiteApi = {
-  list(
-    courseId: number,
-    includeDeleted = false,
-  ) {
-    return apiClient<
-      CoursePrerequisite[]
-    >(
-      `${base(
-        courseId,
-      )}?includeDeleted=${includeDeleted}`,
+  list(courseId: number, includeDeleted = false) {
+    return apiClient<CoursePrerequisite[]>(
+      `${API_ENDPOINTS.COURSE.PREREQUISITES(courseId)}?includeDeleted=${includeDeleted}`,
     );
   },
-
-  create(
-    courseId: number,
-    body: CreatePrerequisiteRequest,
-  ) {
-    return apiClient<CoursePrerequisite>(
-      base(courseId),
-      {
-        method: "POST",
-        body,
-      },
-    );
+  create(courseId: number, body: CreatePrerequisiteRequest) {
+    return apiClient<CoursePrerequisite>(API_ENDPOINTS.COURSE.PREREQUISITES(courseId), {
+      method: "POST",
+      body,
+    });
   },
-
-  update(
-    courseId: number,
-    prerequisiteId: number,
-    body: UpdatePrerequisiteRequest,
-  ) {
-    return apiClient<CoursePrerequisite>(
-      `${base(
-        courseId,
-      )}/${prerequisiteId}`,
-      {
-        method: "PUT",
-        body,
-      },
-    );
+  update(courseId: number, prerequisiteId: number, body: UpdatePrerequisiteRequest) {
+    return apiClient<CoursePrerequisite>(API_ENDPOINTS.COURSE.PREREQUISITE(courseId, prerequisiteId), {
+      method: "PUT",
+      body,
+    });
   },
-
-  delete(
-    courseId: number,
-    prerequisiteId: number,
-    body: EntityWorkflowRequest,
-  ) {
-    return apiClient<void>(
-      `${base(
-        courseId,
-      )}/${prerequisiteId}`,
-      {
-        method: "DELETE",
-        body,
-      },
-    );
+  delete(courseId: number, prerequisiteId: number, body: EntityWorkflowRequest) {
+    return apiClient<void>(API_ENDPOINTS.COURSE.PREREQUISITE(courseId, prerequisiteId), {
+      method: "DELETE",
+      body,
+    });
   },
-
-  restore(
-    courseId: number,
-    prerequisiteId: number,
-    body: EntityWorkflowRequest,
-  ) {
-    return apiClient<CoursePrerequisite>(
-      `${base(
-        courseId,
-      )}/${prerequisiteId}/restore`,
-      {
-        method: "POST",
-        body,
-      },
-    );
+  restore(courseId: number, prerequisiteId: number, body: EntityWorkflowRequest) {
+    return apiClient<CoursePrerequisite>(API_ENDPOINTS.COURSE.PREREQUISITE_RESTORE(courseId, prerequisiteId), {
+      method: "POST",
+      body,
+    });
   },
 };
