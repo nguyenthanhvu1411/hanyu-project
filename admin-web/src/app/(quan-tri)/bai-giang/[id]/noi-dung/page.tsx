@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { PermissionGuard } from "@/security/permission-guard";
 import { PERMISSIONS } from "@/constants/permission.constants";
-import { LessonContentManager } from "@/features/bai-giang/components/lesson-content-manager";
+import { LessonContentManager } from "@/features/lesson/components/lesson-content-manager";
 
 export default function LessonContentPage() {
   const params = useParams<{ id: string }>();
