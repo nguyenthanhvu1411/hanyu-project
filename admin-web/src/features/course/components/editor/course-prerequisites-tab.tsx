@@ -1,127 +1,111 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import type { CourseEditorController } from "../../hooks/use-course-editor";
+import { FormEvent, useMemo, useState } from "react";
+import { Link2 } from "lucide-react";
+import { DataTable } from "@/components/common/data-table/data-table";
+import { DataTableActions } from "@/components/common/data-table/data-table-actions";
+import { EmptyState } from "@/components/common/empty-state";
+import { FormField } from "@/components/forms/form-field";
+import { FormRow } from "@/components/forms/form-row";
+import { FormSection } from "@/components/forms/form-section";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import type { DataTableColumn } from "@/types/table.types";
+import type { CourseEditorController } from "../../hooks/use-course-editor";
+import type { CoursePrerequisite } from "../../types/curriculum.types";
 
-export function CoursePrerequisitesTab({
-  editor,
-}: {
-  editor: CourseEditorController;
-}) {
+export function CoursePrerequisitesTab({ editor }: { editor: CourseEditorController }) {
   const [requiredCourseId, setRequiredCourseId] = useState("");
   const [isRequired, setRequired] = useState(true);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const id = Number(requiredCourseId);
-
-    if (id <= 0) {
-      return;
-    }
+    if (!Number.isSafeInteger(id) || id <= 0) return;
 
     const created = await editor.createPrerequisite({
       requiredCourseId: id,
       isRequired,
       sortOrder: editor.prerequisites.length,
     });
-
-    if (created) {
-      setRequiredCourseId("");
-    }
+    if (created) setRequiredCourseId("");
   }
 
+  const columns = useMemo<DataTableColumn<CoursePrerequisite>[]>(() => [
+    {
+      id: "course",
+      header: "Khóa học",
+      cell: (item) => (
+        <div>
+          <div className="text-[12px] font-semibold text-[#333]">{item.requiredCourseTitleVi}</div>
+          <div className="mt-0.5 text-[10px] text-[#888]">{item.requiredCourseCode} · PublicId {item.requiredCoursePublicId.slice(0, 8)}…</div>
+        </div>
+      ),
+    },
+    {
+      id: "required",
+      header: "Loại",
+      width: "140px",
+      cell: (item) => <Badge variant={item.isRequired ? "warning" : "default"}>{item.isRequired ? "Bắt buộc" : "Khuyến nghị"}</Badge>,
+    },
+    {
+      id: "actions",
+      header: "Thao tác",
+      align: "center",
+      width: "90px",
+      cell: (item) => editor.canEdit ? (
+        <DataTableActions
+          onDelete={() => {
+            if (window.confirm("Xóa điều kiện tiên quyết này?")) void editor.deletePrerequisite(item);
+          }}
+        />
+      ) : null,
+    },
+  ], [editor]);
+
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold">Khóa học tiên quyết</h2>
-        <p className="mt-1 text-sm text-neutral-500">
-          Những khóa học người học nên hoặc bắt buộc hoàn thành trước.
-        </p>
-      </div>
-
-      {editor.canEdit && (
-        <form
-          onSubmit={submit}
-          className="flex flex-wrap items-end gap-3 rounded-xl border bg-white p-4"
-        >
-          <label className="min-w-72 flex-1 space-y-1">
-            <span className="text-sm font-medium">Course ID</span>
-            <input
-              type="number"
-              min={1}
-              value={requiredCourseId}
-              onChange={(e) => setRequiredCourseId(e.target.value)}
-              placeholder="Nhập Course ID..."
-              className="h-10 w-full rounded-lg border px-3 text-sm"
-            />
-          </label>
-
-          <label className="flex h-10 items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={isRequired}
-              onChange={(e) => setRequired(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-            />
-            Bắt buộc
-          </label>
-
-          <Button type="submit" variant="danger" disabled={editor.saving}>
-            Thêm
-          </Button>
+    <div className="space-y-4">
+      {editor.canEdit ? (
+        <form onSubmit={submit}>
+          <FormSection
+            title="Thêm khóa học tiên quyết"
+            description="Gắn khóa học cần hoàn thành hoặc nên học trước khóa học hiện tại."
+            icon={<Link2 size={18} />}
+          >
+            <FormRow columns={3}>
+              <FormField label="Course ID" required description="Backend dùng long RequiredCourseId.">
+                <Input type="number" min={1} value={requiredCourseId} onChange={(e) => setRequiredCourseId(e.target.value)} placeholder="Nhập Course ID" />
+              </FormField>
+              <FormField label="Mức độ">
+                <Switch checked={isRequired} onCheckedChange={setRequired} label={isRequired ? "Bắt buộc" : "Khuyến nghị"} />
+              </FormField>
+              <div className="flex items-end">
+                <Button type="submit" disabled={editor.saving || !requiredCourseId} className="w-full">Thêm tiên quyết</Button>
+              </div>
+            </FormRow>
+          </FormSection>
         </form>
-      )}
+      ) : null}
 
-      <div className="overflow-hidden rounded-xl border bg-white">
-        {editor.prerequisites.length === 0 ? (
-          <div className="p-10 text-center text-sm text-neutral-500">
-            Khóa học này không có điều kiện tiên quyết.
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b bg-neutral-50">
-              <tr>
-                <th className="px-4 py-3 text-left">Khóa học</th>
-                <th className="px-4 py-3 text-left">Loại</th>
-                <th className="px-4 py-3 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {editor.prerequisites.map((item) => (
-                <tr key={item.id} className="border-b last:border-0">
-                  <td className="px-4 py-3">
-                    <div className="font-medium">
-                      {item.requiredCourseTitleVi}
-                    </div>
-                    <div className="mt-1 text-xs text-neutral-500">
-                      {item.requiredCourseCode}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {item.isRequired ? "Bắt buộc" : "Khuyến nghị"}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {editor.canEdit && (
-                      <button
-                        type="button"
-                        className="text-red-600 hover:underline"
-                        onClick={() => {
-                          if (window.confirm("Xóa điều kiện tiên quyết này?")) {
-                            void editor.deletePrerequisite(item);
-                          }
-                        }}
-                      >
-                        Xóa
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </section>
+      {editor.prerequisites.length === 0 ? (
+        <EmptyState title="Chưa có khóa học tiên quyết" description="Khóa học này hiện không yêu cầu điều kiện tiên quyết." />
+      ) : (
+        <DataTable
+          data={editor.prerequisites}
+          columns={columns}
+          rowKey={(item) => item.id}
+          loading={false}
+          selectable={false}
+          page={1}
+          pageSize={Math.max(1, editor.prerequisites.length)}
+          totalItems={editor.prerequisites.length}
+          totalPages={1}
+          onPageChange={() => undefined}
+          onPageSizeChange={() => undefined}
+        />
+      )}
+    </div>
   );
 }
