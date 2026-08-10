@@ -118,13 +118,11 @@ public sealed class CourseChapter : AuditableEntity
             return;
 
         SoftDelete(deletedById);
-
         IsActive = false;
-
         RotateConcurrencyToken();
     }
 
-    public void RestoreDeleted(
+    public new void Restore(
         Guid restoredById)
     {
         EnsureUserId(restoredById, nameof(restoredById));
@@ -132,12 +130,14 @@ public sealed class CourseChapter : AuditableEntity
         if (!IsDeleted)
             return;
 
-        Restore(restoredById);
-
+        base.Restore(restoredById);
         IsActive = true;
-
         RotateConcurrencyToken();
     }
+
+    public void RestoreDeleted(
+        Guid restoredById)
+        => Restore(restoredById);
 
     private void RotateConcurrencyToken()
         => ConcurrencyToken = Guid.NewGuid();
