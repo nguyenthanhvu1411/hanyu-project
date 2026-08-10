@@ -1,3 +1,4 @@
+using HanYu.Application.Interfaces.Storage;
 using HanYu.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,11 +21,11 @@ public sealed class AdminImageUploadsController : ControllerBase
             ["image/gif"] = ".gif"
         };
 
-    private readonly IWebHostEnvironment _environment;
+    private readonly IPublicFileStorage _storage;
 
-    public AdminImageUploadsController(IWebHostEnvironment environment)
+    public AdminImageUploadsController(IPublicFileStorage storage)
     {
-        _environment = environment;
+        _storage = storage;
     }
 
     [HttpPost]
@@ -64,35 +65,19 @@ public sealed class AdminImageUploadsController : ControllerBase
             });
         }
 
-        var webRoot = _environment.WebRootPath;
-        if (string.IsNullOrWhiteSpace(webRoot))
-        {
-            webRoot = Path.Combine(_environment.ContentRootPath, "wwwroot");
-        }
-
-        var uploadDirectory = Path.Combine(webRoot, "uploads", "images");
-        Directory.CreateDirectory(uploadDirectory);
-
         var fileName = $"{Guid.NewGuid():N}{extension}";
-        var destinationPath = Path.Combine(uploadDirectory, fileName);
+        var objectKey = $"course-covers/{DateTime.UtcNow:yyyy/MM}/{fileName}";
 
-        await using (var stream = new FileStream(
-                         destinationPath,
-                         FileMode.CreateNew,
-                         FileAccess.Write,
-                         FileShare.None,
-                         81920,
-                         useAsync: true))
-        {
-            await file.CopyToAsync(stream, cancellationToken);
-        }
-
-        var relativeUrl = $"/uploads/images/{fileName}";
-        var absoluteUrl = $"{Request.Scheme}://{Request.Host}{relativeUrl}";
+        await using var stream = file.OpenReadStream();
+        var uploaded = await _storage.UploadAsync(
+            objectKey,
+            stream,
+            file.ContentType,
+            cancellationToken);
 
         return Ok(new AdminImageUploadResponse(
-            absoluteUrl,
-            relativeUrl,
+            uploaded.PublicUrl,
+            uploaded.ObjectKey,
             fileName,
             file.ContentType,
             file.Length));
@@ -101,7 +86,7 @@ public sealed class AdminImageUploadsController : ControllerBase
 
 public sealed record AdminImageUploadResponse(
     string Url,
-    string RelativeUrl,
+    string ObjectKey,
     string FileName,
     string ContentType,
     long Size);
