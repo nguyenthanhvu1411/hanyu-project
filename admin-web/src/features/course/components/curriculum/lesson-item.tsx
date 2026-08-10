@@ -1,52 +1,101 @@
 "use client";
 
-import { useState } from "react";
-import type { AdminLessonListItem } from "@/features/lesson/types/lesson.types";
-import { FileText, Pencil } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, ArrowUp, Pencil, Unlink } from "lucide-react";
+
+import type { CourseChapterLesson } from "@/features/course/types/curriculum.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LessonFormDialog } from "./lesson-form-dialog";
 import { getContentStatusLabel } from "@/lib/constants/content-status";
 
 interface LessonItemProps {
-  lesson: AdminLessonListItem;
-  isLast: boolean;
-  courseId: number;
-  chapterId: number;
-  hskLevelId: number;
+  lesson: CourseChapterLesson;
+  index: number;
+  total: number;
+  busy: boolean;
+  onEdit: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onMoveChapter: () => void;
+  onRemove: () => void;
 }
 
-export function LessonItem({ lesson, courseId, chapterId, hskLevelId }: LessonItemProps) {
-  const [isEditOpen, setIsEditOpen] = useState(false);
-
+export function LessonItem({
+  lesson,
+  index,
+  total,
+  busy,
+  onEdit,
+  onMoveUp,
+  onMoveDown,
+  onMoveChapter,
+  onRemove,
+}: LessonItemProps) {
   return (
-    <>
-      <div className="relative flex items-center justify-between rounded-md border bg-background px-4 py-2 hover:bg-accent/50">
-        <div className="absolute -left-[10px] h-px w-[14px] bg-border" />
-
-        <div className="flex items-center gap-3">
-          <FileText className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">{lesson.sortOrder}. {lesson.titleVi}</span>
-          <Badge variant="info" className="ml-2 text-xs">
-            {getContentStatusLabel(lesson.status)}
-          </Badge>
+    <div className="flex flex-col gap-3 rounded-md border bg-background px-4 py-3 md:flex-row md:items-center md:justify-between">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium">
+            {index + 1}. {lesson.titleVi}
+          </span>
+          <Badge variant="info">{getContentStatusLabel(lesson.status)}</Badge>
         </div>
-
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsEditOpen(true)}>
-          <Pencil className="h-4 w-4" />
-        </Button>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          ID {lesson.id} · PublicId {lesson.publicId.slice(0, 8)}… · SortOrder {lesson.sortOrder}
+        </p>
       </div>
 
-      {isEditOpen && (
-        <LessonFormDialog
-          courseId={courseId}
-          chapterId={chapterId}
-          hskLevelId={hskLevelId}
-          lesson={lesson}
-          open={isEditOpen}
-          onOpenChange={setIsEditOpen}
-        />
-      )}
-    </>
+      <div className="flex flex-wrap items-center gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          disabled={busy || index === 0}
+          onClick={onMoveUp}
+          aria-label="Đưa bài giảng lên"
+        >
+          <ArrowUp size={14} />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          disabled={busy || index >= total - 1}
+          onClick={onMoveDown}
+          aria-label="Đưa bài giảng xuống"
+        >
+          <ArrowDown size={14} />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          disabled={busy}
+          onClick={onMoveChapter}
+          aria-label="Chuyển sang chương khác"
+        >
+          <ArrowRightLeft size={14} />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          disabled={busy}
+          onClick={onEdit}
+          aria-label="Sửa bài giảng"
+        >
+          <Pencil size={14} />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          disabled={busy}
+          onClick={onRemove}
+          aria-label="Gỡ bài giảng khỏi chương"
+        >
+          <Unlink size={14} />
+        </Button>
+      </div>
+    </div>
   );
 }
