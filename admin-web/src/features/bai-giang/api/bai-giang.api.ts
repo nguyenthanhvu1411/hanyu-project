@@ -2,9 +2,11 @@ import { apiClient } from "@/lib/api/api-client";
 import { PagedResult } from "@/lib/api/api-result";
 
 import {
+  AdminLessonDetail,
   AdminLessonListItem,
   AdminLessonQuery,
   CreateLessonRequest,
+  LessonValidationResult,
   LessonWorkflowRequest,
   UpdateLessonRequest,
 } from "../types/bai-giang.types";
@@ -25,54 +27,78 @@ function buildQuery(query: AdminLessonQuery) {
 
 export const baiGiangApi = {
   danhSach(query: AdminLessonQuery = {}) {
-    return apiClient<PagedResult<AdminLessonListItem>>(`${BASE}?${buildQuery(query)}`);
+    const queryString = buildQuery(query);
+    return apiClient<PagedResult<AdminLessonListItem>>(
+      queryString ? `${BASE}?${queryString}` : BASE,
+    );
   },
 
   chiTiet(id: number) {
-    return apiClient(`${BASE}/${id}`);
+    return apiClient<AdminLessonDetail>(`${BASE}/${id}`);
   },
 
   tao(request: CreateLessonRequest) {
-    return apiClient(BASE, {
+    return apiClient<AdminLessonDetail>(BASE, {
       method: "POST",
       body: request,
     });
   },
 
   capNhat(id: number, request: UpdateLessonRequest) {
-    return apiClient(`${BASE}/${id}`, {
+    return apiClient<AdminLessonDetail>(`${BASE}/${id}`, {
       method: "PUT",
       body: request,
     });
   },
 
   kiemTra(id: number) {
-    return apiClient(`${BASE}/${id}/validate`);
+    return apiClient<LessonValidationResult>(`${BASE}/${id}/validate`);
   },
 
   guiDuyet(id: number, request: LessonWorkflowRequest) {
-    return apiClient(`${BASE}/${id}/submit-review`, {
+    return apiClient<AdminLessonDetail>(`${BASE}/${id}/submit-review`, {
       method: "POST",
       body: request,
     });
   },
 
   duyet(id: number, request: LessonWorkflowRequest) {
-    return apiClient(`${BASE}/${id}/approve`, {
+    return apiClient<AdminLessonDetail>(`${BASE}/${id}/approve`, {
       method: "POST",
       body: request,
     });
   },
 
   xuatBan(id: number, request: LessonWorkflowRequest) {
-    return apiClient(`${BASE}/${id}/publish`, {
+    return apiClient<AdminLessonDetail>(`${BASE}/${id}/publish`, {
       method: "POST",
       body: request,
     });
   },
 
   luuTru(id: number, request: LessonWorkflowRequest) {
-    return apiClient(`${BASE}/${id}/archive`, {
+    return apiClient<AdminLessonDetail>(`${BASE}/${id}/archive`, {
+      method: "POST",
+      body: request,
+    });
+  },
+
+  khoiPhucLuuTru(id: number, request: LessonWorkflowRequest) {
+    return apiClient<AdminLessonDetail>(`${BASE}/${id}/restore`, {
+      method: "POST",
+      body: request,
+    });
+  },
+
+  xoa(id: number, request: LessonWorkflowRequest) {
+    return apiClient<void>(`${BASE}/${id}`, {
+      method: "DELETE",
+      body: request,
+    });
+  },
+
+  khoiPhucDaXoa(id: number, request: LessonWorkflowRequest) {
+    return apiClient<AdminLessonDetail>(`${BASE}/${id}/restore-deleted`, {
       method: "POST",
       body: request,
     });
