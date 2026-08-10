@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { khoaHocApi } from "@/features/khoa-hoc/api/khoa-hoc.api";
-import type { AdminCourseListItem, AdminCourseQuery } from "@/features/khoa-hoc/types/khoa-hoc.types";
+import { khoaHocApi } from "@/features/course/api/khoa-hoc.api";
+import type { AdminCourseListItem, AdminCourseQuery } from "@/features/course/types/khoa-hoc.types";
 import type { PagedResult } from "@/lib/api/api-result";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
