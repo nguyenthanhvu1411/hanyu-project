@@ -7,15 +7,12 @@ export const API_ENDPOINTS = {
     USER_UNLOCK: (id: string) => `/admin/users/${id}/unlock`,
     USER_ROLES: (id: string) => `/admin/users/${id}/roles`,
     USER_SESSIONS: (id: string) => `/admin/users/${id}/sessions`,
-
     ROLES: "/admin/roles",
     ROLE: (id: string) => `/admin/roles/${id}`,
     ROLE_RESTORE: (id: string) => `/admin/roles/${id}/restore`,
-
     PERMISSIONS: "/admin/permissions",
     PERMISSION: (id: string) => `/admin/permissions/${id}`,
     PERMISSION_RESTORE: (id: string) => `/admin/permissions/${id}/restore`,
-
     SESSIONS: "/admin/sessions",
     SESSION: (id: string) => `/admin/sessions/${id}`,
     SESSION_RESTORE: (id: string) => `/admin/sessions/${id}/restore`,
@@ -41,23 +38,19 @@ export const API_ENDPOINTS = {
     RESTORE_DELETED: (courseId: number) => `/admin/courses/${courseId}/restore-deleted`,
 
     CHAPTERS: (courseId: number) => `/admin/courses/${courseId}/chapters`,
-    CHAPTER: (courseId: number, chapterId: number) =>
-      `/admin/courses/${courseId}/chapters/${chapterId}`,
-    CHAPTER_RESTORE: (courseId: number, chapterId: number) =>
-      `/admin/courses/${courseId}/chapters/${chapterId}/restore`,
-    CHAPTER_REORDER: (courseId: number) =>
-      `/admin/courses/${courseId}/chapters/order`,
+    CHAPTER: (courseId: number, chapterId: number) => `/admin/courses/${courseId}/chapters/${chapterId}`,
+    CHAPTER_RESTORE: (courseId: number, chapterId: number) => `/admin/courses/${courseId}/chapters/${chapterId}/restore`,
+    CHAPTER_REORDER: (courseId: number) => `/admin/courses/${courseId}/chapters/order`,
 
-    CHAPTER_LESSONS: (courseId: number, chapterId: number) =>
-      `/admin/courses/${courseId}/chapters/${chapterId}/lessons`,
-    CHAPTER_LESSON_ASSIGN: (courseId: number, chapterId: number) =>
-      `/admin/courses/${courseId}/chapters/${chapterId}/lessons/assign`,
-    CHAPTER_LESSON: (courseId: number, chapterId: number, lessonId: number) =>
-      `/admin/courses/${courseId}/chapters/${chapterId}/lessons/${lessonId}`,
-    CHAPTER_LESSON_MOVE: (courseId: number, chapterId: number, lessonId: number) =>
-      `/admin/courses/${courseId}/chapters/${chapterId}/lessons/${lessonId}/move`,
-    CHAPTER_LESSON_REORDER: (courseId: number, chapterId: number) =>
-      `/admin/courses/${courseId}/chapters/${chapterId}/lessons/reorder`,
+    CHAPTER_LESSONS: (courseId: number, chapterId: number) => `/admin/courses/${courseId}/chapters/${chapterId}/lessons`,
+    CHAPTER_LESSON_ASSIGN: (courseId: number, chapterId: number) => `/admin/courses/${courseId}/chapters/${chapterId}/lessons/assign`,
+    CHAPTER_LESSON: (courseId: number, chapterId: number, lessonId: number) => `/admin/courses/${courseId}/chapters/${chapterId}/lessons/${lessonId}`,
+    CHAPTER_LESSON_MOVE: (courseId: number, chapterId: number, lessonId: number) => `/admin/courses/${courseId}/chapters/${chapterId}/lessons/${lessonId}/move`,
+    CHAPTER_LESSON_REORDER: (courseId: number, chapterId: number) => `/admin/courses/${courseId}/chapters/${chapterId}/lessons/reorder`,
+
+    PREREQUISITES: (courseId: number) => `/admin/courses/${courseId}/prerequisites`,
+    PREREQUISITE: (courseId: number, prerequisiteId: number) => `/admin/courses/${courseId}/prerequisites/${prerequisiteId}`,
+    PREREQUISITE_RESTORE: (courseId: number, prerequisiteId: number) => `/admin/courses/${courseId}/prerequisites/${prerequisiteId}/restore`,
   },
 
   LESSON: {
@@ -70,21 +63,13 @@ export const API_ENDPOINTS = {
     ARCHIVE: (lessonId: number) => `/admin/lessons/${lessonId}/archive`,
     RESTORE: (lessonId: number) => `/admin/lessons/${lessonId}/restore`,
     RESTORE_DELETED: (lessonId: number) => `/admin/lessons/${lessonId}/restore-deleted`,
-
     SECTIONS: (lessonId: number) => `/admin/lessons/${lessonId}/sections`,
-    SECTION: (lessonId: number, sectionId: number) =>
-      `/admin/lessons/${lessonId}/sections/${sectionId}`,
-
+    SECTION: (lessonId: number, sectionId: number) => `/admin/lessons/${lessonId}/sections/${sectionId}`,
     VOCABULARY: (lessonId: number) => `/admin/lessons/${lessonId}/vocabulary`,
-    VOCABULARY_ITEM: (lessonId: number, vocabularyId: number) =>
-      `/admin/lessons/${lessonId}/vocabulary/${vocabularyId}`,
-
+    VOCABULARY_ITEM: (lessonId: number, vocabularyId: number) => `/admin/lessons/${lessonId}/vocabulary/${vocabularyId}`,
     ASSETS: (lessonId: number) => `/admin/lessons/${lessonId}/assets`,
-    ASSET: (lessonId: number, assetId: number) =>
-      `/admin/lessons/${lessonId}/assets/${assetId}`,
-
+    ASSET: (lessonId: number, assetId: number) => `/admin/lessons/${lessonId}/assets/${assetId}`,
     PREREQUISITES: (lessonId: number) => `/admin/lessons/${lessonId}/prerequisites`,
-    PREREQUISITE: (lessonId: number, requiredLessonId: number) =>
-      `/admin/lessons/${lessonId}/prerequisites/${requiredLessonId}`,
+    PREREQUISITE: (lessonId: number, requiredLessonId: number) => `/admin/lessons/${lessonId}/prerequisites/${requiredLessonId}`,
   },
 } as const;
