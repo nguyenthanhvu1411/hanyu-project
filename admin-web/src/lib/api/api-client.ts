@@ -54,6 +54,10 @@ async function parseError(response: Response): Promise<ApiError> {
   );
 }
 
+function isFormData(value: unknown): value is FormData {
+  return typeof FormData !== "undefined" && value instanceof FormData;
+}
+
 function buildHeaders(options: ApiRequestOptions, accessToken: string | null): Headers {
   const headers = new Headers(options.headers);
 
@@ -61,7 +65,12 @@ function buildHeaders(options: ApiRequestOptions, accessToken: string | null): H
     headers.set("Accept", "application/json");
   }
 
-  if (options.body !== undefined && !headers.has("Content-Type")) {
+  // Browser must generate the multipart boundary. Never set Content-Type manually for FormData.
+  if (
+    options.body !== undefined &&
+    !isFormData(options.body) &&
+    !headers.has("Content-Type")
+  ) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -70,6 +79,12 @@ function buildHeaders(options: ApiRequestOptions, accessToken: string | null): H
   }
 
   return headers;
+}
+
+function buildRequestBody(body: unknown): BodyInit | undefined {
+  if (body === undefined) return undefined;
+  if (isFormData(body)) return body;
+  return JSON.stringify(body);
 }
 
 async function sendRequest(
@@ -83,7 +98,7 @@ async function sendRequest(
     ...requestOptions,
     credentials: "include",
     headers: buildHeaders(options, accessToken),
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: buildRequestBody(options.body),
     cache: "no-store",
   });
 }
