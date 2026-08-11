@@ -5,6 +5,7 @@ import { ShieldCheck } from "lucide-react";
 
 import { ErrorState } from "@/components/common/error-state";
 import { FormSection } from "@/components/forms/form-section";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CourseOverviewTab } from "@/features/course/components/editor/course-overview-tab";
 import { CourseValidationPanel } from "@/features/course/components/editor/course-validation-panel";
@@ -41,14 +42,14 @@ export default function CourseOverviewPage() {
         icon={<ShieldCheck size={18} />}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
             type="button"
-            className="h-[38px] rounded-[8px] border border-[#ddd7cf] bg-white px-4 text-[11px] font-medium text-[#444] hover:bg-[#faf8f5] disabled:opacity-50"
+            variant="outline"
             onClick={() => void editor.validateCourse()}
             disabled={editor.saving}
           >
             Kiểm tra hợp lệ
-          </button>
+          </Button>
           <CourseWorkflowActions editor={editor} />
         </div>
       </FormSection>
