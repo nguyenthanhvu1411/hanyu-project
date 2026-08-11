@@ -75,10 +75,10 @@ public sealed class AdminMediaUploadsController : ControllerBase
     [RequestFormLimits(MultipartBodyLengthLimit = MaxImageSize)]
     [Consumes("multipart/form-data")]
     public Task<ActionResult<AdminMediaUploadResponse>> UploadImage(
-        [FromForm] IFormFile file,
+        [FromForm] AdminMediaUploadRequest request,
         CancellationToken cancellationToken)
         => UploadAsync(
-            file,
+            request.File,
             MediaKind.Image,
             ImageTypes,
             MaxImageSize,
@@ -90,10 +90,10 @@ public sealed class AdminMediaUploadsController : ControllerBase
     [RequestFormLimits(MultipartBodyLengthLimit = MaxAudioSize)]
     [Consumes("multipart/form-data")]
     public Task<ActionResult<AdminMediaUploadResponse>> UploadAudio(
-        [FromForm] IFormFile file,
+        [FromForm] AdminMediaUploadRequest request,
         CancellationToken cancellationToken)
         => UploadAsync(
-            file,
+            request.File,
             MediaKind.Audio,
             AudioTypes,
             MaxAudioSize,
@@ -105,10 +105,10 @@ public sealed class AdminMediaUploadsController : ControllerBase
     [RequestFormLimits(MultipartBodyLengthLimit = MaxVideoSize)]
     [Consumes("multipart/form-data")]
     public Task<ActionResult<AdminMediaUploadResponse>> UploadVideo(
-        [FromForm] IFormFile file,
+        [FromForm] AdminMediaUploadRequest request,
         CancellationToken cancellationToken)
         => UploadAsync(
-            file,
+            request.File,
             MediaKind.Video,
             VideoTypes,
             MaxVideoSize,
@@ -120,10 +120,10 @@ public sealed class AdminMediaUploadsController : ControllerBase
     [RequestFormLimits(MultipartBodyLengthLimit = MaxDocumentSize)]
     [Consumes("multipart/form-data")]
     public Task<ActionResult<AdminMediaUploadResponse>> UploadDocument(
-        [FromForm] IFormFile file,
+        [FromForm] AdminMediaUploadRequest request,
         CancellationToken cancellationToken)
         => UploadAsync(
-            file,
+            request.File,
             MediaKind.Document,
             DocumentTypes,
             MaxDocumentSize,
@@ -131,7 +131,7 @@ public sealed class AdminMediaUploadsController : ControllerBase
             cancellationToken);
 
     private async Task<ActionResult<AdminMediaUploadResponse>> UploadAsync(
-        IFormFile file,
+        IFormFile? file,
         MediaKind kind,
         IReadOnlyDictionary<string, string> allowedContentTypes,
         long maxFileSize,
@@ -207,6 +207,11 @@ public sealed class AdminMediaUploadsController : ControllerBase
         Video,
         Document
     }
+}
+
+public sealed class AdminMediaUploadRequest
+{
+    public IFormFile? File { get; init; }
 }
 
 public sealed record AdminMediaUploadResponse(
