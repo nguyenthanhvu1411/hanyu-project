@@ -64,6 +64,7 @@ export function CourseForm({ courseId }: CourseFormProps) {
   const [loading, setLoading] = useState(editing);
   const [hskLoading, setHskLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [coverSaving, setCoverSaving] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [hskError, setHskError] = useState<string | null>(null);
 
@@ -165,19 +166,61 @@ export function CourseForm({ courseId }: CourseFormProps) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  async function persistUploadedCover(storageReference: string) {
+    if (!editing || !courseId || !detail) return;
+
+    setCoverSaving(true);
+    setError(null);
+
+    try {
+      // Persist only the cover against the last server state. This avoids accidentally
+      // saving unrelated form fields that the administrator may still be editing.
+      const updated = await courseApi.update(courseId, {
+        code: detail.code,
+        slug: detail.slug,
+        titleVi: detail.titleVi,
+        shortDescriptionVi: detail.shortDescriptionVi ?? null,
+        descriptionVi: detail.descriptionVi ?? null,
+        hskLevelId: detail.hskLevelId ?? null,
+        coverImageUrl: storageReference,
+        sortOrder: detail.sortOrder,
+        estimatedMinutes: detail.estimatedMinutes ?? null,
+        isFeatured: detail.isFeatured,
+        concurrencyToken: detail.concurrencyToken,
+      });
+
+      setDetail(updated);
+      setForm((current) => ({
+        ...current,
+        coverImageUrl: updated.coverImageUrl ?? storageReference,
+      }));
+    } catch (caught) {
+      const apiError = normalizeApiError(caught);
+      setError(new Error(apiError.message));
+      throw new Error(apiError.message);
+    } finally {
+      setCoverSaving(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!valid || saving) return;
+    if (!valid || saving || coverSaving) return;
 
     setSaving(true);
     setError(null);
 
     try {
       if (editing && courseId && detail) {
-        await courseApi.update(courseId, {
+        const updated = await courseApi.update(courseId, {
           ...normalizeRequest(form),
           concurrencyToken: detail.concurrencyToken,
         });
+        setDetail(updated);
+        setForm((current) => ({
+          ...current,
+          coverImageUrl: updated.coverImageUrl ?? current.coverImageUrl,
+        }));
         appToast.success("Cập nhật khóa học thành công.");
         router.push(`/khoa-hoc/${courseId}`);
       } else {
@@ -334,19 +377,24 @@ export function CourseForm({ courseId }: CourseFormProps) {
 
       <FormSection
         title="Ảnh bìa"
-        description="Nhập URL hoặc tải file ảnh; hệ thống lưu URL cuối cùng vào CoverImageUrl."
+        description={
+          editing
+            ? "Khi chọn file mới, ảnh được tải lên Storage và gắn ngay vào khóa học. URL đọc tạm thời không được lưu vào database."
+            : "Nhập URL hoặc tải file ảnh; hệ thống lưu tham chiếu Storage ổn định vào CoverImageUrl khi tạo khóa học."
+        }
         icon={<ImageIcon size={18} />}
       >
         <CoverImageField
           value={form.coverImageUrl}
           onChange={(value) => setField("coverImageUrl", value)}
-          disabled={saving}
+          onUploadComplete={editing ? persistUploadedCover : undefined}
+          disabled={saving || coverSaving}
         />
       </FormSection>
 
       <FormActions
-        loading={saving}
-        disabled={!valid}
+        loading={saving || coverSaving}
+        disabled={!valid || coverSaving}
         submitText={editing ? "Lưu thay đổi" : "Tạo khóa học"}
         onCancel={() =>
           router.push(editing && courseId ? `/khoa-hoc/${courseId}` : "/khoa-hoc")
