@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { DataTable } from "@/components/common/data-table/data-table";
 import { DataTableActions } from "@/components/common/data-table/data-table-actions";
 import { DataTableSearch } from "@/components/common/data-table/data-table-search";
 import { DataTableToolbar } from "@/components/common/data-table/data-table-toolbar";
 import { ErrorState } from "@/components/common/error-state";
+import { StorageImage } from "@/components/media/storage-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getContentStatusLabel } from "@/lib/constants/content-status";
@@ -31,12 +32,14 @@ export function CourseTable() {
     setLoading(true); setError(null);
     try {
       const result = await courseApi.list({ search: search.trim() || undefined, page, pageSize, sortBy: "sortorder", sortDescending: false });
+      const total = result.total ?? result.totalCount ?? 0;
+      const resolvedPageSize = result.pageSize ?? pageSize;
       setData({
         items: result.items ?? [],
         page: result.page ?? page,
-        pageSize: result.pageSize ?? pageSize,
-        totalCount: result.totalCount ?? 0,
-        totalPages: result.totalPages ?? Math.max(1, Math.ceil((result.totalCount ?? 0) / Math.max(1, result.pageSize ?? pageSize))),
+        pageSize: resolvedPageSize,
+        totalCount: total,
+        totalPages: result.totalPages ?? Math.max(1, Math.ceil(total / Math.max(1, resolvedPageSize))),
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error("Không thể tải khóa học."));
@@ -53,7 +56,14 @@ export function CourseTable() {
     {
       id: "course", header: "Khóa học", cell: (item) => (
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#fff0ee] text-[#ef241c]"><BookOpen size={16} /></div>
+          <div className="h-11 w-16 shrink-0 overflow-hidden rounded-[8px] border border-[#eee8e1] bg-[#faf9f7]">
+            <StorageImage
+              value={item.coverImageUrl}
+              alt={`Ảnh bìa ${item.titleVi}`}
+              className="h-full w-full object-cover"
+              emptyClassName="h-full min-h-0"
+            />
+          </div>
           <div className="min-w-0">
             <div className="truncate text-[12px] font-semibold text-[#333]">{item.titleVi}</div>
             <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-[#8a8a8a]"><span>{item.code}</span><span>{item.slug}</span><span title={`PublicId: ${item.publicId}`}>PublicId: {item.publicId.slice(0, 8)}…</span></div>
