@@ -40,6 +40,7 @@ import type {
   LockUserRequest,
   PatchAdminUserRequest,
   ReplaceUserRolesRequest,
+  ResetAdminUserPasswordRequest,
   UnlockUserRequest,
   UpdateAdminUserRequest,
   DeleteUserRequest,
@@ -63,44 +64,35 @@ export const identityApi = {
           query,
         );
 
-      const response =
-        await apiClient.get<
-          PagedResult<AdminUserListItemDto>
-        >(
-          `${API_ENDPOINTS.ADMIN.USERS}?${qs}`,
-        );
-
-      return response;
+      return apiClient.get<
+        PagedResult<AdminUserListItemDto>
+      >(
+        `${API_ENDPOINTS.ADMIN.USERS}?${qs}`,
+      );
     },
 
     async get(
       id: string,
     ) {
-      const response =
-        await apiClient.get<
-          AdminUserDetailDto
-        >(
-          API_ENDPOINTS.ADMIN.USER(
-            id,
-          ),
-        );
-
-      return response;
+      return apiClient.get<
+        AdminUserDetailDto
+      >(
+        API_ENDPOINTS.ADMIN.USER(
+          id,
+        ),
+      );
     },
 
     async create(
       request:
         CreateAdminUserRequest,
     ) {
-      const response =
-        await apiClient.post<
-          AdminUserDetailDto
-        >(
-          API_ENDPOINTS.ADMIN.USERS,
-          request,
-        );
-
-      return response;
+      return apiClient.post<
+        AdminUserDetailDto
+      >(
+        API_ENDPOINTS.ADMIN.USERS,
+        request,
+      );
     },
 
     async update(
@@ -108,17 +100,14 @@ export const identityApi = {
       request:
         UpdateAdminUserRequest,
     ) {
-      const response =
-        await apiClient.put<
-          AdminUserDetailDto
-        >(
-          API_ENDPOINTS.ADMIN.USER(
-            id,
-          ),
-          request,
-        );
-
-      return response;
+      return apiClient.put<
+        AdminUserDetailDto
+      >(
+        API_ENDPOINTS.ADMIN.USER(
+          id,
+        ),
+        request,
+      );
     },
 
     async patch(
@@ -126,17 +115,14 @@ export const identityApi = {
       request:
         PatchAdminUserRequest,
     ) {
-      const response =
-        await apiClient.patch<
-          AdminUserDetailDto
-        >(
-          API_ENDPOINTS.ADMIN.USER(
-            id,
-          ),
-          request,
-        );
-
-      return response;
+      return apiClient.patch<
+        AdminUserDetailDto
+      >(
+        API_ENDPOINTS.ADMIN.USER(
+          id,
+        ),
+        request,
+      );
     },
 
     async remove(
@@ -145,23 +131,20 @@ export const identityApi = {
     ) {
       await apiClient.delete(
         API_ENDPOINTS.ADMIN.USER(id),
-        { body: request }
+        { body: request },
       );
     },
 
     async restore(
       id: string,
     ) {
-      const response =
-        await apiClient.post<
-          AdminUserDetailDto
-        >(
-          API_ENDPOINTS.ADMIN.USER_RESTORE(
-            id,
-          ),
-        );
-
-      return response;
+      return apiClient.post<
+        AdminUserDetailDto
+      >(
+        API_ENDPOINTS.ADMIN.USER_RESTORE(
+          id,
+        ),
+      );
     },
 
     async lock(
@@ -169,34 +152,28 @@ export const identityApi = {
       request:
         LockUserRequest,
     ) {
-      const response =
-        await apiClient.post<
-          AdminUserDetailDto
-        >(
-          API_ENDPOINTS.ADMIN.USER_LOCK(
-            id,
-          ),
-          request,
-        );
-
-      return response;
+      return apiClient.post<
+        AdminUserDetailDto
+      >(
+        API_ENDPOINTS.ADMIN.USER_LOCK(
+          id,
+        ),
+        request,
+      );
     },
 
     async unlock(
       id: string,
       request: UnlockUserRequest,
     ) {
-      const response =
-        await apiClient.post<
-          AdminUserDetailDto
-        >(
-          API_ENDPOINTS.ADMIN.USER_UNLOCK(
-            id,
-          ),
-          request,
-        );
-
-      return response;
+      return apiClient.post<
+        AdminUserDetailDto
+      >(
+        API_ENDPOINTS.ADMIN.USER_UNLOCK(
+          id,
+        ),
+        request,
+      );
     },
 
     async replaceRoles(
@@ -204,17 +181,14 @@ export const identityApi = {
       request:
         ReplaceUserRolesRequest,
     ) {
-      const response =
-        await apiClient.put<
-          AdminUserDetailDto
-        >(
-          API_ENDPOINTS.ADMIN.USER_ROLES(
-            id,
-          ),
-          request,
-        );
-
-      return response;
+      return apiClient.put<
+        AdminUserDetailDto
+      >(
+        API_ENDPOINTS.ADMIN.USER_ROLES(
+          id,
+        ),
+        request,
+      );
     },
 
     async revokeSessions(
@@ -224,6 +198,16 @@ export const identityApi = {
         API_ENDPOINTS.ADMIN.USER_SESSIONS(
           id,
         ),
+      );
+    },
+
+    async resetPassword(
+      id: string,
+      request: ResetAdminUserPasswordRequest,
+    ) {
+      await apiClient.post(
+        API_ENDPOINTS.ADMIN.USER_RESET_PASSWORD(id),
+        request,
       );
     },
   },
@@ -238,44 +222,35 @@ export const identityApi = {
           query,
         );
 
-      const response =
-        await apiClient.get<
-          PagedResult<AdminRoleDto>
-        >(
-          `${API_ENDPOINTS.ADMIN.ROLES}?${qs}`,
-        );
-
-      return response;
+      return apiClient.get<
+        PagedResult<AdminRoleDto>
+      >(
+        `${API_ENDPOINTS.ADMIN.ROLES}?${qs}`,
+      );
     },
 
     async get(
       id: string,
     ) {
-      const response =
-        await apiClient.get<
-          AdminRoleDto
-        >(
-          API_ENDPOINTS.ADMIN.ROLE(
-            id,
-          ),
-        );
-
-      return response;
+      return apiClient.get<
+        AdminRoleDto
+      >(
+        API_ENDPOINTS.ADMIN.ROLE(
+          id,
+        ),
+      );
     },
 
     async create(
       request:
         CreateAdminRoleRequest,
     ) {
-      const response =
-        await apiClient.post<
-          AdminRoleDto
-        >(
-          API_ENDPOINTS.ADMIN.ROLES,
-          request,
-        );
-
-      return response;
+      return apiClient.post<
+        AdminRoleDto
+      >(
+        API_ENDPOINTS.ADMIN.ROLES,
+        request,
+      );
     },
 
     async update(
@@ -283,17 +258,14 @@ export const identityApi = {
       request:
         UpdateAdminRoleRequest,
     ) {
-      const response =
-        await apiClient.put<
-          AdminRoleDto
-        >(
-          API_ENDPOINTS.ADMIN.ROLE(
-            id,
-          ),
-          request,
-        );
-
-      return response;
+      return apiClient.put<
+        AdminRoleDto
+      >(
+        API_ENDPOINTS.ADMIN.ROLE(
+          id,
+        ),
+        request,
+      );
     },
 
     async patch(
@@ -301,17 +273,14 @@ export const identityApi = {
       request:
         PatchAdminRoleRequest,
     ) {
-      const response =
-        await apiClient.patch<
-          AdminRoleDto
-        >(
-          API_ENDPOINTS.ADMIN.ROLE(
-            id,
-          ),
-          request,
-        );
-
-      return response;
+      return apiClient.patch<
+        AdminRoleDto
+      >(
+        API_ENDPOINTS.ADMIN.ROLE(
+          id,
+        ),
+        request,
+      );
     },
 
     async remove(
@@ -327,16 +296,13 @@ export const identityApi = {
     async restore(
       id: string,
     ) {
-      const response =
-        await apiClient.post<
-          AdminRoleDto
-        >(
-          API_ENDPOINTS.ADMIN.ROLE_RESTORE(
-            id,
-          ),
-        );
-
-      return response;
+      return apiClient.post<
+        AdminRoleDto
+      >(
+        API_ENDPOINTS.ADMIN.ROLE_RESTORE(
+          id,
+        ),
+      );
     },
   },
 
@@ -350,44 +316,35 @@ export const identityApi = {
           query,
         );
 
-      const response =
-        await apiClient.get<
-          PagedResult<AdminPermissionDto>
-        >(
-          `${API_ENDPOINTS.ADMIN.PERMISSIONS}?${qs}`,
-        );
-
-      return response;
+      return apiClient.get<
+        PagedResult<AdminPermissionDto>
+      >(
+        `${API_ENDPOINTS.ADMIN.PERMISSIONS}?${qs}`,
+      );
     },
 
     async get(
       id: string,
     ) {
-      const response =
-        await apiClient.get<
-          AdminPermissionDto
-        >(
-          API_ENDPOINTS.ADMIN.PERMISSION(
-            id,
-          ),
-        );
-
-      return response;
+      return apiClient.get<
+        AdminPermissionDto
+      >(
+        API_ENDPOINTS.ADMIN.PERMISSION(
+          id,
+        ),
+      );
     },
 
     async create(
       request:
         CreateAdminPermissionRequest,
     ) {
-      const response =
-        await apiClient.post<
-          AdminPermissionDto
-        >(
-          API_ENDPOINTS.ADMIN.PERMISSIONS,
-          request,
-        );
-
-      return response;
+      return apiClient.post<
+        AdminPermissionDto
+      >(
+        API_ENDPOINTS.ADMIN.PERMISSIONS,
+        request,
+      );
     },
 
     async update(
@@ -395,17 +352,14 @@ export const identityApi = {
       request:
         UpdateAdminPermissionRequest,
     ) {
-      const response =
-        await apiClient.put<
-          AdminPermissionDto
-        >(
-          API_ENDPOINTS.ADMIN.PERMISSION(
-            id,
-          ),
-          request,
-        );
-
-      return response;
+      return apiClient.put<
+        AdminPermissionDto
+      >(
+        API_ENDPOINTS.ADMIN.PERMISSION(
+          id,
+        ),
+        request,
+      );
     },
 
     async remove(
@@ -421,16 +375,13 @@ export const identityApi = {
     async restore(
       id: string,
     ) {
-      const response =
-        await apiClient.post<
-          AdminPermissionDto
-        >(
-          API_ENDPOINTS.ADMIN.PERMISSION_RESTORE(
-            id,
-          ),
-        );
-
-      return response;
+      return apiClient.post<
+        AdminPermissionDto
+      >(
+        API_ENDPOINTS.ADMIN.PERMISSION_RESTORE(
+          id,
+        ),
+      );
     },
   },
 
@@ -444,44 +395,35 @@ export const identityApi = {
           query,
         );
 
-      const response =
-        await apiClient.get<
-          PagedResult<AdminSessionDto>
-        >(
-          `${API_ENDPOINTS.ADMIN.SESSIONS}?${qs}`,
-        );
-
-      return response;
+      return apiClient.get<
+        PagedResult<AdminSessionDto>
+      >(
+        `${API_ENDPOINTS.ADMIN.SESSIONS}?${qs}`,
+      );
     },
 
     async get(
       id: string,
     ) {
-      const response =
-        await apiClient.get<
-          AdminSessionDto
-        >(
-          API_ENDPOINTS.ADMIN.SESSION(
-            id,
-          ),
-        );
-
-      return response;
+      return apiClient.get<
+        AdminSessionDto
+      >(
+        API_ENDPOINTS.ADMIN.SESSION(
+          id,
+        ),
+      );
     },
 
     async create(
       request:
         CreateAdminSessionRequest,
     ) {
-      const response =
-        await apiClient.post<
-          AdminSessionDto
-        >(
-          API_ENDPOINTS.ADMIN.SESSIONS,
-          request,
-        );
-
-      return response;
+      return apiClient.post<
+        AdminSessionDto
+      >(
+        API_ENDPOINTS.ADMIN.SESSIONS,
+        request,
+      );
     },
 
     async update(
@@ -489,17 +431,14 @@ export const identityApi = {
       request:
         UpdateAdminSessionRequest,
     ) {
-      const response =
-        await apiClient.put<
-          AdminSessionDto
-        >(
-          API_ENDPOINTS.ADMIN.SESSION(
-            id,
-          ),
-          request,
-        );
-
-      return response;
+      return apiClient.put<
+        AdminSessionDto
+      >(
+        API_ENDPOINTS.ADMIN.SESSION(
+          id,
+        ),
+        request,
+      );
     },
 
     async remove(
@@ -515,16 +454,13 @@ export const identityApi = {
     async restore(
       id: string,
     ) {
-      const response =
-        await apiClient.post<
-          AdminSessionDto
-        >(
-          API_ENDPOINTS.ADMIN.SESSION_RESTORE(
-            id,
-          ),
-        );
-
-      return response;
+      return apiClient.post<
+        AdminSessionDto
+      >(
+        API_ENDPOINTS.ADMIN.SESSION_RESTORE(
+          id,
+        ),
+      );
     },
   },
 };
