@@ -1,9 +1,9 @@
 using HanYu.Application.Common.Models;
 using HanYu.Application.Interfaces.Persistence;
-using HanYu.Domain.Constants;
 using HanYu.Domain.Entities.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using DomainRoles = HanYu.Domain.Constants.Roles;
 
 namespace HanYu.Application.Features.Identity.Admin.Users.CreateUser;
 
@@ -84,7 +84,7 @@ public sealed class CreateAdminUserHandler
 
             var selectedRoles = command.RoleIds.Count == 0
                 ? await _roleManager.Roles
-                    .Where(role => role.Code == Roles.User)
+                    .Where(role => role.Code == DomainRoles.User)
                     .ToListAsync(cancellationToken)
                 : await _roleManager.Roles
                     .Where(role => command.RoleIds.Contains(role.Id))
