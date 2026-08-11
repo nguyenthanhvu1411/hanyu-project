@@ -34,6 +34,10 @@ export const API_ENDPOINTS = {
     HSK_LEVEL_DEACTIVATE: (id: number) => `/admin/hsk-levels/${id}/deactivate`,
   },
 
+  VOCABULARY: {
+    TOPICS: "/admin/vocabulary-topics",
+  },
+
   COURSE: {
     ROOT: "/admin/courses",
     DETAIL: (courseId: number) => `/admin/courses/${courseId}`,
