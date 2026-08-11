@@ -10,6 +10,7 @@ import type {
   AdminLessonPrerequisite,
   AdminLessonQuery,
   AdminLessonSection,
+  AdminLessonTopicOption,
   AdminLessonVocabulary,
   AttachLessonVocabularyRequest,
   CreateLessonAssetRequest,
@@ -36,6 +37,9 @@ export const lessonApi = {
     const queryString = buildQuery(query);
     const path = queryString ? `${API_ENDPOINTS.LESSON.ROOT}?${queryString}` : API_ENDPOINTS.LESSON.ROOT;
     return apiClient<PagedResult<AdminLessonListItem>>(path);
+  },
+  listTopics() {
+    return apiClient<AdminLessonTopicOption[]>(API_ENDPOINTS.VOCABULARY.TOPICS);
   },
   getById(id: number) {
     return apiClient<AdminLessonDetail>(API_ENDPOINTS.LESSON.DETAIL(id));
