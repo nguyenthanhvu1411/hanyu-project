@@ -5,6 +5,7 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { courseApi } from "@/features/course/api/course.api";
 import { ErrorState } from "@/components/common/error-state";
+import { StorageImage } from "@/components/media/storage-image";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,18 +32,39 @@ export function CourseDetailLayout({ children }: { children: ReactNode }) {
     return <ErrorState title="Không tìm thấy khóa học" description={error instanceof Error ? error.message : "Dữ liệu khóa học không tồn tại."} onRetry={() => void refetch()} />;
   }
 
-  const currentTab = pathname.includes("/noi-dung") ? "noi-dung" : pathname.includes("/tien-quyet") ? "tien-quyet" : pathname.includes("/lich-su") ? "lich-su" : "tong-quan";
+  const currentTab = pathname.includes("/noi-dung")
+    ? "noi-dung"
+    : pathname.includes("/tien-quyet")
+      ? "tien-quyet"
+      : pathname.includes("/lich-su")
+        ? "lich-su"
+        : pathname.includes("/thong-ke")
+          ? "thong-ke"
+          : pathname.includes("/hoc-vien")
+            ? "hoc-vien"
+            : "tong-quan";
 
   return (
     <div className="space-y-5">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <div className="min-w-0">
-            <CardTitle className="truncate text-[18px]">{course.titleVi}</CardTitle>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Badge>{course.code}</Badge>
-              <Badge variant="primary">{course.hskCode || "Chưa có HSK"}</Badge>
-              <Badge variant="info">{getContentStatusLabel(course.status)}</Badge>
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="h-16 w-24 shrink-0 overflow-hidden rounded-[9px] border border-[#ebe5dd] bg-[#faf9f7]">
+              <StorageImage
+                value={course.coverImageUrl}
+                alt={`Ảnh bìa ${course.titleVi}`}
+                className="h-full w-full object-cover"
+                emptyClassName="h-full min-h-0"
+              />
+            </div>
+            <div className="min-w-0">
+              <CardTitle className="truncate text-[18px]">{course.titleVi}</CardTitle>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Badge>{course.code}</Badge>
+                <Badge variant="primary">{course.hskCode || "Chưa có HSK"}</Badge>
+                <Badge variant="info">{getContentStatusLabel(course.status)}</Badge>
+                {course.isFeatured ? <Badge variant="warning">Nổi bật</Badge> : null}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -54,6 +76,8 @@ export function CourseDetailLayout({ children }: { children: ReactNode }) {
           <TabsTrigger value="noi-dung">Nội dung</TabsTrigger>
           <TabsTrigger value="tien-quyet">Tiên quyết</TabsTrigger>
           <TabsTrigger value="lich-su">Lịch sử</TabsTrigger>
+          <TabsTrigger value="thong-ke">Thống kê</TabsTrigger>
+          <TabsTrigger value="hoc-vien">Học viên</TabsTrigger>
         </TabsList>
       </Tabs>
 
