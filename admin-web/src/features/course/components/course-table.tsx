@@ -2,22 +2,39 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { DataTable } from "@/components/common/data-table/data-table";
-import { DataTableActions } from "@/components/common/data-table/data-table-actions";
+import { ActionButton, DataTableActions } from "@/components/common/data-table/data-table-actions";
 import { DataTableSearch } from "@/components/common/data-table/data-table-search";
 import { DataTableToolbar } from "@/components/common/data-table/data-table-toolbar";
 import { ErrorState } from "@/components/common/error-state";
 import { StorageImage } from "@/components/media/storage-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { appToast } from "@/components/ui/toast";
+import { PERMISSIONS } from "@/constants/permission.constants";
+import { normalizeApiError } from "@/lib/api/api-error";
 import { getContentStatusLabel } from "@/lib/constants/content-status";
+import { PermissionGuard } from "@/security/permission-guard";
 import type { DataTableColumn } from "@/types/table.types";
 import { courseApi } from "../api/course.api";
 import type { AdminCourseListItem } from "../types/course.types";
 
-interface CoursePageData { items: AdminCourseListItem[]; page: number; pageSize: number; totalCount: number; totalPages: number; }
-const EMPTY_DATA: CoursePageData = { items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 1 };
+interface CoursePageData {
+  items: AdminCourseListItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+const EMPTY_DATA: CoursePageData = {
+  items: [],
+  page: 1,
+  pageSize: 20,
+  totalCount: 0,
+  totalPages: 1,
+};
 
 export function CourseTable() {
   const router = useRouter();
@@ -27,24 +44,37 @@ export function CourseTable() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
+
     try {
-      const result = await courseApi.list({ search: search.trim() || undefined, page, pageSize, sortBy: "sortorder", sortDescending: false });
+      const result = await courseApi.list({
+        search: search.trim() || undefined,
+        page,
+        pageSize,
+        sortBy: "sortorder",
+        sortDescending: false,
+      });
       const total = result.total ?? result.totalCount ?? 0;
       const resolvedPageSize = result.pageSize ?? pageSize;
+
       setData({
         items: result.items ?? [],
         page: result.page ?? page,
         pageSize: resolvedPageSize,
         totalCount: total,
-        totalPages: result.totalPages ?? Math.max(1, Math.ceil(total / Math.max(1, resolvedPageSize))),
+        totalPages:
+          result.totalPages ?? Math.max(1, Math.ceil(total / Math.max(1, resolvedPageSize))),
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error("Không thể tải khóa học."));
       setData((current) => ({ ...current, items: [] }));
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [page, pageSize, search]);
 
   useEffect(() => {
@@ -52,44 +82,153 @@ export function CourseTable() {
     return () => window.clearTimeout(timeout);
   }, [load, search]);
 
-  const columns = useMemo<DataTableColumn<AdminCourseListItem>[]>(() => [
-    {
-      id: "course", header: "Khóa học", cell: (item) => (
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="h-11 w-16 shrink-0 overflow-hidden rounded-[8px] border border-[#eee8e1] bg-[#faf9f7]">
-            <StorageImage
-              value={item.coverImageUrl}
-              alt={`Ảnh bìa ${item.titleVi}`}
-              className="h-full w-full object-cover"
-              emptyClassName="h-full min-h-0"
-            />
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-[12px] font-semibold text-[#333]">{item.titleVi}</div>
-            <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-[#8a8a8a]"><span>{item.code}</span><span>{item.slug}</span><span title={`PublicId: ${item.publicId}`}>PublicId: {item.publicId.slice(0, 8)}…</span></div>
-          </div>
-        </div>
-      ),
-    },
-    { id: "hsk", header: "HSK", width: "130px", cell: (item) => item.hskCode ?? "—" },
-    { id: "chapters", header: "Chương", align: "center", width: "100px", accessor: (item) => item.chapterCount },
-    { id: "status", header: "Trạng thái", align: "center", width: "140px", cell: (item) => <Badge variant="info">{getContentStatusLabel(item.status)}</Badge> },
-    { id: "active", header: "Hoạt động", align: "center", width: "120px", cell: (item) => <Badge variant={item.isActive ? "success" : "default"}>{item.isActive ? "Hoạt động" : "Ngừng"}</Badge> },
-    { id: "actions", header: "Thao tác", align: "center", width: "90px", cell: (item) => <DataTableActions onView={() => router.push(`/khoa-hoc/${item.id}`)} onEdit={() => router.push(`/khoa-hoc/${item.id}/chinh-sua`)} /> },
-  ], [router]);
+  const deleteCourse = useCallback(
+    async (item: AdminCourseListItem) => {
+      if (deletingId || !window.confirm(`Xóa khóa học “${item.titleVi}”?`)) return;
 
-  if (error && !loading) return <ErrorState title="Không thể tải khóa học" description={error.message} onRetry={() => void load()} />;
+      setDeletingId(item.id);
+      try {
+        const detail = await courseApi.getById(item.id);
+        await courseApi.delete(item.id, { concurrencyToken: detail.concurrencyToken });
+        appToast.success("Đã xóa khóa học.");
+        await load();
+      } catch (caught) {
+        appToast.error("Không thể xóa khóa học", normalizeApiError(caught).message);
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [deletingId, load],
+  );
+
+  const columns = useMemo<DataTableColumn<AdminCourseListItem>[]>(
+    () => [
+      {
+        id: "course",
+        header: "Khóa học",
+        cell: (item) => (
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="h-11 w-16 shrink-0 overflow-hidden rounded-[8px] border border-[#eee8e1] bg-[#faf9f7]">
+              <StorageImage
+                value={item.coverImageUrl}
+                alt={`Ảnh bìa ${item.titleVi}`}
+                className="h-full w-full object-cover"
+                emptyClassName="h-full min-h-0"
+              />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-[12px] font-semibold text-[#333]">{item.titleVi}</div>
+              <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-[#8a8a8a]">
+                <span>{item.code}</span>
+                <span>{item.slug}</span>
+                <span title={`PublicId: ${item.publicId}`}>PublicId: {item.publicId.slice(0, 8)}…</span>
+              </div>
+            </div>
+          </div>
+        ),
+      },
+      { id: "hsk", header: "HSK", width: "130px", cell: (item) => item.hskCode ?? "—" },
+      {
+        id: "chapters",
+        header: "Chương",
+        align: "center",
+        width: "100px",
+        accessor: (item) => item.chapterCount,
+      },
+      {
+        id: "status",
+        header: "Trạng thái",
+        align: "center",
+        width: "140px",
+        cell: (item) => <Badge variant="info">{getContentStatusLabel(item.status)}</Badge>,
+      },
+      {
+        id: "active",
+        header: "Hoạt động",
+        align: "center",
+        width: "120px",
+        cell: (item) => (
+          <Badge variant={item.isActive ? "success" : "default"}>
+            {item.isActive ? "Hoạt động" : "Ngừng"}
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Thao tác",
+        align: "center",
+        width: "90px",
+        cell: (item) => (
+          <DataTableActions
+            onView={() => router.push(`/khoa-hoc/${item.id}`)}
+            onEdit={() => router.push(`/khoa-hoc/${item.id}/chinh-sua`)}
+            customActions={
+              <PermissionGuard permission={PERMISSIONS.COURSES.DELETE} fallback={null}>
+                <ActionButton
+                  danger
+                  icon={<Trash2 size={14} />}
+                  onClick={() => void deleteCourse(item)}
+                >
+                  {deletingId === item.id ? "Đang xóa..." : "Xóa"}
+                </ActionButton>
+              </PermissionGuard>
+            }
+          />
+        ),
+      },
+    ],
+    [deleteCourse, deletingId, router],
+  );
+
+  if (error && !loading) {
+    return (
+      <ErrorState
+        title="Không thể tải khóa học"
+        description={error.message}
+        onRetry={() => void load()}
+      />
+    );
+  }
 
   return (
     <div className="overflow-hidden rounded-[11px] border border-[#e8e3dc] bg-white">
       <DataTableToolbar
-        left={<DataTableSearch value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Tìm mã, slug, tên khóa học..." />}
-        right={<Button variant="outline" className="h-[38px] gap-2 text-[11px]" onClick={() => void load()}><RefreshCw size={14} />Làm mới</Button>}
+        left={
+          <DataTableSearch
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            placeholder="Tìm mã, slug, tên khóa học..."
+          />
+        }
+        right={
+          <Button
+            variant="outline"
+            className="h-[38px] gap-2 text-[11px]"
+            onClick={() => void load()}
+          >
+            <RefreshCw size={14} />
+            Làm mới
+          </Button>
+        }
       />
       <DataTable
-        data={data.items} columns={columns} rowKey={(item) => item.id} loading={loading} selectable={false}
-        page={page} pageSize={pageSize} totalItems={data.totalCount} totalPages={data.totalPages}
-        onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }}
+        data={data.items}
+        columns={columns}
+        rowKey={(item) => item.id}
+        loading={loading}
+        selectable={false}
+        page={page}
+        pageSize={pageSize}
+        totalItems={data.totalCount}
+        totalPages={data.totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={(value) => {
+          setPageSize(value);
+          setPage(1);
+        }}
       />
     </div>
   );
