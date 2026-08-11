@@ -37,6 +37,10 @@ try
         HanYu.Application.Features.Identity.Admin.Users.ResetPassword.ResetAdminUserPasswordHandler>();
 
     builder.Services.AddScoped<
+        ICourseAdminInsightsService,
+        CourseAdminInsightsService>();
+
+    builder.Services.AddScoped<
         IPublicFileStorage,
         S3PublicFileStorage>();
 
