@@ -143,7 +143,7 @@ public sealed class CourseContentSeeder
         }
     }
 
-    private async Task<StoredFileResult> UploadCoverAsync(
+    private async Task<PublicFileUploadResult> UploadCoverAsync(
         CourseSeedDefinition definition,
         CancellationToken cancellationToken)
     {
