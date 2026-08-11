@@ -12,6 +12,10 @@ public interface IPublicFileStorage
         string contentType,
         CancellationToken cancellationToken = default);
 
+    Task<string> GetReadUrlAsync(
+        string objectKey,
+        CancellationToken cancellationToken = default);
+
     Task DeleteAsync(
         string objectKey,
         CancellationToken cancellationToken = default);
