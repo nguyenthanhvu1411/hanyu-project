@@ -55,9 +55,10 @@ public sealed class CourseContentSeedIntegrationTests : IntegrationTestBase
             "COURSE-HSK5",
             "COURSE-HSK6");
 
+        // Persist canonical storage references, never transient/public read URLs.
         courses.Should().OnlyContain(x =>
             x.CoverImageUrl != null &&
-            x.CoverImageUrl.StartsWith("https://storage.test/", StringComparison.Ordinal) &&
+            x.CoverImageUrl.StartsWith("storage://", StringComparison.Ordinal) &&
             !x.CoverImageUrl.StartsWith("data:", StringComparison.OrdinalIgnoreCase));
     }
 }
