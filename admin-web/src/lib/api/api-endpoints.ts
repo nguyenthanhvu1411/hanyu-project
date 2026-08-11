@@ -7,6 +7,7 @@ export const API_ENDPOINTS = {
     USER_UNLOCK: (id: string) => `/admin/users/${id}/unlock`,
     USER_ROLES: (id: string) => `/admin/users/${id}/roles`,
     USER_SESSIONS: (id: string) => `/admin/users/${id}/sessions`,
+    USER_RESET_PASSWORD: (id: string) => `/admin/users/${id}/reset-password`,
     ROLES: "/admin/roles",
     ROLE: (id: string) => `/admin/roles/${id}`,
     ROLE_RESTORE: (id: string) => `/admin/roles/${id}/restore`,
