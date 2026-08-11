@@ -52,8 +52,8 @@ public sealed class HskLevelsController : ControllerBase
         if (id <= 0)
             return BadRequest(new { code = "HskLevel.InvalidId", message = "HSK level ID không hợp lệ." });
 
+        // The normal detail endpoint intentionally hides soft-deleted rows.
         var entity = await _db.Set<HskLevel>()
-            .IgnoreQueryFilters()
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
@@ -102,7 +102,40 @@ public sealed class HskLevelsController : ControllerBase
 
     [HttpDelete("{id:long}")]
     public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
-        => this.ToActionResult(await _service.DeleteHskLevelAsync(id, cancellationToken));
+    {
+        var userId = GetCurrentUserId();
+        if (!userId.HasValue)
+            return Unauthorized();
+
+        var entity = await _db.Set<HskLevel>()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (entity is null)
+            return NotFound(new { code = "HskLevel.NotFound", message = "Không tìm thấy cấp độ HSK." });
+
+        // Keep HSK reference data consistent: do not hide a level that is still used by learning content.
+        var inUseByVocabulary = await _db.Set<Domain.Entities.Vocabulary.Vocabulary>()
+            .AnyAsync(x => x.HskLevelId == id, cancellationToken);
+        var inUseByCourse = await _db.Set<Domain.Entities.Course.Course>()
+            .AnyAsync(x => x.HskLevelId == id, cancellationToken);
+        var inUseByLesson = await _db.Set<Domain.Entities.Lesson.Lesson>()
+            .AnyAsync(x => x.HskLevelId == id, cancellationToken);
+
+        if (inUseByVocabulary || inUseByCourse || inUseByLesson)
+        {
+            return Conflict(new
+            {
+                code = "HskLevel.InUse",
+                message = "Cấp độ HSK đang được khóa học, bài giảng hoặc từ vựng sử dụng."
+            });
+        }
+
+        entity.Delete(userId.Value);
+        await _db.SaveChangesAsync(cancellationToken);
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return NoContent();
+    }
 
     [HttpPost("{id:long}/restore")]
     public async Task<IActionResult> Restore(long id, CancellationToken cancellationToken)
@@ -111,6 +144,7 @@ public sealed class HskLevelsController : ControllerBase
         if (!userId.HasValue)
             return Unauthorized();
 
+        // Restore must bypass the global soft-delete query filter.
         var entity = await _db.Set<HskLevel>()
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
