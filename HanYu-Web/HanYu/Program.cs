@@ -30,6 +30,12 @@ try
     builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
     builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 
+    // Identity admin feature handlers that are intentionally scoped at the API composition root.
+    builder.Services.AddScoped<
+        HanYu.Application.Features.Identity.Admin.Users.CreateUser.CreateAdminUserHandler>();
+    builder.Services.AddScoped<
+        HanYu.Application.Features.Identity.Admin.Users.ResetPassword.ResetAdminUserPasswordHandler>();
+
     builder.Services.AddScoped<
         IPublicFileStorage,
         S3PublicFileStorage>();
