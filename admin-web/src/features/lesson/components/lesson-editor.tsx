@@ -2,9 +2,21 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, BookOpenText, CheckCircle2, ImageIcon, Loader2, Rocket, Send, Settings2, ShieldCheck } from "lucide-react";
+import {
+  Archive,
+  BookOpenText,
+  CheckCircle2,
+  ImageIcon,
+  Loader2,
+  RotateCcw,
+  Rocket,
+  Send,
+  Settings2,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
+import { CoverImageField } from "@/components/forms/cover-image-field";
 import { FormActions } from "@/components/forms/form-actions";
 import { FormField } from "@/components/forms/form-field";
 import { FormRow } from "@/components/forms/form-row";
@@ -26,6 +38,8 @@ import type { AdminLessonDetail, CreateLessonRequest } from "../types/lesson.typ
 interface LessonEditorProps {
   lessonId?: number;
 }
+
+type WorkflowAction = "review" | "approve" | "publish" | "archive" | "restore";
 
 const EMPTY_FORM: CreateLessonRequest = {
   courseChapterId: null,
@@ -184,6 +198,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
           version: detail.version,
         });
         setDetail(updated);
+        setForm((current) => ({ ...current, coverImageUrl: updated.coverImageUrl ?? current.coverImageUrl }));
         toast.success("Đã cập nhật bài giảng.");
       } else {
         const created = await lessonApi.create(normalizeRequest(form));
@@ -216,7 +231,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
     }
   }
 
-  async function workflow(action: "review" | "approve" | "publish" | "archive") {
+  async function workflow(action: WorkflowAction) {
     if (!lessonId || !detail || workflowLoading) return;
 
     setWorkflowLoading(action);
@@ -230,7 +245,9 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
             ? await lessonApi.approve(lessonId, request)
             : action === "publish"
               ? await lessonApi.publish(lessonId, request)
-              : await lessonApi.archive(lessonId, request);
+              : action === "archive"
+                ? await lessonApi.archive(lessonId, request)
+                : await lessonApi.restore(lessonId, request);
 
       setDetail(updated);
       toast.success("Đã cập nhật trạng thái bài giảng.");
@@ -258,18 +275,12 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
           icon={<BookOpenText size={18} />}
         >
           <FormField label="Tên bài giảng" required>
-            <Input
-              value={form.titleVi}
-              onChange={(e) => setField("titleVi", e.target.value)}
-            />
+            <Input value={form.titleVi} onChange={(e) => setField("titleVi", e.target.value)} />
           </FormField>
 
           <FormRow columns={2}>
             <FormField label="Slug" required>
-              <Input
-                value={form.slug}
-                onChange={(e) => setField("slug", e.target.value)}
-              />
+              <Input value={form.slug} onChange={(e) => setField("slug", e.target.value)} />
             </FormField>
 
             <FormField
@@ -296,10 +307,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
                 min={1}
                 value={form.courseChapterId ?? ""}
                 onChange={(e) =>
-                  setField(
-                    "courseChapterId",
-                    e.target.value ? Number(e.target.value) : null,
-                  )
+                  setField("courseChapterId", e.target.value ? Number(e.target.value) : null)
                 }
               />
             </FormField>
@@ -308,9 +316,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
                 type="number"
                 min={1}
                 value={form.topicId ?? ""}
-                onChange={(e) =>
-                  setField("topicId", e.target.value ? Number(e.target.value) : null)
-                }
+                onChange={(e) => setField("topicId", e.target.value ? Number(e.target.value) : null)}
               />
             </FormField>
           </FormRow>
@@ -384,16 +390,14 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
 
         <FormSection
           title="Ảnh bìa"
-          description="URL ảnh được lưu trong CoverImageUrl của Lesson."
+          description="Nhập URL hoặc tải file ảnh; hệ thống lưu tham chiếu Storage ổn định vào CoverImageUrl."
           icon={<ImageIcon size={18} />}
         >
-          <FormField label="URL ảnh bìa">
-            <Input
-              type="url"
-              value={form.coverImageUrl ?? ""}
-              onChange={(e) => setField("coverImageUrl", e.target.value)}
-            />
-          </FormField>
+          <CoverImageField
+            value={form.coverImageUrl}
+            onChange={(value) => setField("coverImageUrl", value)}
+            disabled={saving}
+          />
         </FormSection>
 
         <PermissionGuard
@@ -433,6 +437,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
           <FormSection title="Quy trình xuất bản">
             <div className="space-y-2">
               <Button
+                type="button"
                 variant="outline"
                 className="w-full justify-start gap-2"
                 onClick={() => void validateLesson()}
@@ -444,6 +449,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
 
               {detail.status === ContentStatus.Draft ? (
                 <Button
+                  type="button"
                   variant="outline"
                   className="w-full justify-start gap-2"
                   onClick={() => void workflow("review")}
@@ -456,6 +462,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
 
               {detail.status === ContentStatus.Review ? (
                 <Button
+                  type="button"
                   variant="outline"
                   className="w-full justify-start gap-2"
                   onClick={() => void workflow("approve")}
@@ -469,6 +476,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
               {detail.status === ContentStatus.Approved ? (
                 <PermissionGuard permission={PERMISSIONS.LESSONS.PUBLISH} fallback={null}>
                   <Button
+                    type="button"
                     className="w-full justify-start gap-2"
                     onClick={() => void workflow("publish")}
                     disabled={Boolean(workflowLoading)}
@@ -481,6 +489,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
 
               {detail.status === ContentStatus.Published ? (
                 <Button
+                  type="button"
                   variant="outline"
                   className="w-full justify-start gap-2"
                   onClick={() => void workflow("archive")}
@@ -488,6 +497,19 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
                 >
                   <Archive size={15} />
                   Lưu trữ
+                </Button>
+              ) : null}
+
+              {detail.status === ContentStatus.Archived ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  onClick={() => void workflow("restore")}
+                  disabled={Boolean(workflowLoading)}
+                >
+                  <RotateCcw size={15} />
+                  Khôi phục bài giảng
                 </Button>
               ) : null}
             </div>
