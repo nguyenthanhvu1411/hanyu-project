@@ -22,6 +22,10 @@ export const API_ENDPOINTS = {
     UPLOAD_DOCUMENT: "/admin/uploads/documents",
   },
 
+  MEDIA: {
+    READ_URL: (objectKey: string) => `/media/read-url?objectKey=${encodeURIComponent(objectKey)}`,
+  },
+
   LEARNING: {
     HSK_LEVELS: "/admin/hsk-levels",
     HSK_LEVEL: (id: number) => `/admin/hsk-levels/${id}`,
