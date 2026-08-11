@@ -6,7 +6,11 @@ import { ImageIcon, Link2, Loader2, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { appToast } from "@/components/ui/toast";
-import { mediaApi } from "@/features/system/api/media.api";
+import {
+  getStorageObjectKey,
+  mediaApi,
+  toStorageReference,
+} from "@/features/system/api/media.api";
 
 interface CoverImageFieldProps {
   value?: string | null;
@@ -25,12 +29,18 @@ export function CoverImageField({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [resolvedPreview, setResolvedPreview] = useState<string | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
 
-  const previewUrl = localPreview || value?.trim() || "";
+  const storageObjectKey = useMemo(() => getStorageObjectKey(value), [value]);
+  const directValue = storageObjectKey ? "" : value?.trim() || "";
+  const previewUrl = localPreview || resolvedPreview || directValue;
   const hasImage = previewUrl.length > 0 && !previewFailed;
 
   const displayName = useMemo(() => {
+    if (storageObjectKey) {
+      return storageObjectKey.split("/").filter(Boolean).pop() ?? storageObjectKey;
+    }
     if (!value) return "";
     try {
       const parsed = new URL(value);
@@ -38,11 +48,38 @@ export function CoverImageField({
     } catch {
       return value.split("/").filter(Boolean).pop() ?? value;
     }
-  }, [value]);
+  }, [storageObjectKey, value]);
 
   useEffect(() => {
     setPreviewFailed(false);
-  }, [value, localPreview]);
+  }, [value, localPreview, resolvedPreview]);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!storageObjectKey || localPreview) {
+      setResolvedPreview(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    void mediaApi
+      .getReadUrl(storageObjectKey)
+      .then((result) => {
+        if (active) setResolvedPreview(result.url);
+      })
+      .catch(() => {
+        if (active) {
+          setResolvedPreview(null);
+          setPreviewFailed(true);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [localPreview, storageObjectKey]);
 
   useEffect(() => {
     return () => {
@@ -79,7 +116,8 @@ export function CoverImageField({
 
     try {
       const uploaded = await mediaApi.uploadImage(file);
-      onChange(uploaded.url);
+      onChange(toStorageReference(uploaded.objectKey));
+      setResolvedPreview(uploaded.url);
       replaceLocalPreview(null);
       appToast.success("Tải ảnh lên thành công.");
     } catch (error) {
@@ -94,6 +132,7 @@ export function CoverImageField({
 
   function clearImage() {
     replaceLocalPreview(null);
+    setResolvedPreview(null);
     onChange("");
     setPreviewFailed(false);
   }
@@ -108,20 +147,21 @@ export function CoverImageField({
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#999]"
             />
             <Input
-              type="url"
-              value={value ?? ""}
+              type="text"
+              value={storageObjectKey ? "" : value ?? ""}
               onChange={(event) => {
                 replaceLocalPreview(null);
+                setResolvedPreview(null);
                 onChange(event.target.value);
               }}
               disabled={disabled || uploading}
-              placeholder="https://example.com/cover.jpg"
+              placeholder={storageObjectKey ? `Đã lưu trên Storage: ${storageObjectKey}` : "https://example.com/cover.jpg"}
               className="pl-9"
             />
           </div>
 
           <p className="text-[10px] leading-4 text-[#8f8f8f]">
-            Dán URL ảnh trực tiếp hoặc tải tệp từ máy. JPG, PNG, WEBP, GIF · tối đa 5 MB.
+            Có thể dán URL ngoài hoặc tải file lên Storage. Ảnh upload chỉ lưu object key trong dữ liệu khóa học; URL đọc được tạo lại khi cần.
           </p>
         </div>
 
@@ -163,7 +203,6 @@ export function CoverImageField({
       <div className="overflow-hidden rounded-[10px] border border-[#e4dfd8] bg-[#faf9f7]">
         {hasImage ? (
           <div className="grid min-h-[220px] place-items-center bg-[linear-gradient(45deg,#f4f2ee_25%,transparent_25%),linear-gradient(-45deg,#f4f2ee_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f4f2ee_75%),linear-gradient(-45deg,transparent_75%,#f4f2ee_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0px] p-4">
-            {/* Using img intentionally because the URL may be an arbitrary backend/public URL. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={previewUrl}
@@ -178,10 +217,10 @@ export function CoverImageField({
               <ImageIcon size={20} />
             </div>
             <div className="text-[12px] font-medium text-[#555]">
-              {previewFailed ? "Không thể tải ảnh từ URL này" : "Chưa có ảnh bìa"}
+              {previewFailed ? "Không thể tải ảnh từ Storage/URL này" : "Chưa có ảnh bìa"}
             </div>
             <div className="text-[10px] text-[#999]">
-              Preview sẽ hiển thị ngay sau khi nhập URL hoặc chọn file.
+              Preview sẽ hiển thị sau khi nhập URL hoặc chọn file.
             </div>
           </div>
         )}
