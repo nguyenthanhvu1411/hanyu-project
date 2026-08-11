@@ -12,6 +12,37 @@ export interface UploadedMedia {
   kind: MediaKind;
 }
 
+export interface MediaReadUrl {
+  objectKey: string;
+  url: string;
+}
+
+export const STORAGE_REFERENCE_PREFIX = "storage://";
+
+export function toStorageReference(objectKey: string) {
+  return `${STORAGE_REFERENCE_PREFIX}${objectKey.replace(/^\/+/, "")}`;
+}
+
+export function getStorageObjectKey(value?: string | null): string | null {
+  const normalized = value?.trim();
+  if (!normalized) return null;
+
+  if (normalized.startsWith(STORAGE_REFERENCE_PREFIX)) {
+    return normalized.slice(STORAGE_REFERENCE_PREFIX.length).replace(/^\/+/, "");
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.hostname.endsWith("backblazeb2.com")) {
+      return decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 function upload(file: File, endpoint: string) {
   const formData = new FormData();
   formData.append("file", file);
@@ -27,4 +58,6 @@ export const mediaApi = {
   uploadAudio: (file: File) => upload(file, API_ENDPOINTS.ADMIN.UPLOAD_AUDIO),
   uploadVideo: (file: File) => upload(file, API_ENDPOINTS.ADMIN.UPLOAD_VIDEO),
   uploadDocument: (file: File) => upload(file, API_ENDPOINTS.ADMIN.UPLOAD_DOCUMENT),
+  getReadUrl: (objectKey: string) =>
+    apiClient<MediaReadUrl>(API_ENDPOINTS.MEDIA.READ_URL(objectKey)),
 };
