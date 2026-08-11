@@ -116,11 +116,13 @@ export function CoverImageField({
 
     try {
       const uploaded = await mediaApi.uploadImage(file);
+      // Persist a stable canonical reference. Read URLs may expire and must never be saved.
       onChange(toStorageReference(uploaded.objectKey));
       setResolvedPreview(uploaded.url);
       replaceLocalPreview(null);
       appToast.success("Tải ảnh lên thành công.");
     } catch (error) {
+      replaceLocalPreview(null);
       appToast.error(
         "Không thể tải ảnh lên",
         error instanceof Error ? error.message : "Vui lòng thử lại.",
@@ -155,13 +157,17 @@ export function CoverImageField({
                 onChange(event.target.value);
               }}
               disabled={disabled || uploading}
-              placeholder={storageObjectKey ? `Đã lưu trên Storage: ${storageObjectKey}` : "https://example.com/cover.jpg"}
+              placeholder={
+                storageObjectKey
+                  ? `Đã lưu trên Storage: ${storageObjectKey}`
+                  : "https://example.com/cover.jpg"
+              }
               className="pl-9"
             />
           </div>
 
           <p className="text-[10px] leading-4 text-[#8f8f8f]">
-            Có thể dán URL ngoài hoặc tải file lên Storage. Ảnh upload chỉ lưu object key trong dữ liệu khóa học; URL đọc được tạo lại khi cần.
+            Có thể dán URL ngoài hoặc tải file lên Storage. Ảnh upload được lưu bằng object key ổn định; URL đọc sẽ được tạo lại mỗi khi cần hiển thị.
           </p>
         </div>
 
@@ -220,7 +226,7 @@ export function CoverImageField({
               {previewFailed ? "Không thể tải ảnh từ Storage/URL này" : "Chưa có ảnh bìa"}
             </div>
             <div className="text-[10px] text-[#999]">
-              Preview sẽ hiển thị sau khi nhập URL hoặc chọn file.
+              Preview sẽ hiển thị ngay sau khi nhập URL hoặc chọn file.
             </div>
           </div>
         )}
