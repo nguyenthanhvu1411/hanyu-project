@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -23,7 +24,7 @@ import { normalizeApiError } from "@/lib/api/api-error";
 
 const schema = z.object({
   titleVi: z.string().min(1, "Vui lòng nhập tên bài giảng"),
-  slug: z.string().min(1, "Vui lòng nhập slug"),
+  slug: z.string().max(200, "Slug không được vượt quá 200 ký tự"),
   shortDescriptionVi: z.string().optional().nullable(),
   sortOrder: z.number().min(0, "Thứ tự phải lớn hơn hoặc bằng 0"),
   estimatedMinutes: z.number().min(1, "Thời lượng phải từ 1 phút"),
@@ -42,6 +43,17 @@ interface LessonFormDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/đ/g, "d")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export function LessonFormDialog({
   courseId,
   chapterId,
@@ -51,6 +63,7 @@ export function LessonFormDialog({
   onOpenChange,
 }: LessonFormDialogProps) {
   const queryClient = useQueryClient();
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(Boolean(lesson?.slug));
   const shortDescription =
     lesson && "shortDescriptionVi" in lesson ? lesson.shortDescriptionVi : "";
 
@@ -75,7 +88,7 @@ export function LessonFormDialog({
           courseChapterId: chapterId,
           hskLevelId: current.hskLevelId,
           topicId: current.topicId,
-          slug: values.slug,
+          slug: values.slug.trim(),
           titleVi: values.titleVi,
           shortDescriptionVi: values.shortDescriptionVi,
           descriptionVi: current.descriptionVi,
@@ -92,6 +105,7 @@ export function LessonFormDialog({
 
       const payload: CreateLessonRequest = {
         ...values,
+        slug: values.slug.trim(),
         courseChapterId: chapterId,
         hskLevelId,
         isFeatured: false,
@@ -146,10 +160,32 @@ export function LessonFormDialog({
           required
           error={form.formState.errors.titleVi?.message}
         >
-          <Input placeholder="Nhập tên bài giảng..." {...form.register("titleVi")} />
+          <Input
+            placeholder="Nhập tên bài giảng..."
+            {...form.register("titleVi", {
+              onChange: (event) => {
+                if (!slugManuallyEdited) {
+                  form.setValue("slug", slugify(event.target.value), { shouldDirty: true });
+                }
+              },
+            })}
+          />
         </FormField>
-        <FormField label="Slug" required error={form.formState.errors.slug?.message}>
-          <Input placeholder="vd: xin-chao" {...form.register("slug")} />
+        <FormField
+          label="Đường dẫn (slug)"
+          description="Không bắt buộc. Để trống, backend tự sinh từ tên bài giảng."
+          error={form.formState.errors.slug?.message}
+        >
+          <Input
+            placeholder="Tự sinh, ví dụ: xin-chao"
+            {...form.register("slug", {
+              onChange: (event) => setSlugManuallyEdited(event.target.value.trim().length > 0),
+              onBlur: (event) => {
+                const normalized = slugify(event.target.value);
+                if (normalized) form.setValue("slug", normalized, { shouldDirty: true });
+              },
+            })}
+          />
         </FormField>
         <FormRow columns={3}>
           <FormField label="Thứ tự" error={form.formState.errors.sortOrder?.message}>
