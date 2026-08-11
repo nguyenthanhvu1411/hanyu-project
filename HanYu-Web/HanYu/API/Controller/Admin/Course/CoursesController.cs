@@ -9,10 +9,22 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace HanYu.API.Controller.Admin.Course;
 
 [ApiController]
-[Authorize(Policy = Policies.AdminOnly)]
+[Authorize(Roles = ContentReadRoles)]
 [Route("api/v1/admin/courses")]
 public sealed class CoursesController : ControllerBase
 {
+    private const string ContentReadRoles =
+        Roles.SuperAdmin + "," + Roles.Admin + "," + Roles.ContentManager + "," + Roles.ContentEditor + "," + Roles.Reviewer;
+
+    private const string ContentEditRoles =
+        Roles.SuperAdmin + "," + Roles.Admin + "," + Roles.ContentManager + "," + Roles.ContentEditor;
+
+    private const string ContentReviewRoles =
+        Roles.SuperAdmin + "," + Roles.Admin + "," + Roles.ContentManager + "," + Roles.Reviewer;
+
+    private const string ContentPublishRoles =
+        Roles.SuperAdmin + "," + Roles.Admin + "," + Roles.ContentManager;
+
     private readonly IAdminCourseService _service;
     private readonly ICourseCurriculumReorderService _reorderService;
 
@@ -50,6 +62,7 @@ public sealed class CoursesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = ContentEditRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Create(
         CreateCourseRequest request,
@@ -58,6 +71,7 @@ public sealed class CoursesController : ControllerBase
             await _service.CreateCourseAsync(request, cancellationToken));
 
     [HttpPut("{id:long}")]
+    [Authorize(Roles = ContentEditRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Update(
         long id,
@@ -74,6 +88,7 @@ public sealed class CoursesController : ControllerBase
             await _service.ValidateCourseAsync(id, cancellationToken));
 
     [HttpPost("{id:long}/submit-review")]
+    [Authorize(Roles = ContentEditRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> SubmitReview(
         long id,
@@ -83,6 +98,7 @@ public sealed class CoursesController : ControllerBase
             await _service.SubmitForReviewAsync(id, request, cancellationToken));
 
     [HttpPost("{id:long}/approve")]
+    [Authorize(Roles = ContentReviewRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Approve(
         long id,
@@ -92,6 +108,7 @@ public sealed class CoursesController : ControllerBase
             await _service.ApproveAsync(id, request, cancellationToken));
 
     [HttpPost("{id:long}/reject")]
+    [Authorize(Roles = ContentReviewRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Reject(
         long id,
@@ -101,6 +118,7 @@ public sealed class CoursesController : ControllerBase
             await _service.RejectAsync(id, request, cancellationToken));
 
     [HttpPost("{id:long}/publish")]
+    [Authorize(Roles = ContentPublishRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Publish(
         long id,
@@ -110,6 +128,7 @@ public sealed class CoursesController : ControllerBase
             await _service.PublishAsync(id, request, cancellationToken));
 
     [HttpPost("{id:long}/schedule-publish")]
+    [Authorize(Roles = ContentPublishRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> SchedulePublish(
         long id,
@@ -119,6 +138,7 @@ public sealed class CoursesController : ControllerBase
             await _service.SchedulePublishAsync(id, request, cancellationToken));
 
     [HttpPost("{id:long}/archive")]
+    [Authorize(Roles = ContentPublishRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Archive(
         long id,
@@ -128,6 +148,7 @@ public sealed class CoursesController : ControllerBase
             await _service.ArchiveAsync(id, request, cancellationToken));
 
     [HttpPost("{id:long}/restore")]
+    [Authorize(Roles = ContentPublishRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Restore(
         long id,
@@ -137,6 +158,7 @@ public sealed class CoursesController : ControllerBase
             await _service.RestoreAsync(id, request, cancellationToken));
 
     [HttpDelete("{id:long}")]
+    [Authorize(Roles = ContentPublishRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Delete(
         long id,
@@ -146,6 +168,7 @@ public sealed class CoursesController : ControllerBase
             await _service.DeleteAsync(id, request, cancellationToken));
 
     [HttpPost("{id:long}/restore-deleted")]
+    [Authorize(Roles = ContentPublishRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> RestoreDeleted(
         long id,
@@ -155,6 +178,7 @@ public sealed class CoursesController : ControllerBase
             await _service.RestoreDeletedAsync(id, request, cancellationToken));
 
     [HttpPut("{id:long}/chapters/order")]
+    [Authorize(Roles = ContentEditRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> ReorderChapters(
         long id,
