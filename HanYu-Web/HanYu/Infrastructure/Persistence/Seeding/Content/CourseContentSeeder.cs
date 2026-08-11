@@ -50,10 +50,26 @@ public sealed class CourseContentSeeder
 
         foreach (var definition in Definitions)
         {
-            if (await _db.Courses.AnyAsync(
+            var existingCourse = await _db.Courses
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(
                     x => x.Code == definition.Code,
-                    cancellationToken))
+                    cancellationToken);
+
+            if (existingCourse is not null)
             {
+                // Seed data is idempotent and must never overwrite an admin-selected cover.
+                // Older databases may already contain COURSE-HSK1 without a cover because
+                // previous seed versions skipped every existing course entirely.
+                if (!existingCourse.IsDeleted &&
+                    string.IsNullOrWhiteSpace(existingCourse.CoverImageUrl))
+                {
+                    await BackfillMissingCoverAsync(
+                        existingCourse,
+                        definition,
+                        cancellationToken);
+                }
+
                 continue;
             }
 
@@ -66,15 +82,7 @@ public sealed class CourseContentSeeder
                 continue;
             }
 
-            var objectKey = $"seed/course-covers/{definition.Code.ToLowerInvariant()}.svg";
-            var svgBytes = Encoding.UTF8.GetBytes(BuildCoverSvg(definition));
-
-            await using var stream = new MemoryStream(svgBytes, writable: false);
-            var uploaded = await _storage.UploadAsync(
-                objectKey,
-                stream,
-                "image/svg+xml",
-                cancellationToken);
+            var uploaded = await UploadCoverAsync(definition, cancellationToken);
 
             try
             {
@@ -103,6 +111,51 @@ public sealed class CourseContentSeeder
                 throw;
             }
         }
+    }
+
+    private async Task BackfillMissingCoverAsync(
+        CourseEntity course,
+        CourseSeedDefinition definition,
+        CancellationToken cancellationToken)
+    {
+        var uploaded = await UploadCoverAsync(definition, cancellationToken);
+
+        try
+        {
+            // This is a data-migration style seed repair. We intentionally update only
+            // CoverImageUrl so existing course content, workflow state and audit data
+            // are not changed merely because an old seed row was missing its cover.
+            _db.Entry(course)
+                .Property(x => x.CoverImageUrl)
+                .CurrentValue = $"{StorageReferencePrefix}{uploaded.ObjectKey}";
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "Backfilled missing cover for existing course {CourseCode} at {ObjectKey}.",
+                definition.Code,
+                uploaded.ObjectKey);
+        }
+        catch
+        {
+            await _storage.DeleteAsync(uploaded.ObjectKey, cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task<StoredFileResult> UploadCoverAsync(
+        CourseSeedDefinition definition,
+        CancellationToken cancellationToken)
+    {
+        var objectKey = $"seed/course-covers/{definition.Code.ToLowerInvariant()}.svg";
+        var svgBytes = Encoding.UTF8.GetBytes(BuildCoverSvg(definition));
+
+        await using var stream = new MemoryStream(svgBytes, writable: false);
+        return await _storage.UploadAsync(
+            objectKey,
+            stream,
+            "image/svg+xml",
+            cancellationToken);
     }
 
     private static string BuildCoverSvg(CourseSeedDefinition definition)
