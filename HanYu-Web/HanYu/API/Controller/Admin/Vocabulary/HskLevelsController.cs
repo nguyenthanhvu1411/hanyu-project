@@ -18,11 +18,9 @@ namespace HanYu.API.Controller.Admin.Vocabulary;
 [ApiController]
 [Authorize(Policy = Policies.AdminOnly)]
 [Route("api/v1/admin/hsk-levels")]
-public sealed class HskLevelsController
-    : ControllerBase
+public sealed class HskLevelsController : ControllerBase
 {
-    private const string GenerationCacheKey =
-        "vocabulary:public:generation";
+    private const string GenerationCacheKey = "vocabulary:public:generation";
 
     private readonly IVocabularyAdminService _service;
     private readonly HanYuDbContext _db;
@@ -45,154 +43,119 @@ public sealed class HskLevelsController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(
-        CancellationToken cancellationToken)
-        => this.ToActionResult(
-            await _service.GetHskLevelsAsync(
-                cancellationToken));
+    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+        => this.ToActionResult(await _service.GetHskLevelsAsync(cancellationToken));
+
+    [HttpGet("{id:long}")]
+    public async Task<IActionResult> Get(long id, CancellationToken cancellationToken)
+    {
+        if (id <= 0)
+            return BadRequest(new { code = "HskLevel.InvalidId", message = "HSK level ID không hợp lệ." });
+
+        var entity = await _db.Set<HskLevel>()
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        return entity is null
+            ? NotFound(new { code = "HskLevel.NotFound", message = "Không tìm thấy cấp độ HSK." })
+            : Ok(VocabularyAdminMapper.ToHskResponse(entity));
+    }
 
     [HttpPost]
-    public async Task<IActionResult> Create(
-        CreateHskLevelRequest request,
-        CancellationToken cancellationToken)
-        => this.ToActionResult(
-            await _service.CreateHskLevelAsync(
-                request,
-                cancellationToken));
+    public async Task<IActionResult> Create(CreateHskLevelRequest request, CancellationToken cancellationToken)
+        => this.ToActionResult(await _service.CreateHskLevelAsync(request, cancellationToken));
 
     [HttpPut("{id:long}")]
-    public async Task<IActionResult> Update(
-        long id,
-        UpdateHskLevelRequest request,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Update(long id, UpdateHskLevelRequest request, CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
         if (!userId.HasValue)
             return Unauthorized();
 
-        var entity =
-            await _db.Set<HskLevel>()
-                .FirstOrDefaultAsync(
-                    x => x.Id == id,
-                    cancellationToken);
-
+        var entity = await _db.Set<HskLevel>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (entity is null)
-            return NotFound();
+            return NotFound(new { code = "HskLevel.NotFound", message = "Không tìm thấy cấp độ HSK." });
 
-        var normalizedCode =
-            request.Code.Trim().ToUpperInvariant();
-
-        var duplicateCode =
-            await _db.Set<HskLevel>()
-                .AnyAsync(
-                    x =>
-                        x.Id != id &&
-                        x.Code == normalizedCode,
-                    cancellationToken);
+        var normalizedCode = request.Code.Trim().ToUpperInvariant();
+        var duplicateCode = await _db.Set<HskLevel>()
+            .IgnoreQueryFilters()
+            .AnyAsync(x => x.Id != id && x.Code == normalizedCode, cancellationToken);
 
         if (duplicateCode)
-        {
-            return Conflict(new
-            {
-                code = "HskLevel.Duplicate",
-                message = "HSK level đã tồn tại."
-            });
-        }
+            return Conflict(new { code = "HskLevel.Duplicate", message = "HSK level đã tồn tại." });
 
-        entity.Update(
-            request.Code,
-            request.NameVi,
-            request.SortOrder,
-            userId.Value);
+        entity.Update(request.Code, request.NameVi, request.SortOrder, userId.Value);
+        await _db.SaveChangesAsync(cancellationToken);
+        await BumpCacheGenerationAsync(cancellationToken);
 
-        await _db.SaveChangesAsync(
-            cancellationToken);
-
-        await BumpCacheGenerationAsync(
-            cancellationToken);
-
-        return Ok(
-            VocabularyAdminMapper
-                .ToHskResponse(entity));
+        return Ok(VocabularyAdminMapper.ToHskResponse(entity));
     }
 
     [HttpPost("{id:long}/activate")]
-    public async Task<IActionResult> Activate(
-        long id,
-        CancellationToken cancellationToken)
-        => await ChangeStateAsync(
-            id,
-            activate: true,
-            cancellationToken);
+    public Task<IActionResult> Activate(long id, CancellationToken cancellationToken)
+        => ChangeStateAsync(id, activate: true, cancellationToken);
 
     [HttpPost("{id:long}/deactivate")]
-    public async Task<IActionResult> Deactivate(
-        long id,
-        CancellationToken cancellationToken)
-        => await ChangeStateAsync(
-            id,
-            activate: false,
-            cancellationToken);
+    public Task<IActionResult> Deactivate(long id, CancellationToken cancellationToken)
+        => ChangeStateAsync(id, activate: false, cancellationToken);
 
     [HttpDelete("{id:long}")]
-    public async Task<IActionResult> Delete(
-        long id,
-        CancellationToken cancellationToken)
-        => this.ToActionResult(
-            await _service.DeleteHskLevelAsync(
-                id,
-                cancellationToken));
+    public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
+        => this.ToActionResult(await _service.DeleteHskLevelAsync(id, cancellationToken));
 
-    private async Task<IActionResult> ChangeStateAsync(
-        long id,
-        bool activate,
-        CancellationToken cancellationToken)
+    [HttpPost("{id:long}/restore")]
+    public async Task<IActionResult> Restore(long id, CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
         if (!userId.HasValue)
             return Unauthorized();
 
-        var entity =
-            await _db.Set<HskLevel>()
-                .FirstOrDefaultAsync(
-                    x => x.Id == id,
-                    cancellationToken);
+        var entity = await _db.Set<HskLevel>()
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (entity is null)
-            return NotFound();
+            return NotFound(new { code = "HskLevel.NotFound", message = "Không tìm thấy cấp độ HSK." });
+
+        entity.RestoreDeleted(userId.Value);
+        await _db.SaveChangesAsync(cancellationToken);
+        await BumpCacheGenerationAsync(cancellationToken);
+
+        return Ok(VocabularyAdminMapper.ToHskResponse(entity));
+    }
+
+    private async Task<IActionResult> ChangeStateAsync(long id, bool activate, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (!userId.HasValue)
+            return Unauthorized();
+
+        var entity = await _db.Set<HskLevel>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (entity is null)
+            return NotFound(new { code = "HskLevel.NotFound", message = "Không tìm thấy cấp độ HSK." });
 
         if (activate)
             entity.Activate(userId.Value);
         else
             entity.Deactivate(userId.Value);
 
-        await _db.SaveChangesAsync(
-            cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        await BumpCacheGenerationAsync(cancellationToken);
 
-        await BumpCacheGenerationAsync(
-            cancellationToken);
-
-        return Ok(
-            VocabularyAdminMapper
-                .ToHskResponse(entity));
+        return Ok(VocabularyAdminMapper.ToHskResponse(entity));
     }
 
     private Guid? GetCurrentUserId()
     {
         var userId = _currentUser.UserId;
-
-        return userId.HasValue &&
-               userId.Value != Guid.Empty
-            ? userId.Value
-            : null;
+        return userId.HasValue && userId.Value != Guid.Empty ? userId.Value : null;
     }
 
-    private Task BumpCacheGenerationAsync(
-        CancellationToken cancellationToken)
+    private Task BumpCacheGenerationAsync(CancellationToken cancellationToken)
         => _cache.SetAsync(
             GenerationCacheKey,
             Guid.NewGuid().ToString("N"),
-            TimeSpan.FromDays(
-                _cacheOptions.GenerationDays),
+            TimeSpan.FromDays(_cacheOptions.GenerationDays),
             cancellationToken);
 }
