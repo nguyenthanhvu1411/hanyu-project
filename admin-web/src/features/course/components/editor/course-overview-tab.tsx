@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StorageImage } from "@/components/media/storage-image";
 import type { CourseEditorController } from "../../hooks/use-course-editor";
 import { getContentStatusLabel } from "@/lib/constants/content-status";
 
@@ -20,6 +21,15 @@ export function CourseOverviewTab({ editor }: { editor: CourseEditorController }
           ) : null}
         </CardHeader>
         <CardContent className="space-y-5">
+          <div className="overflow-hidden rounded-[11px] border border-[#e8e3dc] bg-[#faf9f7]">
+            <StorageImage
+              value={course.coverImageUrl}
+              alt={`Ảnh bìa ${course.titleVi}`}
+              className="max-h-[360px] w-full object-cover"
+              emptyClassName="min-h-[220px]"
+            />
+          </div>
+
           <dl className="grid gap-4 md:grid-cols-2">
             <Info label="Mã" value={course.code} />
             <Info label="Slug" value={course.slug} />
