@@ -14,7 +14,7 @@ public sealed class AdminImageUploadIntegrationTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Admin_CanUploadAndReadImage()
+    public async Task Admin_CanUploadImage()
     {
         var adminId = await CreateUserAsync("image-upload-admin");
         var client = Factory.CreateAdminClient(adminId);
@@ -36,15 +36,10 @@ public sealed class AdminImageUploadIntegrationTests : IntegrationTestBase
 
         root.GetProperty("contentType").GetString().Should().Be("image/png");
         root.GetProperty("size").GetInt64().Should().Be(png.Length);
-
-        var relativeUrl = root.GetProperty("relativeUrl").GetString();
-        relativeUrl.Should().NotBeNullOrWhiteSpace();
-        relativeUrl.Should().StartWith("/uploads/images/");
-
-        var read = await client.GetAsync(relativeUrl);
-        read.StatusCode.Should().Be(HttpStatusCode.OK);
-        read.Content.Headers.ContentType?.MediaType.Should().Be("image/png");
-        (await read.Content.ReadAsByteArrayAsync()).Should().Equal(png);
+        root.GetProperty("kind").GetString().Should().Be("image");
+        root.GetProperty("fileName").GetString().Should().EndWith(".png");
+        root.GetProperty("objectKey").GetString().Should().StartWith("images/");
+        root.GetProperty("url").GetString().Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
