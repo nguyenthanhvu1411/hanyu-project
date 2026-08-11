@@ -22,6 +22,7 @@ import type {
   LockUserRequest,
   PatchAdminUserRequest,
   ReplaceUserRolesRequest,
+  ResetAdminUserPasswordRequest,
   UnlockUserRequest,
   UpdateAdminUserRequest,
 } from "@/dto/identity/admin-user.dto";
@@ -49,22 +50,14 @@ export const identityService = {
     async get(
       id: string,
     ) {
-      return (
-        await identityApi.users.get(
-          id,
-        )
-      );
+      return identityApi.users.get(id);
     },
 
     async create(
       request:
         CreateAdminUserRequest,
     ) {
-      return (
-        await identityApi.users.create(
-          request,
-        )
-      );
+      return identityApi.users.create(request);
     },
 
     async update(
@@ -72,12 +65,7 @@ export const identityService = {
       request:
         UpdateAdminUserRequest,
     ) {
-      return (
-        await identityApi.users.update(
-          id,
-          request,
-        )
-      );
+      return identityApi.users.update(id, request);
     },
 
     async patch(
@@ -85,12 +73,7 @@ export const identityService = {
       request:
         PatchAdminUserRequest,
     ) {
-      return (
-        await identityApi.users.patch(
-          id,
-          request,
-        )
-      );
+      return identityApi.users.patch(id, request);
     },
 
     remove:
@@ -104,10 +87,7 @@ export const identityService = {
       request:
         LockUserRequest,
     ) {
-      return identityApi.users.lock(
-        id,
-        request,
-      );
+      return identityApi.users.lock(id, request);
     },
 
     unlock(
@@ -115,10 +95,7 @@ export const identityService = {
       request:
         UnlockUserRequest,
     ) {
-      return identityApi.users.unlock(
-        id,
-        request,
-      );
+      return identityApi.users.unlock(id, request);
     },
 
     replaceRoles(
@@ -126,15 +103,18 @@ export const identityService = {
       request:
         ReplaceUserRolesRequest,
     ) {
-      return identityApi.users.replaceRoles(
-        id,
-        request,
-      );
+      return identityApi.users.replaceRoles(id, request);
     },
 
     revokeSessions:
-      identityApi.users
-        .revokeSessions,
+      identityApi.users.revokeSessions,
+
+    resetPassword(
+      id: string,
+      request: ResetAdminUserPasswordRequest,
+    ) {
+      return identityApi.users.resetPassword(id, request);
+    },
   },
 
   roles: {
@@ -152,22 +132,14 @@ export const identityService = {
     async get(
       id: string,
     ) {
-      return (
-        await identityApi.roles.get(
-          id,
-        )
-      );
+      return identityApi.roles.get(id);
     },
 
     async create(
       request:
         CreateAdminRoleRequest,
     ) {
-      return (
-        await identityApi.roles.create(
-          request,
-        )
-      );
+      return identityApi.roles.create(request);
     },
 
     async update(
@@ -175,12 +147,7 @@ export const identityService = {
       request:
         UpdateAdminRoleRequest,
     ) {
-      return (
-        await identityApi.roles.update(
-          id,
-          request,
-        )
-      );
+      return identityApi.roles.update(id, request);
     },
 
     patch(
@@ -188,10 +155,7 @@ export const identityService = {
       request:
         PatchAdminRoleRequest,
     ) {
-      return identityApi.roles.patch(
-        id,
-        request,
-      );
+      return identityApi.roles.patch(id, request);
     },
 
     remove:
@@ -216,20 +180,14 @@ export const identityService = {
     async get(
       id: string,
     ) {
-      return (
-        await identityApi.permissions.get(
-          id,
-        )
-      );
+      return identityApi.permissions.get(id);
     },
 
     create(
       request:
         CreateAdminPermissionRequest,
     ) {
-      return identityApi.permissions.create(
-        request,
-      );
+      return identityApi.permissions.create(request);
     },
 
     update(
@@ -237,19 +195,14 @@ export const identityService = {
       request:
         UpdateAdminPermissionRequest,
     ) {
-      return identityApi.permissions.update(
-        id,
-        request,
-      );
+      return identityApi.permissions.update(id, request);
     },
 
     remove:
-      identityApi.permissions
-        .remove,
+      identityApi.permissions.remove,
 
     restore:
-      identityApi.permissions
-        .restore,
+      identityApi.permissions.restore,
   },
 
   sessions: {
@@ -267,11 +220,7 @@ export const identityService = {
     async get(
       id: string,
     ) {
-      return (
-        await identityApi.sessions.get(
-          id,
-        )
-      );
+      return identityApi.sessions.get(id);
     },
 
     remove:
