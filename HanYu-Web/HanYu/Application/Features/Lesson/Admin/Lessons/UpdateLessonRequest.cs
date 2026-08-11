@@ -2,17 +2,27 @@ namespace HanYu.Application.Features.Lesson.Admin.Lessons;
 
 public sealed class UpdateLessonRequest
 {
+    private string _slug = string.Empty;
+    private string _titleVi = string.Empty;
+
     public long? CourseChapterId { get; init; }
 
     public short HskLevelId { get; init; }
 
     public long? TopicId { get; init; }
 
-    public string Slug { get; init; }
-        = string.Empty;
+    public string Slug
+    {
+        get => LessonSlugGenerator.Generate(
+            string.IsNullOrWhiteSpace(_slug) ? _titleVi : _slug);
+        init => _slug = value ?? string.Empty;
+    }
 
-    public string TitleVi { get; init; }
-        = string.Empty;
+    public string TitleVi
+    {
+        get => _titleVi;
+        init => _titleVi = value ?? string.Empty;
+    }
 
     public string? ShortDescriptionVi { get; init; }
 
