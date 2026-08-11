@@ -65,7 +65,6 @@ public sealed class CourseChapterIntegrationTests : IntegrationTestBase
         var updated = await ReadObjectAsync(update);
         updated.GetProperty("titleVi").GetString().Should().Be("Chương 1 cập nhật");
         updated.GetProperty("isActive").GetBoolean().Should().BeFalse();
-        var updatedToken = updated.GetProperty("concurrencyToken").GetGuid();
 
         var reorder = await client.PutAsJsonAsync(
             $"/api/v1/admin/courses/{seed.CourseId}/chapters/order",
@@ -89,11 +88,15 @@ public sealed class CourseChapterIntegrationTests : IntegrationTestBase
         ordered[1].GetProperty("id").GetInt64().Should().Be(firstId);
         ordered[1].GetProperty("sortOrder").GetInt32().Should().Be(1);
 
+        // Reorder mutates the entity and therefore rotates its concurrency token.
+        var firstAfterReorder = ordered.Single(x => x.GetProperty("id").GetInt64() == firstId);
+        var tokenAfterReorder = firstAfterReorder.GetProperty("concurrencyToken").GetGuid();
+
         var deleteRequest = new HttpRequestMessage(
             HttpMethod.Delete,
             $"/api/v1/admin/courses/{seed.CourseId}/chapters/{firstId}")
         {
-            Content = JsonContent.Create(new { concurrencyToken = updatedToken })
+            Content = JsonContent.Create(new { concurrencyToken = tokenAfterReorder })
         };
 
         var delete = await client.SendAsync(deleteRequest);
