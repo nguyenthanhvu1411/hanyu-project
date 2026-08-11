@@ -1,4 +1,4 @@
-import { CourseEditor } from "@/features/course/components/editor/course-editor";
+import { redirect } from "next/navigation";
 
 interface Props {
   params: Promise<{
@@ -11,8 +11,8 @@ export default async function CourseDetailPage({ params }: Props) {
   const courseId = Number(id);
 
   if (!Number.isInteger(courseId) || courseId <= 0) {
-    return <div className="p-6">Khóa học không hợp lệ.</div>;
+    redirect("/khoa-hoc");
   }
 
-  return <CourseEditor courseId={courseId} />;
+  redirect(`/khoa-hoc/${courseId}/tong-quan`);
 }
