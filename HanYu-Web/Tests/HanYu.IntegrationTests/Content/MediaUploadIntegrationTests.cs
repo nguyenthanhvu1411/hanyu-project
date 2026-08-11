@@ -28,7 +28,7 @@ public sealed class MediaUploadIntegrationTests : IntegrationTestBase
         using var request = new MultipartFormDataContent();
         var bytes = new byte[] { 1, 2, 3, 4, 5, 6 };
         using var file = new ByteArrayContent(bytes);
-        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        file.Headers.ContentType = new global::System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
         request.Add(file, "file", fileName);
 
         var response = await client.PostAsync(endpoint, request);
@@ -54,7 +54,7 @@ public sealed class MediaUploadIntegrationTests : IntegrationTestBase
 
         using var request = new MultipartFormDataContent();
         using var file = new ByteArrayContent(new byte[] { 1, 2, 3 });
-        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-msdownload");
+        file.Headers.ContentType = new global::System.Net.Http.Headers.MediaTypeHeaderValue("application/x-msdownload");
         request.Add(file, "file", "malware.exe");
 
         var response = await client.PostAsync("/api/v1/admin/uploads/images", request);
@@ -69,7 +69,7 @@ public sealed class MediaUploadIntegrationTests : IntegrationTestBase
 
         using var request = new MultipartFormDataContent();
         using var file = new ByteArrayContent(new byte[] { 1, 2, 3 });
-        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        file.Headers.ContentType = new global::System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
         request.Add(file, "file", "cover.png");
 
         var response = await client.PostAsync("/api/v1/admin/uploads/images", request);
