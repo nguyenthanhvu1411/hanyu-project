@@ -61,12 +61,16 @@ public sealed class AdminLearningContentCrudIntegrationTests : IntegrationTestBa
         var delete = await client.DeleteAsync($"/api/v1/admin/hsk-levels/{id}");
         delete.IsSuccessStatusCode.Should().BeTrue();
 
+        // Soft-deleted HSK levels are intentionally hidden from the normal detail endpoint.
         var deletedDetail = await client.GetAsync($"/api/v1/admin/hsk-levels/{id}");
-        deletedDetail.StatusCode.Should().Be(HttpStatusCode.OK);
+        deletedDetail.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
         var restore = await client.PostAsync($"/api/v1/admin/hsk-levels/{id}/restore", null);
         restore.StatusCode.Should().Be(HttpStatusCode.OK);
         (await ReadObjectAsync(restore)).GetProperty("isActive").GetBoolean().Should().BeTrue();
+
+        var restoredDetail = await client.GetAsync($"/api/v1/admin/hsk-levels/{id}");
+        restoredDetail.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var list = await client.GetAsync("/api/v1/admin/hsk-levels");
         list.StatusCode.Should().Be(HttpStatusCode.OK);
