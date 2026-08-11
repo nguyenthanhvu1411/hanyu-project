@@ -12,6 +12,12 @@ import type {
   UpdateCourseRequest,
 } from "../types/course.types";
 import type {
+  CourseHistoryItem,
+  CourseStatistics,
+  CourseStudent,
+  CourseStudentsQuery,
+} from "../types/course-insights.types";
+import type {
   CourseValidationResult,
   ReorderChaptersRequest,
 } from "../types/curriculum.types";
@@ -31,6 +37,15 @@ function buildQuery(query: AdminCourseQuery): string {
   return params.toString();
 }
 
+function buildStudentsQuery(query: CourseStudentsQuery): string {
+  const params = new URLSearchParams();
+  if (query.search) params.set("search", query.search);
+  if (query.status) params.set("status", query.status);
+  params.set("page", String(query.page ?? 1));
+  params.set("pageSize", String(query.pageSize ?? 20));
+  return params.toString();
+}
+
 export const courseApi = {
   list(query: AdminCourseQuery = {}) {
     return apiClient<PagedResult<AdminCourseListItem>>(
@@ -39,6 +54,17 @@ export const courseApi = {
   },
   getById(id: number) {
     return apiClient<AdminCourseDetail>(API_ENDPOINTS.COURSE.DETAIL(id));
+  },
+  history(id: number) {
+    return apiClient<CourseHistoryItem[]>(`${API_ENDPOINTS.COURSE.DETAIL(id)}/history`);
+  },
+  statistics(id: number) {
+    return apiClient<CourseStatistics>(`${API_ENDPOINTS.COURSE.DETAIL(id)}/statistics`);
+  },
+  students(id: number, query: CourseStudentsQuery = {}) {
+    return apiClient<PagedResult<CourseStudent>>(
+      `${API_ENDPOINTS.COURSE.DETAIL(id)}/students?${buildStudentsQuery(query)}`,
+    );
   },
   create(request: CreateCourseRequest) {
     return apiClient<AdminCourseDetail>(API_ENDPOINTS.COURSE.ROOT, { method: "POST", body: request });
