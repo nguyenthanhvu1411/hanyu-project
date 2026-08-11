@@ -64,8 +64,38 @@ public sealed class S3PublicFileStorage : IPublicFileStorage, IDisposable
 
         await _s3.PutObjectAsync(request, cancellationToken);
 
-        var readUrl = CreateReadUrl(request.Key);
-        return new PublicFileUploadResult(request.Key, readUrl);
+        return new PublicFileUploadResult(
+            request.Key,
+            await GetReadUrlAsync(request.Key, cancellationToken));
+    }
+
+    public Task<string> GetReadUrlAsync(
+        string objectKey,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        EnsureBucketConfigured();
+
+        var normalizedKey = NormalizeObjectKey(objectKey);
+
+        if (!string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
+        {
+            return Task.FromResult(
+                $"{_options.PublicBaseUrl.TrimEnd('/')}/{normalizedKey}");
+        }
+
+        var expiresAt = DateTime.UtcNow.AddMinutes(
+            Math.Clamp(_options.MediaReadUrlExpirationMinutes, 1, 60 * 24));
+
+        var url = _s3.GetPreSignedURL(new GetPreSignedUrlRequest
+        {
+            BucketName = _options.PublicBucketName,
+            Key = normalizedKey,
+            Verb = HttpVerb.GET,
+            Expires = expiresAt
+        });
+
+        return Task.FromResult(url);
     }
 
     public Task DeleteAsync(
@@ -78,25 +108,6 @@ public sealed class S3PublicFileStorage : IPublicFileStorage, IDisposable
             _options.PublicBucketName,
             NormalizeObjectKey(objectKey),
             cancellationToken);
-    }
-
-    private string CreateReadUrl(string objectKey)
-    {
-        if (!string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
-        {
-            return $"{_options.PublicBaseUrl.TrimEnd('/')}/{objectKey.TrimStart('/')}";
-        }
-
-        var expiresAt = DateTime.UtcNow.AddMinutes(
-            Math.Clamp(_options.MediaReadUrlExpirationMinutes, 1, 60 * 24));
-
-        return _s3.GetPreSignedURL(new GetPreSignedUrlRequest
-        {
-            BucketName = _options.PublicBucketName,
-            Key = objectKey,
-            Verb = HttpVerb.GET,
-            Expires = expiresAt
-        });
     }
 
     private void EnsureBucketConfigured()
