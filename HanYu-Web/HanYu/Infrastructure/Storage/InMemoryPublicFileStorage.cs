@@ -22,7 +22,15 @@ public sealed class InMemoryPublicFileStorage : IPublicFileStorage
 
         return new PublicFileUploadResult(
             objectKey,
-            $"https://storage.test/{objectKey}");
+            await GetReadUrlAsync(objectKey, cancellationToken));
+    }
+
+    public Task<string> GetReadUrlAsync(
+        string objectKey,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult($"https://storage.test/{objectKey.TrimStart('/')}");
     }
 
     public Task DeleteAsync(
