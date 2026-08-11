@@ -1,11 +1,13 @@
 using HanYu.API.Common.Extensions;
 using HanYu.Application.Features.Identity.Admin.Users;
+using HanYu.Application.Features.Identity.Admin.Users.CreateUser;
 using HanYu.Application.Features.Identity.Admin.Users.GetUserById;
 using HanYu.Application.Features.Identity.Admin.Users.GetUsers;
 using HanYu.Application.Features.Identity.Admin.Users.LockUser;
 using HanYu.Application.Features.Identity.Admin.Users.UnlockUser;
 using HanYu.Application.Features.Identity.Admin.Users.DeleteUser;
 using HanYu.Application.Features.Identity.Admin.Users.RestoreUser;
+using HanYu.Application.Features.Identity.Admin.Users.ResetPassword;
 using HanYu.Application.Features.Identity.Admin.Users.UpdateUser;
 using HanYu.Application.Features.Identity.Admin.Users.UpdateRoles;
 using HanYu.Domain.Constants;
@@ -21,31 +23,37 @@ public sealed class AdminUsersController : ControllerBase
 {
     private readonly GetUsersHandler _getUsersHandler;
     private readonly GetUserByIdHandler _getUserByIdHandler;
+    private readonly CreateAdminUserHandler _createAdminUserHandler;
     private readonly LockUserHandler _lockUserHandler;
     private readonly UnlockUserHandler _unlockUserHandler;
     private readonly UpdateUserHandler _updateUserHandler;
     private readonly DeleteUserHandler _deleteUserHandler;
     private readonly RestoreUserHandler _restoreUserHandler;
     private readonly UpdateUserRolesHandler _updateUserRolesHandler;
+    private readonly ResetAdminUserPasswordHandler _resetAdminUserPasswordHandler;
 
     public AdminUsersController(
         GetUsersHandler getUsersHandler,
         GetUserByIdHandler getUserByIdHandler,
+        CreateAdminUserHandler createAdminUserHandler,
         LockUserHandler lockUserHandler,
         UnlockUserHandler unlockUserHandler,
         UpdateUserHandler updateUserHandler,
         DeleteUserHandler deleteUserHandler,
         RestoreUserHandler restoreUserHandler,
-        UpdateUserRolesHandler updateUserRolesHandler)
+        UpdateUserRolesHandler updateUserRolesHandler,
+        ResetAdminUserPasswordHandler resetAdminUserPasswordHandler)
     {
         _getUsersHandler = getUsersHandler;
         _getUserByIdHandler = getUserByIdHandler;
+        _createAdminUserHandler = createAdminUserHandler;
         _lockUserHandler = lockUserHandler;
         _unlockUserHandler = unlockUserHandler;
         _updateUserHandler = updateUserHandler;
         _deleteUserHandler = deleteUserHandler;
         _restoreUserHandler = restoreUserHandler;
         _updateUserRolesHandler = updateUserRolesHandler;
+        _resetAdminUserPasswordHandler = resetAdminUserPasswordHandler;
     }
 
     /// <summary>
@@ -57,6 +65,25 @@ public sealed class AdminUsersController : ControllerBase
         CancellationToken cancellationToken)
         => this.ToActionResult(
             await _getUsersHandler.ExecuteAsync(query, cancellationToken));
+
+    /// <summary>
+    /// Tạo người dùng mới từ trang quản trị.
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> CreateUser(
+        [FromBody] CreateAdminUserRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _createAdminUserHandler.ExecuteAsync(
+                new CreateAdminUserCommand(
+                    request.Email,
+                    request.Password,
+                    request.DisplayName,
+                    request.Locale,
+                    request.Status,
+                    request.RoleIds ?? [],
+                    request.EmailVerified),
+                cancellationToken));
 
     /// <summary>
     /// Lấy chi tiết một người dùng theo ID (Guid)
@@ -100,7 +127,7 @@ public sealed class AdminUsersController : ControllerBase
         CancellationToken cancellationToken)
         => this.ToActionResult(
             await _updateUserHandler.ExecuteAsync(
-                new UpdateUserCommand(id, request.Email, request.DisplayName, request.Locale, request.Status, request.ConcurrencyToken), 
+                new UpdateUserCommand(id, request.Email, request.DisplayName, request.Locale, request.Status, request.ConcurrencyToken),
                 cancellationToken));
 
     /// <summary>
@@ -139,12 +166,36 @@ public sealed class AdminUsersController : ControllerBase
                     UserId = id,
                     RoleCodes = request.RoleCodes,
                     Reason = request.Reason
-                }, 
+                },
+                cancellationToken));
+
+    /// <summary>
+    /// Đặt lại mật khẩu cho người dùng. Chỉ SuperAdmin được phép thực hiện.
+    /// </summary>
+    [Authorize(Roles = Roles.SuperAdmin)]
+    [HttpPost("{id:guid}/reset-password")]
+    public async Task<IActionResult> ResetPassword(
+        Guid id,
+        [FromBody] ResetAdminUserPasswordRequest request,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await _resetAdminUserPasswordHandler.ExecuteAsync(
+                new ResetAdminUserPasswordCommand(id, request.NewPassword),
                 cancellationToken));
 }
+
+public sealed record CreateAdminUserRequest(
+    string Email,
+    string Password,
+    string DisplayName,
+    string? Locale,
+    string? Status,
+    IReadOnlyCollection<Guid>? RoleIds,
+    bool EmailVerified = false);
 
 public sealed record LockUserRequest(string Reason);
 public sealed record UnlockUserRequest(string Reason);
 public sealed record UpdateUserRequest(string Email, string DisplayName, string? Locale, string Status, string? ConcurrencyToken);
 public sealed record DeleteUserRequest(string Reason);
 public sealed record UpdateRolesRequest(List<string> RoleCodes, string Reason);
+public sealed record ResetAdminUserPasswordRequest(string NewPassword);
