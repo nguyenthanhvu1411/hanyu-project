@@ -23,10 +23,7 @@ public sealed class S3PublicFileStorage : IPublicFileStorage, IDisposable
                 "Storage credentials chưa được cấu hình. Hãy đặt Storage:AccessKey và Storage:SecretKey bằng user-secrets hoặc environment variables.");
         }
 
-        var config = new AmazonS3Config
-        {
-            SignatureVersion = "4"
-        };
+        var config = new AmazonS3Config();
 
         if (!string.IsNullOrWhiteSpace(_options.ServiceUrl))
         {
