@@ -29,6 +29,7 @@ export const API_ENDPOINTS = {
   LEARNING: {
     HSK_LEVELS: "/admin/hsk-levels",
     HSK_LEVEL: (id: number) => `/admin/hsk-levels/${id}`,
+    HSK_LEVEL_RESTORE: (id: number) => `/admin/hsk-levels/${id}/restore`,
     HSK_LEVEL_ACTIVATE: (id: number) => `/admin/hsk-levels/${id}/activate`,
     HSK_LEVEL_DEACTIVATE: (id: number) => `/admin/hsk-levels/${id}/deactivate`,
   },
