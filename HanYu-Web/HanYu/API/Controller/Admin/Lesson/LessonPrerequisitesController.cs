@@ -8,48 +8,40 @@ using Microsoft.AspNetCore.Mvc;
 namespace HanYu.API.Controller.Admin.Lesson;
 
 [ApiController]
-[Authorize(Policy = Policies.AdminOnly)]
-[Route(
-    "api/v1/admin/lessons/{lessonId:long}/prerequisites")]
-public sealed class LessonPrerequisitesController
-    : ControllerBase
+[Authorize(Roles = ContentReadRoles)]
+[Route("api/v1/admin/lessons/{lessonId:long}/prerequisites")]
+public sealed class LessonPrerequisitesController : ControllerBase
 {
+    private const string ContentReadRoles =
+        Roles.SuperAdmin + "," + Roles.Admin + "," + Roles.ContentManager + "," + Roles.ContentEditor + "," + Roles.Reviewer;
+
+    private const string ContentEditRoles =
+        Roles.SuperAdmin + "," + Roles.Admin + "," + Roles.ContentManager + "," + Roles.ContentEditor;
+
     private readonly ILessonAdminService _service;
 
-    public LessonPrerequisitesController(
-        ILessonAdminService service)
+    public LessonPrerequisitesController(ILessonAdminService service)
     {
         _service = service;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll(
-        long lessonId,
-        CancellationToken cancellationToken)
-        => this.ToActionResult(
-            await _service.GetPrerequisitesAsync(
-                lessonId,
-                cancellationToken));
+    public async Task<IActionResult> GetAll(long lessonId, CancellationToken cancellationToken)
+        => this.ToActionResult(await _service.GetPrerequisitesAsync(lessonId, cancellationToken));
 
     [HttpPost]
+    [Authorize(Roles = ContentEditRoles)]
     public async Task<IActionResult> Add(
         long lessonId,
         AddLessonPrerequisiteRequest request,
         CancellationToken cancellationToken)
-        => this.ToActionResult(
-            await _service.AddPrerequisiteAsync(
-                lessonId,
-                request,
-                cancellationToken));
+        => this.ToActionResult(await _service.AddPrerequisiteAsync(lessonId, request, cancellationToken));
 
     [HttpDelete("{requiredLessonId:long}")]
+    [Authorize(Roles = ContentEditRoles)]
     public async Task<IActionResult> Delete(
         long lessonId,
         long requiredLessonId,
         CancellationToken cancellationToken)
-        => this.ToActionResult(
-            await _service.RemovePrerequisiteAsync(
-                lessonId,
-                requiredLessonId,
-                cancellationToken));
+        => this.ToActionResult(await _service.RemovePrerequisiteAsync(lessonId, requiredLessonId, cancellationToken));
 }
