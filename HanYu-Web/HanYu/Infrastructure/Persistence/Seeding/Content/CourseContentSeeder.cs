@@ -10,6 +10,8 @@ namespace HanYu.Infrastructure.Persistence.Seeding.Content;
 
 public sealed class CourseContentSeeder
 {
+    private const string StorageReferencePrefix = "storage://";
+
     private readonly HanYuDbContext _db;
     private readonly IPublicFileStorage _storage;
     private readonly ContentSeedOptions _options;
@@ -35,11 +37,10 @@ public sealed class CourseContentSeeder
         if (!_options.Enabled)
             return;
 
-        if (string.IsNullOrWhiteSpace(_storageOptions.PublicBucketName) ||
-            string.IsNullOrWhiteSpace(_storageOptions.PublicBaseUrl))
+        if (string.IsNullOrWhiteSpace(_storageOptions.PublicBucketName))
         {
             _logger.LogWarning(
-                "Content seed skipped because public storage is not configured. Configure Storage:PublicBucketName and Storage:PublicBaseUrl first.");
+                "Content seed skipped because Storage:PublicBucketName is not configured.");
             return;
         }
 
@@ -85,7 +86,7 @@ public sealed class CourseContentSeeder
                     definition.SortOrder,
                     definition.ShortDescription,
                     definition.Description,
-                    uploaded.PublicUrl,
+                    $"{StorageReferencePrefix}{uploaded.ObjectKey}",
                     definition.EstimatedMinutes);
 
                 _db.Courses.Add(course);
@@ -143,71 +144,11 @@ public sealed class CourseContentSeeder
 
     private static readonly CourseSeedDefinition[] Definitions =
     [
-        new(
-            "COURSE-HSK1",
-            "HSK1",
-            "hsk-1-nen-tang-tieng-trung",
-            "HSK 1 - Nền tảng tiếng Trung",
-            "Làm quen phát âm, chữ Hán và các mẫu câu giao tiếp cơ bản.",
-            "Khóa học xây dựng nền tảng tiếng Trung cho người mới bắt đầu: Pinyin, thanh điệu, chữ Hán cơ bản, từ vựng HSK 1 và hội thoại hằng ngày.",
-            1,
-            360,
-            "#ef241c",
-            "#ff766f"),
-        new(
-            "COURSE-HSK2",
-            "HSK2",
-            "hsk-2-giao-tiep-co-ban",
-            "HSK 2 - Giao tiếp cơ bản",
-            "Mở rộng từ vựng và phản xạ trong các tình huống quen thuộc.",
-            "Khóa học tập trung vào giao tiếp đời sống, cấu trúc câu HSK 2 và khả năng nghe đọc những đoạn hội thoại ngắn.",
-            2,
-            480,
-            "#f97316",
-            "#fb923c"),
-        new(
-            "COURSE-HSK3",
-            "HSK3",
-            "hsk-3-trung-cap",
-            "HSK 3 - Tiếng Trung trung cấp",
-            "Phát triển đồng đều nghe, nói, đọc và vốn từ trung cấp.",
-            "Lộ trình HSK 3 giúp người học sử dụng tiếng Trung độc lập hơn trong học tập, công việc và các chủ đề đời sống thường gặp.",
-            3,
-            600,
-            "#eab308",
-            "#facc15"),
-        new(
-            "COURSE-HSK4",
-            "HSK4",
-            "hsk-4-ung-dung-thuc-te",
-            "HSK 4 - Ứng dụng thực tế",
-            "Nâng khả năng diễn đạt, đọc hiểu và xử lý hội thoại dài hơn.",
-            "Khóa học HSK 4 tập trung vào diễn đạt tự nhiên, đọc hiểu văn bản trung bình và sử dụng ngữ pháp trong tình huống thực tế.",
-            4,
-            720,
-            "#16a34a",
-            "#4ade80"),
-        new(
-            "COURSE-HSK5",
-            "HSK5",
-            "hsk-5-nang-cao",
-            "HSK 5 - Tiếng Trung nâng cao",
-            "Mở rộng khả năng đọc, viết và sử dụng từ vựng học thuật.",
-            "Lộ trình HSK 5 dành cho người học muốn đọc hiểu nội dung dài, diễn đạt ý kiến phức tạp và chuẩn bị cho môi trường học tập hoặc công việc bằng tiếng Trung.",
-            5,
-            900,
-            "#2563eb",
-            "#60a5fa"),
-        new(
-            "COURSE-HSK6",
-            "HSK6",
-            "hsk-6-chuyen-sau",
-            "HSK 6 - Tiếng Trung chuyên sâu",
-            "Rèn khả năng hiểu và diễn đạt tiếng Trung ở mức độ chuyên sâu.",
-            "Khóa học HSK 6 phát triển năng lực đọc hiểu, nghe hiểu và diễn đạt chính xác với các chủ đề phức tạp, chuẩn bị cho học thuật và công việc chuyên môn.",
-            6,
-            1080,
-            "#7c3aed",
-            "#a78bfa")
+        new("COURSE-HSK1", "HSK1", "hsk-1-nen-tang-tieng-trung", "HSK 1 - Nền tảng tiếng Trung", "Làm quen phát âm, chữ Hán và các mẫu câu giao tiếp cơ bản.", "Khóa học xây dựng nền tảng tiếng Trung cho người mới bắt đầu: Pinyin, thanh điệu, chữ Hán cơ bản, từ vựng HSK 1 và hội thoại hằng ngày.", 1, 360, "#ef241c", "#ff766f"),
+        new("COURSE-HSK2", "HSK2", "hsk-2-giao-tiep-co-ban", "HSK 2 - Giao tiếp cơ bản", "Mở rộng từ vựng và phản xạ trong các tình huống quen thuộc.", "Khóa học tập trung vào giao tiếp đời sống, cấu trúc câu HSK 2 và khả năng nghe đọc những đoạn hội thoại ngắn.", 2, 480, "#f97316", "#fb923c"),
+        new("COURSE-HSK3", "HSK3", "hsk-3-trung-cap", "HSK 3 - Tiếng Trung trung cấp", "Phát triển đồng đều nghe, nói, đọc và vốn từ trung cấp.", "Lộ trình HSK 3 giúp người học sử dụng tiếng Trung độc lập hơn trong học tập, công việc và các chủ đề đời sống thường gặp.", 3, 600, "#eab308", "#facc15"),
+        new("COURSE-HSK4", "HSK4", "hsk-4-ung-dung-thuc-te", "HSK 4 - Ứng dụng thực tế", "Nâng khả năng diễn đạt, đọc hiểu và xử lý hội thoại dài hơn.", "Khóa học HSK 4 tập trung vào diễn đạt tự nhiên, đọc hiểu văn bản trung bình và sử dụng ngữ pháp trong tình huống thực tế.", 4, 720, "#16a34a", "#4ade80"),
+        new("COURSE-HSK5", "HSK5", "hsk-5-nang-cao", "HSK 5 - Tiếng Trung nâng cao", "Mở rộng khả năng đọc, viết và sử dụng từ vựng học thuật.", "Lộ trình HSK 5 dành cho người học muốn đọc hiểu nội dung dài, diễn đạt ý kiến phức tạp và chuẩn bị cho môi trường học tập hoặc công việc bằng tiếng Trung.", 5, 900, "#2563eb", "#60a5fa"),
+        new("COURSE-HSK6", "HSK6", "hsk-6-chuyen-sau", "HSK 6 - Tiếng Trung chuyên sâu", "Rèn khả năng hiểu và diễn đạt tiếng Trung ở mức độ chuyên sâu.", "Khóa học HSK 6 phát triển năng lực đọc hiểu, nghe hiểu và diễn đạt chính xác với các chủ đề phức tạp, chuẩn bị cho học thuật và công việc chuyên môn.", 6, 1080, "#7c3aed", "#a78bfa")
     ];
 }
