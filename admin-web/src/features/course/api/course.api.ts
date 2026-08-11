@@ -73,4 +73,10 @@ export const courseApi = {
   delete(id: number, request: CourseWorkflowRequest) {
     return apiClient<void>(API_ENDPOINTS.COURSE.DETAIL(id), { method: "DELETE", body: request });
   },
+  restoreDeleted(id: number, request: CourseWorkflowRequest) {
+    return apiClient<AdminCourseDetail>(API_ENDPOINTS.COURSE.RESTORE_DELETED(id), {
+      method: "POST",
+      body: request,
+    });
+  },
 };
