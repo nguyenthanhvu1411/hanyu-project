@@ -87,14 +87,7 @@ export function HskLevelTable() {
             setDeleteOpen(true);
           }}
           customActions={
-            <PermissionGuard
-              permission={
-                item.isActive
-                  ? PERMISSIONS.HSK_LEVELS.DEACTIVATE
-                  : PERMISSIONS.HSK_LEVELS.ACTIVATE
-              }
-              fallback={null}
-            >
+            <PermissionGuard permission={PERMISSIONS.HSK_LEVELS.UPDATE} fallback={null}>
               <button
                 type="button"
                 onClick={() => {
