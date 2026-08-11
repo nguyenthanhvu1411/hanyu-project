@@ -1,3 +1,4 @@
+using System.Text.Json;
 using HanYu.Domain.Entities.AI;
 using HanYu.Domain.Entities.Analytics;
 using HanYu.Domain.Entities.Gamification;
@@ -9,6 +10,7 @@ using HanYu.Domain.Entities.Operations;
 using HanYu.Domain.Entities.Quiz;
 using HanYu.Domain.Entities.Review;
 using HanYu.Domain.Entities.Vocabulary;
+using HanYu.Domain.Enums;
 using HanYu.Infrastructure.Configurations.Common;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -121,6 +123,79 @@ public class HanYuDbContext : IdentityDbContext<User, Role, Guid>, HanYu.Applica
     public DbSet<CourseEntity> Courses => Set<CourseEntity>();
     public DbSet<CourseChapter> CourseChapters => Set<CourseChapter>();
     public DbSet<CoursePrerequisite> CoursePrerequisites => Set<CoursePrerequisite>();
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        AddCourseAuditEntries();
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void AddCourseAuditEntries()
+    {
+        var entries = ChangeTracker
+            .Entries<CourseEntity>()
+            .Where(entry => entry.State == EntityState.Modified && entry.Entity.Id > 0)
+            .ToArray();
+
+        foreach (var entry in entries)
+        {
+            var changed = entry.Properties
+                .Where(property => property.IsModified)
+                .ToArray();
+
+            if (changed.Length == 0)
+            {
+                continue;
+            }
+
+            var oldValues = changed.ToDictionary(
+                property => property.Metadata.Name,
+                property => property.OriginalValue);
+            var newValues = changed.ToDictionary(
+                property => property.Metadata.Name,
+                property => property.CurrentValue);
+            var changedProperties = changed
+                .Select(property => property.Metadata.Name)
+                .OrderBy(name => name)
+                .ToArray();
+
+            var action = ResolveCourseAuditAction(entry.Entity, changedProperties);
+
+            AuditLogs.Add(new AuditLog(
+                entry.Entity.UpdatedById,
+                action,
+                "Course",
+                entry.Entity.Id.ToString(),
+                entry.Entity.PublicId.ToString(),
+                JsonSerializer.Serialize(oldValues),
+                JsonSerializer.Serialize(newValues),
+                JsonSerializer.Serialize(changedProperties)));
+        }
+    }
+
+    private static string ResolveCourseAuditAction(
+        CourseEntity course,
+        IReadOnlyCollection<string> changedProperties)
+    {
+        if (changedProperties.Contains(nameof(CourseEntity.DeletedAt)))
+        {
+            return course.DeletedAt.HasValue ? "deleted" : "restored";
+        }
+
+        if (changedProperties.Contains(nameof(CourseEntity.Status)))
+        {
+            return course.Status switch
+            {
+                ContentStatus.Review => "submitted-review",
+                ContentStatus.Approved => "approved",
+                ContentStatus.Published => "published",
+                ContentStatus.Archived => "archived",
+                _ => "updated"
+            };
+        }
+
+        return "updated";
+    }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
