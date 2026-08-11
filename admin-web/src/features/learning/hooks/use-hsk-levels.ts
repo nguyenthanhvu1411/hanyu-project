@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { learningKeys } from "../learning.keys";
 import { learningService } from "../learning.service";
+import { learningApi } from "../learning.api";
 import type { HskLevelListQuery } from "../learning.types";
 import type {
   AdminHskLevelDto,
@@ -18,38 +19,21 @@ export function useHskLevels(query: HskLevelListQuery = {}): UseQueryResult<Page
   });
 }
 
-/**
- * Backend hiện không có:
- * GET /admin/hsk-levels/{id}
- *
- * Vì vậy detail/edit dùng GET list rồi find.
- */
 export function useHskLevelDetail(id?: number) {
-  const query = useHskLevels({
-    page: 1,
-    pageSize: 100,
-    sortBy: "sortOrder",
-    sortDirection: "asc",
+  return useQuery({
+    queryKey: ["learning", "hsk-levels", "detail", id],
+    queryFn: () => learningApi.hskLevels.getById(Number(id)),
+    enabled: Number.isSafeInteger(id) && Number(id) > 0,
   });
-
-  const item = query.data?.items.find((x) => x.id === id);
-
-  return {
-    ...query,
-    data: item,
-  } as Omit<typeof query, "data"> & { data: AdminHskLevelDto | undefined };
 }
 
 export function useCreateHskLevel() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (request: CreateHskLevelRequest) =>
-      learningService.hskLevels.create(request),
+    mutationFn: (request: CreateHskLevelRequest) => learningService.hskLevels.create(request),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: learningKeys.hskLevels(),
-      });
+      await queryClient.invalidateQueries({ queryKey: learningKeys.hskLevels() });
     },
   });
 }
@@ -58,12 +42,12 @@ export function useUpdateHskLevel(id: number) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (request: UpdateHskLevelRequest) =>
-      learningService.hskLevels.update(id, request),
+    mutationFn: (request: UpdateHskLevelRequest) => learningService.hskLevels.update(id, request),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: learningKeys.hskLevels(),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: learningKeys.hskLevels() }),
+        queryClient.invalidateQueries({ queryKey: ["learning", "hsk-levels", "detail", id] }),
+      ]);
     },
   });
 }
@@ -74,9 +58,21 @@ export function useDeleteHskLevel() {
   return useMutation({
     mutationFn: (id: number) => learningService.hskLevels.remove(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: learningKeys.hskLevels(),
-      });
+      await queryClient.invalidateQueries({ queryKey: learningKeys.hskLevels() });
+    },
+  });
+}
+
+export function useRestoreHskLevel() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => learningApi.hskLevels.restore(id),
+    onSuccess: async (_item, id) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: learningKeys.hskLevels() }),
+        queryClient.invalidateQueries({ queryKey: ["learning", "hsk-levels", "detail", id] }),
+      ]);
     },
   });
 }
@@ -86,10 +82,11 @@ export function useActivateHskLevel() {
 
   return useMutation({
     mutationFn: (id: number) => learningService.hskLevels.activate(id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: learningKeys.hskLevels(),
-      });
+    onSuccess: async (_item, id) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: learningKeys.hskLevels() }),
+        queryClient.invalidateQueries({ queryKey: ["learning", "hsk-levels", "detail", id] }),
+      ]);
     },
   });
 }
@@ -99,10 +96,11 @@ export function useDeactivateHskLevel() {
 
   return useMutation({
     mutationFn: (id: number) => learningService.hskLevels.deactivate(id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: learningKeys.hskLevels(),
-      });
+    onSuccess: async (_item, id) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: learningKeys.hskLevels() }),
+        queryClient.invalidateQueries({ queryKey: ["learning", "hsk-levels", "detail", id] }),
+      ]);
     },
   });
 }
