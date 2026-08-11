@@ -15,6 +15,11 @@ import {
 interface CoverImageFieldProps {
   value?: string | null;
   onChange: (value: string) => void;
+  /**
+   * Called only after a local file has been uploaded successfully to Storage.
+   * Editors can use this to bind the stable storage:// reference to the entity immediately.
+   */
+  onUploadComplete?: (storageReference: string) => void | Promise<void>;
   disabled?: boolean;
 }
 
@@ -24,6 +29,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 export function CoverImageField({
   value,
   onChange,
+  onUploadComplete,
   disabled = false,
 }: CoverImageFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,15 +122,24 @@ export function CoverImageField({
 
     try {
       const uploaded = await mediaApi.uploadImage(file);
+      const storageReference = toStorageReference(uploaded.objectKey);
+
       // Persist a stable canonical reference. Read URLs may expire and must never be saved.
-      onChange(toStorageReference(uploaded.objectKey));
+      onChange(storageReference);
       setResolvedPreview(uploaded.url);
       replaceLocalPreview(null);
-      appToast.success("Tải ảnh lên thành công.");
+
+      if (onUploadComplete) {
+        await onUploadComplete(storageReference);
+      }
+
+      appToast.success(
+        onUploadComplete ? "Đã tải và lưu ảnh bìa." : "Tải ảnh lên thành công.",
+      );
     } catch (error) {
       replaceLocalPreview(null);
       appToast.error(
-        "Không thể tải ảnh lên",
+        "Không thể hoàn tất ảnh bìa",
         error instanceof Error ? error.message : "Vui lòng thử lại.",
       );
     } finally {
