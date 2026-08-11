@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link2 } from "lucide-react";
 import { DataTable } from "@/components/common/data-table/data-table";
 import { DataTableActions } from "@/components/common/data-table/data-table-actions";
@@ -10,8 +10,10 @@ import { FormRow } from "@/components/forms/form-row";
 import { FormSection } from "@/components/forms/form-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { courseApi } from "../../api/course.api";
+import type { AdminCourseListItem } from "../../types/course.types";
 import type { DataTableColumn } from "@/types/table.types";
 import type { CourseEditorController } from "../../hooks/use-course-editor";
 import type { CoursePrerequisite } from "../../types/curriculum.types";
@@ -19,6 +21,43 @@ import type { CoursePrerequisite } from "../../types/curriculum.types";
 export function CoursePrerequisitesTab({ editor }: { editor: CourseEditorController }) {
   const [requiredCourseId, setRequiredCourseId] = useState("");
   const [isRequired, setRequired] = useState(true);
+  const [courses, setCourses] = useState<AdminCourseListItem[]>([]);
+  const [courseLoading, setCourseLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setCourseLoading(true);
+
+    void courseApi
+      .list({ page: 1, pageSize: 100, isActive: true, sortBy: "sortorder", sortDescending: false })
+      .then((result) => {
+        if (active) setCourses(result.items ?? []);
+      })
+      .finally(() => {
+        if (active) setCourseLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const prerequisiteIds = useMemo(
+    () => new Set(editor.prerequisites.map((item) => item.requiredCourseId)),
+    [editor.prerequisites],
+  );
+
+  const courseOptions = useMemo(
+    () =>
+      courses
+        .filter((course) => course.id !== editor.course?.id && !prerequisiteIds.has(course.id))
+        .map((course) => ({
+          value: String(course.id),
+          label: `${course.code} — ${course.titleVi}`,
+          description: course.hskCode ? `Cấp độ ${course.hskCode}` : "Chưa phân loại HSK",
+        })),
+    [courses, editor.course?.id, prerequisiteIds],
+  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,11 +95,7 @@ export function CoursePrerequisitesTab({ editor }: { editor: CourseEditorControl
       align: "center",
       width: "90px",
       cell: (item) => editor.canEdit ? (
-        <DataTableActions
-          onDelete={() => {
-            if (window.confirm("Xóa điều kiện tiên quyết này?")) void editor.deletePrerequisite(item);
-          }}
-        />
+        <DataTableActions onDelete={() => void editor.deletePrerequisite(item)} />
       ) : null,
     },
   ], [editor]);
@@ -71,12 +106,18 @@ export function CoursePrerequisitesTab({ editor }: { editor: CourseEditorControl
         <form onSubmit={submit}>
           <FormSection
             title="Thêm khóa học tiên quyết"
-            description="Gắn khóa học cần hoàn thành hoặc nên học trước khóa học hiện tại."
+            description="Chọn khóa học cần hoàn thành hoặc nên học trước. Admin không phải nhập ID nội bộ thủ công."
             icon={<Link2 size={18} />}
           >
             <FormRow columns={3}>
-              <FormField label="Course ID" required description="Backend dùng long RequiredCourseId.">
-                <Input type="number" min={1} value={requiredCourseId} onChange={(e) => setRequiredCourseId(e.target.value)} placeholder="Nhập Course ID" />
+              <FormField label="Khóa học" required description="Danh mục lấy trực tiếp từ backend Course.">
+                <Select
+                  value={requiredCourseId}
+                  onValueChange={setRequiredCourseId}
+                  options={courseOptions}
+                  placeholder={courseLoading ? "Đang tải khóa học..." : "Chọn khóa học tiên quyết"}
+                  disabled={courseLoading || editor.saving}
+                />
               </FormField>
               <FormField label="Mức độ">
                 <Switch checked={isRequired} onCheckedChange={setRequired} label={isRequired ? "Bắt buộc" : "Khuyến nghị"} />
