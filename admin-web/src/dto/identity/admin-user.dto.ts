@@ -107,3 +107,7 @@ export interface UnlockUserRequest {
 export interface DeleteUserRequest {
   reason: string;
 }
+
+export interface ResetAdminUserPasswordRequest {
+  newPassword: string;
+}
