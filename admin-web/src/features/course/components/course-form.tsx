@@ -39,6 +39,17 @@ const EMPTY_FORM: CreateCourseRequest = {
   isFeatured: false,
 };
 
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/đ/g, "d")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function normalizeRequest(form: CreateCourseRequest): CreateCourseRequest {
   return {
     code: form.code.trim().toUpperCase(),
@@ -60,6 +71,7 @@ export function CourseForm({ courseId }: CourseFormProps) {
 
   const [detail, setDetail] = useState<AdminCourseDetail | null>(null);
   const [form, setForm] = useState<CreateCourseRequest>(EMPTY_FORM);
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(editing);
   const [hskLevels, setHskLevels] = useState<AdminHskLevelDto[]>([]);
   const [loading, setLoading] = useState(editing);
   const [hskLoading, setHskLoading] = useState(true);
@@ -107,6 +119,7 @@ export function CourseForm({ courseId }: CourseFormProps) {
         if (!active) return;
 
         setDetail(course);
+        setSlugManuallyEdited(true);
         setForm({
           code: course.code,
           slug: course.slug,
@@ -152,7 +165,6 @@ export function CourseForm({ courseId }: CourseFormProps) {
   const valid = useMemo(
     () =>
       form.code.trim().length > 0 &&
-      form.slug.trim().length > 0 &&
       form.titleVi.trim().length > 0 &&
       Number.isInteger(form.sortOrder) &&
       form.sortOrder >= 0,
@@ -166,6 +178,19 @@ export function CourseForm({ courseId }: CourseFormProps) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function changeTitle(value: string) {
+    setForm((current) => ({
+      ...current,
+      titleVi: value,
+      slug: slugManuallyEdited ? current.slug : slugify(value),
+    }));
+  }
+
+  function changeSlug(value: string) {
+    setSlugManuallyEdited(value.trim().length > 0);
+    setField("slug", value);
+  }
+
   async function persistUploadedCover(storageReference: string) {
     if (!editing || !courseId || !detail) return;
 
@@ -173,8 +198,6 @@ export function CourseForm({ courseId }: CourseFormProps) {
     setError(null);
 
     try {
-      // Persist only the cover against the last server state. This avoids accidentally
-      // saving unrelated form fields that the administrator may still be editing.
       const updated = await courseApi.update(courseId, {
         code: detail.code,
         slug: detail.slug,
@@ -219,8 +242,10 @@ export function CourseForm({ courseId }: CourseFormProps) {
         setDetail(updated);
         setForm((current) => ({
           ...current,
+          slug: updated.slug,
           coverImageUrl: updated.coverImageUrl ?? current.coverImageUrl,
         }));
+        setSlugManuallyEdited(true);
         appToast.success("Cập nhật khóa học thành công.");
         router.push(`/khoa-hoc/${courseId}`);
       } else {
@@ -281,12 +306,19 @@ export function CourseForm({ courseId }: CourseFormProps) {
               placeholder="Ví dụ: HSK1-A"
             />
           </FormField>
-          <FormField label="Slug" required>
+          <FormField
+            label="Đường dẫn (slug)"
+            description="Không bắt buộc. Để trống, frontend và backend tự sinh từ tên khóa học."
+          >
             <Input
               value={form.slug}
-              onChange={(e) => setField("slug", e.target.value)}
+              onChange={(e) => changeSlug(e.target.value)}
+              onBlur={(e) => {
+                const normalized = slugify(e.target.value);
+                if (normalized) setField("slug", normalized);
+              }}
               maxLength={200}
-              placeholder="hsk-1-can-ban"
+              placeholder="Tự sinh, ví dụ: hsk-1-can-ban"
             />
           </FormField>
         </FormRow>
@@ -294,7 +326,7 @@ export function CourseForm({ courseId }: CourseFormProps) {
         <FormField label="Tên khóa học" required>
           <Input
             value={form.titleVi}
-            onChange={(e) => setField("titleVi", e.target.value)}
+            onChange={(e) => changeTitle(e.target.value)}
             maxLength={250}
           />
         </FormField>
