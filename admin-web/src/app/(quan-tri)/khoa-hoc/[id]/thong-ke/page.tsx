@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { BarChart3, BookOpen, Clock3, Layers3, Link2 } from "lucide-react";
+import { BarChart3, BookOpen, CheckCircle2, Clock3, Layers3, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { ErrorState } from "@/components/common/error-state";
@@ -10,14 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { courseApi } from "@/features/course/api/course.api";
-import { getContentStatusLabel } from "@/lib/constants/content-status";
 
 export default function CourseStatisticsPage() {
   const params = useParams<{ id: string }>();
   const courseId = Number(params.id);
   const query = useQuery({
-    queryKey: ["course", courseId],
-    queryFn: () => courseApi.getById(courseId),
+    queryKey: ["course-statistics", courseId],
+    queryFn: () => courseApi.statistics(courseId),
     enabled: Number.isSafeInteger(courseId) && courseId > 0,
   });
 
@@ -26,36 +25,89 @@ export default function CourseStatisticsPage() {
   }
 
   if (query.isLoading) {
-    return <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Skeleton className="h-28 rounded-[11px]" /><Skeleton className="h-28 rounded-[11px]" /><Skeleton className="h-28 rounded-[11px]" /><Skeleton className="h-28 rounded-[11px]" /></div>;
+    return (
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-28 rounded-[11px]" />
+        ))}
+      </div>
+    );
   }
 
   if (!query.data) {
-    return <ErrorState title="Không thể tải thống kê khóa học" description={query.error instanceof Error ? query.error.message : "Không có dữ liệu."} onRetry={() => void query.refetch()} />;
+    return (
+      <ErrorState
+        title="Không thể tải thống kê khóa học"
+        description={query.error instanceof Error ? query.error.message : "Không có dữ liệu."}
+        onRetry={() => void query.refetch()}
+      />
+    );
   }
 
-  const course = query.data;
-  const chapterCount = course.chapters.filter((chapter) => !chapter.deletedAt).length;
-  const activeChapterCount = course.chapters.filter((chapter) => !chapter.deletedAt && chapter.isActive).length;
-  const lessonCount = course.chapters.reduce((total, chapter) => total + (chapter.deletedAt ? 0 : chapter.lessonCount), 0);
+  const statistics = query.data;
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={<Layers3 size={18} />} label="Tổng chương" value={chapterCount} detail={`${activeChapterCount} chương đang hoạt động`} />
-        <MetricCard icon={<BookOpen size={18} />} label="Tổng bài giảng" value={lessonCount} detail="Tổng Lesson đang gắn vào Chapter" />
-        <MetricCard icon={<Clock3 size={18} />} label="Thời lượng dự kiến" value={course.estimatedMinutes ? `${course.estimatedMinutes} phút` : "—"} detail="Thiết lập trên Course" />
-        <MetricCard icon={<Link2 size={18} />} label="Tiên quyết" value={course.prerequisites.length} detail="Khóa học bắt buộc/khuyến nghị" />
+        <MetricCard
+          icon={<Layers3 size={18} />}
+          label="Tổng chương"
+          value={statistics.totalChapters}
+          detail={`${statistics.activeChapters} chương đang hoạt động`}
+        />
+        <MetricCard
+          icon={<BookOpen size={18} />}
+          label="Tổng bài giảng"
+          value={statistics.totalLessons}
+          detail="Lesson thật đang thuộc Course"
+        />
+        <MetricCard
+          icon={<Users size={18} />}
+          label="Học viên"
+          value={statistics.totalStudents}
+          detail={`${statistics.studentsInProgress} đang học`}
+        />
+        <MetricCard
+          icon={<CheckCircle2 size={18} />}
+          label="Hoàn thành"
+          value={statistics.studentsCompleted}
+          detail="Đã hoàn thành toàn bộ Lesson"
+        />
       </div>
 
       <FormSection
-        title="Trạng thái nội dung"
-        description="Các chỉ số hiện có được tính trực tiếp từ Course detail của backend, không dùng dữ liệu giả."
+        title="Tiến độ học tập"
+        description="Tính trực tiếp từ UserLessonProgress của các Lesson thuộc khóa học."
         icon={<BarChart3 size={18} />}
       >
         <div className="grid gap-4 md:grid-cols-3">
-          <Info label="Trạng thái biên tập" value={<Badge variant="info">{getContentStatusLabel(course.status)}</Badge>} />
-          <Info label="Hoạt động" value={<Badge variant={course.isActive ? "success" : "default"}>{course.isActive ? "Hoạt động" : "Ngừng hoạt động"}</Badge>} />
-          <Info label="Nổi bật" value={<Badge variant={course.isFeatured ? "warning" : "default"}>{course.isFeatured ? "Có" : "Không"}</Badge>} />
+          <Info
+            label="Tiến độ trung bình"
+            value={<span className="text-[18px] font-semibold">{formatPercent(statistics.averageCompletionPercent)}</span>}
+          />
+          <Info
+            label="Học viên đang học"
+            value={<Badge variant={statistics.studentsInProgress > 0 ? "info" : "default"}>{statistics.studentsInProgress}</Badge>}
+          />
+          <Info
+            label="Học viên hoàn thành"
+            value={<Badge variant={statistics.studentsCompleted > 0 ? "success" : "default"}>{statistics.studentsCompleted}</Badge>}
+          />
+        </div>
+      </FormSection>
+
+      <FormSection
+        title="Quy mô nội dung"
+        description="Các chỉ số backend tính từ CourseChapter và Lesson, không suy diễn từ dữ liệu giao diện."
+        icon={<Clock3 size={18} />}
+      >
+        <div className="grid gap-4 md:grid-cols-3">
+          <Info label="Chương hoạt động" value={`${statistics.activeChapters}/${statistics.totalChapters}`} />
+          <Info label="Tổng bài giảng" value={String(statistics.totalLessons)} />
+          <Info
+            label="Thời lượng dự kiến"
+            value={statistics.estimatedMinutes ? `${statistics.estimatedMinutes} phút` : "Chưa thiết lập"}
+          />
         </div>
       </FormSection>
     </div>
@@ -80,5 +132,14 @@ function MetricCard({ icon, label, value, detail }: { icon: React.ReactNode; lab
 }
 
 function Info({ label, value }: { label: string; value: React.ReactNode }) {
-  return <div><div className="text-[10px] text-[#888]">{label}</div><div className="mt-1 text-[12px] font-medium text-[#333]">{value}</div></div>;
+  return (
+    <div>
+      <div className="text-[10px] text-[#888]">{label}</div>
+      <div className="mt-1 text-[12px] font-medium text-[#333]">{value}</div>
+    </div>
+  );
+}
+
+function formatPercent(value: number) {
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value) + "%";
 }
