@@ -10,6 +10,9 @@ export const learningApi = {
   hskLevels: {
     list: () => apiClient<AdminHskLevelDto[]>(API_ENDPOINTS.LEARNING.HSK_LEVELS),
 
+    getById: (id: number) =>
+      apiClient<AdminHskLevelDto>(API_ENDPOINTS.LEARNING.HSK_LEVEL(id)),
+
     create: (request: CreateHskLevelRequest) =>
       apiClient<AdminHskLevelDto>(API_ENDPOINTS.LEARNING.HSK_LEVELS, {
         method: "POST",
@@ -25,6 +28,11 @@ export const learningApi = {
     remove: (id: number) =>
       apiClient<void>(API_ENDPOINTS.LEARNING.HSK_LEVEL(id), {
         method: "DELETE",
+      }),
+
+    restore: (id: number) =>
+      apiClient<AdminHskLevelDto>(API_ENDPOINTS.LEARNING.HSK_LEVEL_RESTORE(id), {
+        method: "POST",
       }),
 
     activate: (id: number) =>
