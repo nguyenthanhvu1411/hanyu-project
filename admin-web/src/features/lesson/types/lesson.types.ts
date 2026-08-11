@@ -63,6 +63,17 @@ export interface AdminLessonDetail {
   deletedById?: string | null;
 }
 
+export interface AdminLessonTopicOption {
+  id: number;
+  slug: string;
+  nameVi: string;
+  descriptionVi?: string | null;
+  sortOrder: number;
+  status: ContentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CreateLessonRequest {
   courseChapterId?: number | null;
   hskLevelId: number;
