@@ -113,11 +113,8 @@ public sealed class CourseInsightsIntegrationTests : IntegrationTestBase
         historyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var history = await ReadArrayAsync(historyResponse);
 
-        history.Should().Contain(item =>
-            item.GetProperty("action").GetString() == "updated" &&
-            item.TryGetProperty("changedPropertiesJson", out var changed) &&
-            changed.ValueKind == JsonValueKind.String &&
-            changed.GetString()!.Contains("TitleVi", StringComparison.Ordinal));
+        var containsExpectedAudit = history.Any(item => HasUpdatedTitleAudit(item));
+        containsExpectedAudit.Should().BeTrue();
     }
 
     [Fact]
@@ -252,6 +249,22 @@ public sealed class CourseInsightsIntegrationTests : IntegrationTestBase
             course.GetProperty("slug").GetString()!,
             course.GetProperty("hskLevelId").GetInt64(),
             course.GetProperty("concurrencyToken").GetGuid());
+    }
+
+    private static bool HasUpdatedTitleAudit(JsonElement item)
+    {
+        if (item.GetProperty("action").GetString() != "updated")
+        {
+            return false;
+        }
+
+        if (!item.TryGetProperty("changedPropertiesJson", out var changed) ||
+            changed.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        return changed.GetString()?.Contains("TitleVi", StringComparison.Ordinal) == true;
     }
 
     private static async Task<JsonElement> ReadObjectAsync(HttpResponseMessage response)
