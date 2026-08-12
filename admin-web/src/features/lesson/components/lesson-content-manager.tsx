@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { ContentStatus } from "@/lib/constants/content-status";
 
 import { lessonApi } from "../api/lesson.api";
 import {
@@ -36,9 +37,11 @@ import {
   lessonAssetTypeLabels,
   lessonSectionTypeLabels,
   type AdminLessonAsset,
+  type AdminLessonListItem,
   type AdminLessonPrerequisite,
   type AdminLessonSection,
   type AdminLessonVocabulary,
+  type AdminVocabularyLookupOption,
 } from "../types/lesson.types";
 
 type TabKey = "sections" | "vocabulary" | "assets" | "prerequisites";
@@ -63,20 +66,26 @@ export function LessonContentManager({ lessonId }: LessonContentManagerProps) {
   const [vocabulary, setVocabulary] = useState<AdminLessonVocabulary[]>([]);
   const [assets, setAssets] = useState<AdminLessonAsset[]>([]);
   const [prerequisites, setPrerequisites] = useState<AdminLessonPrerequisite[]>([]);
+  const [vocabularyLookup, setVocabularyLookup] = useState<AdminVocabularyLookupOption[]>([]);
+  const [lessonLookup, setLessonLookup] = useState<AdminLessonListItem[]>([]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [sectionData, vocabularyData, assetData, prerequisiteData] = await Promise.all([
+      const [sectionData, vocabularyData, assetData, prerequisiteData, vocabularyResult, lessonResult] = await Promise.all([
         lessonApi.listSections(lessonId),
         lessonApi.listVocabulary(lessonId),
         lessonApi.listAssets(lessonId),
         lessonApi.listPrerequisites(lessonId),
+        lessonApi.listVocabularyOptions(),
+        lessonApi.list({ page: 1, pageSize: 100, sortBy: "titleVi" }),
       ]);
       setSections(sectionData);
       setVocabulary(vocabularyData);
       setAssets(assetData);
       setPrerequisites(prerequisiteData);
+      setVocabularyLookup(vocabularyResult.items);
+      setLessonLookup(lessonResult.items);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Không tải được nội dung bài giảng.");
     } finally {
@@ -131,9 +140,25 @@ export function LessonContentManager({ lessonId }: LessonContentManagerProps) {
       </Card>
 
       {tab === "sections" && <SectionsPanel lessonId={lessonId} items={sections} busy={busy} run={run} />}
-      {tab === "vocabulary" && <VocabularyPanel lessonId={lessonId} items={vocabulary} busy={busy} run={run} />}
+      {tab === "vocabulary" && (
+        <VocabularyPanel
+          lessonId={lessonId}
+          items={vocabulary}
+          lookup={vocabularyLookup}
+          busy={busy}
+          run={run}
+        />
+      )}
       {tab === "assets" && <AssetsPanel lessonId={lessonId} items={assets} busy={busy} run={run} />}
-      {tab === "prerequisites" && <PrerequisitesPanel lessonId={lessonId} items={prerequisites} busy={busy} run={run} />}
+      {tab === "prerequisites" && (
+        <PrerequisitesPanel
+          lessonId={lessonId}
+          items={prerequisites}
+          lookup={lessonLookup}
+          busy={busy}
+          run={run}
+        />
+      )}
     </div>
   );
 }
@@ -283,7 +308,13 @@ function SectionsPanel({ lessonId, items, busy, run }: PanelProps<AdminLessonSec
   );
 }
 
-function VocabularyPanel({ lessonId, items, busy, run }: PanelProps<AdminLessonVocabulary>) {
+function VocabularyPanel({
+  lessonId,
+  items,
+  lookup,
+  busy,
+  run,
+}: PanelProps<AdminLessonVocabulary> & { lookup: AdminVocabularyLookupOption[] }) {
   const ordered = useMemo(() => [...items].sort((a, b) => a.sortOrder - b.sortOrder), [items]);
   const [vocabularyId, setVocabularyId] = useState("");
   const [sortOrder, setSortOrder] = useState(items.length);
@@ -291,11 +322,23 @@ function VocabularyPanel({ lessonId, items, busy, run }: PanelProps<AdminLessonV
   const [editing, setEditing] = useState<AdminLessonVocabulary | null>(null);
   const [deleting, setDeleting] = useState<AdminLessonVocabulary | null>(null);
 
+  const attachedIds = useMemo(() => new Set(items.map((item) => item.vocabularyId)), [items]);
+  const vocabularyOptions = useMemo(
+    () => lookup
+      .filter((item) => item.status === ContentStatus.Published && !attachedIds.has(item.id))
+      .map((item) => ({
+        value: String(item.id),
+        label: `${item.simplified} — ${item.pinyin}`,
+        description: `${item.primaryMeaningVi} · ${item.hskCode}`,
+      })),
+    [attachedIds, lookup],
+  );
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const id = Number(vocabularyId);
     if (!Number.isSafeInteger(id) || id <= 0) {
-      toast.error("Vocabulary ID không hợp lệ.");
+      toast.error("Hãy chọn một từ vựng hợp lệ.");
       return;
     }
     const ok = await run(
@@ -325,10 +368,18 @@ function VocabularyPanel({ lessonId, items, busy, run }: PanelProps<AdminLessonV
   return (
     <div className="space-y-4">
       <form onSubmit={submit}>
-        <FormSection title="Gắn LessonVocabulary" description="Gắn từ vựng đã tồn tại trong kho Vocabulary vào bài giảng." icon={<Link2 size={18} />}>
+        <FormSection title="Gắn từ vựng" description="Tìm theo chữ Hán, pinyin hoặc nghĩa tiếng Việt. Chỉ Vocabulary Published được đưa vào danh sách chọn." icon={<Link2 size={18} />}>
           <FormRow columns={3}>
-            <FormField label="Vocabulary ID" required>
-              <Input type="number" min={1} value={vocabularyId} onChange={(event) => setVocabularyId(event.target.value)} />
+            <FormField label="Từ vựng" required description="Không cần nhập Vocabulary ID thủ công.">
+              <Select
+                value={vocabularyId}
+                onValueChange={setVocabularyId}
+                options={vocabularyOptions}
+                placeholder="Chọn từ vựng"
+                searchable
+                searchPlaceholder="搜索 từ vựng, pinyin, nghĩa..."
+                clearable
+              />
             </FormField>
             <FormField label="Thứ tự">
               <Input type="number" min={0} value={sortOrder} onChange={(event) => setSortOrder(Number(event.target.value))} />
@@ -337,7 +388,7 @@ function VocabularyPanel({ lessonId, items, busy, run }: PanelProps<AdminLessonV
               <Switch checked={required} onCheckedChange={setRequired} label={required ? "Bắt buộc" : "Không bắt buộc"} />
             </FormField>
           </FormRow>
-          <div className="flex justify-end"><Button type="submit" disabled={busy} className="gap-2"><Plus size={14} /> Gắn từ vựng</Button></div>
+          <div className="flex justify-end"><Button type="submit" disabled={busy || !vocabularyId} className="gap-2"><Plus size={14} /> Gắn từ vựng</Button></div>
         </FormSection>
       </form>
 
@@ -355,7 +406,7 @@ function VocabularyPanel({ lessonId, items, busy, run }: PanelProps<AdminLessonV
                     {item.isRequired && <Badge variant="warning">Bắt buộc</Badge>}
                     <Badge variant="info">#{item.sortOrder}</Badge>
                   </div>
-                  <p className="mt-1 text-[11px] text-[#666]">{item.primaryMeaningVi} · ID {item.vocabularyId}</p>
+                  <p className="mt-1 text-[11px] text-[#666]">{item.primaryMeaningVi}</p>
                 </div>
                 <ContentActions
                   busy={busy}
@@ -519,15 +570,37 @@ function AssetsPanel({ lessonId, items, busy, run }: PanelProps<AdminLessonAsset
   );
 }
 
-function PrerequisitesPanel({ lessonId, items, busy, run }: PanelProps<AdminLessonPrerequisite>) {
+function PrerequisitesPanel({
+  lessonId,
+  items,
+  lookup,
+  busy,
+  run,
+}: PanelProps<AdminLessonPrerequisite> & { lookup: AdminLessonListItem[] }) {
   const [requiredLessonId, setRequiredLessonId] = useState("");
   const [deleting, setDeleting] = useState<AdminLessonPrerequisite | null>(null);
+
+  const existingIds = useMemo(() => new Set(items.map((item) => item.requiredLessonId)), [items]);
+  const lessonOptions = useMemo(
+    () => lookup
+      .filter((item) =>
+        item.id !== lessonId &&
+        item.status === ContentStatus.Published &&
+        !existingIds.has(item.id),
+      )
+      .map((item) => ({
+        value: String(item.id),
+        label: item.titleVi,
+        description: `${item.hskCode ?? "Không HSK"} · ${item.slug}`,
+      })),
+    [existingIds, lessonId, lookup],
+  );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const id = Number(requiredLessonId);
     if (!Number.isSafeInteger(id) || id <= 0 || id === lessonId) {
-      toast.error("Lesson tiên quyết không hợp lệ.");
+      toast.error("Hãy chọn một bài học tiên quyết hợp lệ.");
       return;
     }
     const ok = await run(() => lessonApi.addPrerequisite(lessonId, { requiredLessonId: id }), "Đã thêm bài học tiên quyết.");
@@ -537,10 +610,20 @@ function PrerequisitesPanel({ lessonId, items, busy, run }: PanelProps<AdminLess
   return (
     <div className="space-y-4">
       <form onSubmit={submit}>
-        <FormSection title="Thêm LessonPrerequisite" description="Backend sẽ kiểm tra trùng lặp, self-reference và vòng lặp prerequisite." icon={<Link2 size={18} />}>
+        <FormSection title="Thêm bài học tiên quyết" description="Chọn bài giảng Published theo tên. Backend vẫn kiểm tra trùng lặp, self-reference và vòng lặp prerequisite." icon={<Link2 size={18} />}>
           <FormRow columns={2}>
-            <FormField label="Required Lesson ID" required><Input type="number" min={1} value={requiredLessonId} onChange={(event) => setRequiredLessonId(event.target.value)} /></FormField>
-            <div className="flex items-end justify-end"><Button type="submit" disabled={busy} className="gap-2"><Plus size={14} /> Thêm tiên quyết</Button></div>
+            <FormField label="Bài học tiên quyết" required description="Không cần nhập Lesson ID thủ công.">
+              <Select
+                value={requiredLessonId}
+                onValueChange={setRequiredLessonId}
+                options={lessonOptions}
+                placeholder="Chọn bài giảng"
+                searchable
+                searchPlaceholder="Tìm bài giảng theo tên, HSK hoặc slug..."
+                clearable
+              />
+            </FormField>
+            <div className="flex items-end justify-end"><Button type="submit" disabled={busy || !requiredLessonId} className="gap-2"><Plus size={14} /> Thêm tiên quyết</Button></div>
           </FormRow>
         </FormSection>
       </form>
@@ -552,7 +635,7 @@ function PrerequisitesPanel({ lessonId, items, busy, run }: PanelProps<AdminLess
           {items.map((item) => (
             <Card key={item.requiredLessonId}>
               <CardContent className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0"><p className="text-[12px] font-semibold text-[#333]">{item.titleVi}</p><p className="mt-1 text-[10px] text-[#888]">{item.slug} · ID {item.requiredLessonId}</p></div>
+                <div className="min-w-0"><p className="text-[12px] font-semibold text-[#333]">{item.titleVi}</p><p className="mt-1 text-[10px] text-[#888]">{item.slug}</p></div>
                 <Button variant="outline" disabled={busy} onClick={() => setDeleting(item)} className="gap-2 text-[#e2372f]"><Trash2 size={14} /> Gỡ</Button>
               </CardContent>
             </Card>
