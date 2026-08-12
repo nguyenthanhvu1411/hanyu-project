@@ -1,6 +1,8 @@
 using HanYu.API.Common.Extensions;
+using HanYu.Application.Common.Models;
 using HanYu.Application.Features.Lesson.Admin.Lessons;
 using HanYu.Application.Interfaces.Lesson;
+using HanYu.Application.Interfaces.Persistence;
 using HanYu.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,10 +28,14 @@ public sealed class LessonsController : ControllerBase
         Roles.SuperAdmin + "," + Roles.Admin + "," + Roles.ContentManager;
 
     private readonly ILessonAdminService _service;
+    private readonly IHanYuDbContext _dbContext;
 
-    public LessonsController(ILessonAdminService service)
+    public LessonsController(
+        ILessonAdminService service,
+        IHanYuDbContext dbContext)
     {
         _service = service;
+        _dbContext = dbContext;
     }
 
     [HttpGet]
@@ -60,8 +66,15 @@ public sealed class LessonsController : ControllerBase
         => this.ToActionResult(await _service.UpdateLessonAsync(id, request, cancellationToken));
 
     [HttpGet("{id:long}/validate")]
-    public async Task<IActionResult> Validate(long id, CancellationToken cancellationToken)
-        => this.ToActionResult(await _service.ValidateLessonAsync(id, cancellationToken));
+    public async Task<IActionResult> Validate(
+        long id,
+        CancellationToken cancellationToken)
+        => this.ToActionResult(
+            await LessonWorkflowValidator.ValidateAsync(
+                _dbContext,
+                id,
+                LessonWorkflowValidationTarget.General,
+                cancellationToken));
 
     [HttpPost("{id:long}/submit-review")]
     [Authorize(Roles = ContentEditRoles)]
@@ -70,7 +83,34 @@ public sealed class LessonsController : ControllerBase
         long id,
         [FromBody] LessonWorkflowRequest request,
         CancellationToken cancellationToken)
-        => this.ToActionResult(await _service.SubmitForReviewAsync(id, request, cancellationToken));
+    {
+        var validation = await LessonWorkflowValidator.ValidateAsync(
+            _dbContext,
+            id,
+            LessonWorkflowValidationTarget.SubmitReview,
+            cancellationToken);
+
+        if (validation.IsFailure)
+        {
+            return this.ToActionResult(validation);
+        }
+
+        if (!validation.Value.IsValid)
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminLessonDetailDto>(
+                    BuildWorkflowValidationError(
+                        "Lesson.NotReviewable",
+                        "Lesson chưa đủ điều kiện để gửi duyệt.",
+                        validation.Value)));
+        }
+
+        return this.ToActionResult(
+            await _service.SubmitForReviewAsync(
+                id,
+                request,
+                cancellationToken));
+    }
 
     [HttpPost("{id:long}/approve")]
     [Authorize(Roles = ContentReviewRoles)]
@@ -79,7 +119,34 @@ public sealed class LessonsController : ControllerBase
         long id,
         [FromBody] LessonWorkflowRequest request,
         CancellationToken cancellationToken)
-        => this.ToActionResult(await _service.ApproveAsync(id, request, cancellationToken));
+    {
+        var validation = await LessonWorkflowValidator.ValidateAsync(
+            _dbContext,
+            id,
+            LessonWorkflowValidationTarget.General,
+            cancellationToken);
+
+        if (validation.IsFailure)
+        {
+            return this.ToActionResult(validation);
+        }
+
+        if (!validation.Value.IsValid)
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminLessonDetailDto>(
+                    BuildWorkflowValidationError(
+                        "Lesson.NotApprovable",
+                        "Lesson còn lỗi validation và chưa thể được duyệt.",
+                        validation.Value)));
+        }
+
+        return this.ToActionResult(
+            await _service.ApproveAsync(
+                id,
+                request,
+                cancellationToken));
+    }
 
     [HttpPost("{id:long}/publish")]
     [Authorize(Roles = ContentPublishRoles)]
@@ -88,7 +155,34 @@ public sealed class LessonsController : ControllerBase
         long id,
         [FromBody] LessonWorkflowRequest request,
         CancellationToken cancellationToken)
-        => this.ToActionResult(await _service.PublishAsync(id, request, cancellationToken));
+    {
+        var validation = await LessonWorkflowValidator.ValidateAsync(
+            _dbContext,
+            id,
+            LessonWorkflowValidationTarget.Publish,
+            cancellationToken);
+
+        if (validation.IsFailure)
+        {
+            return this.ToActionResult(validation);
+        }
+
+        if (!validation.Value.IsValid)
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminLessonDetailDto>(
+                    BuildWorkflowValidationError(
+                        "Lesson.NotPublishable",
+                        "Lesson chưa đủ điều kiện để Publish.",
+                        validation.Value)));
+        }
+
+        return this.ToActionResult(
+            await _service.PublishAsync(
+                id,
+                request,
+                cancellationToken));
+    }
 
     [HttpPost("{id:long}/archive")]
     [Authorize(Roles = ContentPublishRoles)]
@@ -125,4 +219,23 @@ public sealed class LessonsController : ControllerBase
         [FromBody] LessonWorkflowRequest request,
         CancellationToken cancellationToken)
         => this.ToActionResult(await _service.RestoreDeletedAsync(id, request, cancellationToken));
+
+    private static Error BuildWorkflowValidationError(
+        string code,
+        string prefix,
+        LessonValidationResultDto validation)
+    {
+        var errors = validation.Issues
+            .Where(issue => issue.Severity == LessonValidationSeverity.Error)
+            .Select(issue => issue.Message)
+            .ToArray();
+
+        var message = errors.Length == 0
+            ? prefix
+            : $"{prefix} {string.Join(" | ", errors)}";
+
+        return Error.Validation(
+            code,
+            message);
+    }
 }
