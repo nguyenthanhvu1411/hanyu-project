@@ -38,6 +38,7 @@ export const API_ENDPOINTS = {
   VOCABULARY: {
     ROOT: "/admin/vocabularies",
     DETAIL: (id: number) => `/admin/vocabularies/${id}`,
+    VALIDATE: (id: number, forPublish = false) => `/admin/vocabularies/${id}/validate${forPublish ? "?forPublish=true" : ""}`,
     SUBMIT_REVIEW: (id: number) => `/admin/vocabularies/${id}/submit-review`,
     APPROVE: (id: number) => `/admin/vocabularies/${id}/approve`,
     PUBLISH: (id: number) => `/admin/vocabularies/${id}/publish`,
