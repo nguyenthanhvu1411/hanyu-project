@@ -106,7 +106,22 @@ export interface UpdateLessonRequest extends CreateLessonRequest {
 }
 
 export interface LessonWorkflowRequest { version: number; }
-export interface LessonValidationResult { isValid: boolean; errors: string[]; warnings: string[]; }
+
+export type LessonValidationSeverity = "error" | "warning";
+
+export interface LessonValidationIssue {
+  code: string;
+  message: string;
+  field?: string | null;
+  severity: LessonValidationSeverity;
+}
+
+export interface LessonValidationResult {
+  isValid: boolean;
+  issues: LessonValidationIssue[];
+  errors: string[];
+  warnings: string[];
+}
 
 export interface AdminLessonQuery {
   search?: string;
