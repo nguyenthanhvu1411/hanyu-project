@@ -74,6 +74,17 @@ export interface AdminLessonTopicOption {
   updatedAt: string;
 }
 
+export interface AdminVocabularyLookupOption {
+  id: number;
+  hskLevelId: number;
+  hskCode: string;
+  simplified: string;
+  traditional?: string | null;
+  pinyin: string;
+  primaryMeaningVi: string;
+  status: ContentStatus;
+}
+
 export interface CreateLessonRequest {
   courseChapterId?: number | null;
   hskLevelId: number;
