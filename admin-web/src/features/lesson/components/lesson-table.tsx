@@ -164,13 +164,6 @@ export function LessonTable() {
         ),
       },
       {
-        id: "version",
-        header: "Phiên bản",
-        align: "center",
-        width: "100px",
-        cell: (item) => `v${item.version}`,
-      },
-      {
         id: "actions",
         header: "Thao tác",
         align: "center",
