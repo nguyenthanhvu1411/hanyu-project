@@ -1,8 +1,9 @@
 using System.Net;
 using System.Text.Json;
-using HanYu.Domain.Entities.Course;
 using HanYu.Domain.Entities.Vocabulary;
 using Microsoft.EntityFrameworkCore;
+using CourseEntity = HanYu.Domain.Entities.Course.Course;
+using CourseChapterEntity = HanYu.Domain.Entities.Course.CourseChapter;
 
 namespace HanYu.IntegrationTests.Lesson;
 
@@ -188,7 +189,7 @@ public sealed class LessonPublicWorkflowIntegrationTests
                 .SingleAsync();
 
             var suffix = Guid.NewGuid().ToString("N")[..8];
-            var course = new Course(
+            var course = new CourseEntity(
                 $"WF-{suffix}",
                 $"workflow-course-{suffix}",
                 $"Workflow Course {suffix}",
@@ -198,7 +199,7 @@ public sealed class LessonPublicWorkflowIntegrationTests
             db.Add(course);
             await db.SaveChangesAsync();
 
-            var chapter = new CourseChapter(
+            var chapter = new CourseChapterEntity(
                 course.Id,
                 "Chương workflow",
                 sortOrder: 0,
@@ -221,7 +222,7 @@ public sealed class LessonPublicWorkflowIntegrationTests
     {
         await Factory.ExecuteDbAsync(async db =>
         {
-            var course = await db.Set<Course>()
+            var course = await db.Set<CourseEntity>()
                 .Include(x => x.Chapters)
                 .SingleAsync(x => x.Id == courseId);
 
