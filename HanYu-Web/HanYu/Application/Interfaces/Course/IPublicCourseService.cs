@@ -20,6 +20,11 @@ public interface IPublicCourseService
             string slug,
             CancellationToken cancellationToken = default);
 
+    Task<Result<IReadOnlyCollection<PublicCourseLessonDto>>>
+        GetLessonsByCourseSlugAsync(
+            string slug,
+            CancellationToken cancellationToken = default);
+
     Task<Result<PublicCourseCurriculumDto>>
         GetCurriculumAsync(
             Guid publicId,
