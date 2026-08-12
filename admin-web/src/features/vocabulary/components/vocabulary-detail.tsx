@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { ErrorState } from "@/components/common/error-state";
 import { apiClient } from "@/lib/api/api-client";
 import { API_ENDPOINTS } from "@/lib/api/api-endpoints";
-import { getContentStatusLabel } from "@/lib/constants/content-status";
+import { ContentStatus, getContentStatusLabel } from "@/lib/constants/content-status";
 
 interface VocabularyDto {
   id: number;
@@ -28,7 +28,7 @@ interface VocabularyDto {
   primaryMeaningVi: string;
   notesVi: string | null;
   difficulty: number;
-  status: number;
+  status: ContentStatus;
   version: number;
   publishedAt: string | null;
   createdAt: string;
