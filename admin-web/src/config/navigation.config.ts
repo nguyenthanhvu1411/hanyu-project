@@ -100,6 +100,12 @@ export const ADMIN_NAVIGATION: NavigationGroup[] = [
         href: ROUTES.BAI_GIANG,
         icon: BookText,
       },
+
+      {
+        title: "Chủ đề",
+        href: ROUTES.CHU_DE_TU_VUNG,
+        icon: FolderKanban,
+      },
     ],
   },
 
@@ -129,12 +135,6 @@ export const ADMIN_NAVIGATION: NavigationGroup[] = [
         title: "Quan hệ từ vựng",
         href: ROUTES.QUAN_HE_TU_VUNG,
         icon: PanelsTopLeft,
-      },
-
-      {
-        title: "Chủ đề từ vựng",
-        href: ROUTES.CHU_DE_TU_VUNG,
-        icon: FolderKanban,
       },
 
       {
