@@ -12,6 +12,7 @@ import type {
   AdminLessonSection,
   AdminLessonTopicOption,
   AdminLessonVocabulary,
+  AdminVocabularyLookupOption,
   AttachLessonVocabularyRequest,
   CreateLessonAssetRequest,
   CreateLessonRequest,
@@ -40,6 +41,11 @@ export const lessonApi = {
   },
   listTopics() {
     return apiClient<AdminLessonTopicOption[]>(API_ENDPOINTS.VOCABULARY.TOPICS);
+  },
+  listVocabularyOptions(q = "") {
+    const params = new URLSearchParams({ page: "1", pageSize: "100", sort: "simplified" });
+    if (q.trim()) params.set("q", q.trim());
+    return apiClient<PagedResult<AdminVocabularyLookupOption>>(`${API_ENDPOINTS.VOCABULARY.ROOT}?${params.toString()}`);
   },
   getById(id: number) {
     return apiClient<AdminLessonDetail>(API_ENDPOINTS.LESSON.DETAIL(id));
