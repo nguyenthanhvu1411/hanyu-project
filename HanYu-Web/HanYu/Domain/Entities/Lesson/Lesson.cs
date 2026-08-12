@@ -38,6 +38,10 @@ public class Lesson : AuditableEntity
     public ContentStatus Status { get; private set; }
         = ContentStatus.Draft;
 
+    /// <summary>
+    /// Technical revision used for optimistic concurrency.
+    /// This is not a published-content version displayed to learners.
+    /// </summary>
     public int Version { get; private set; } = 1;
 
     public DateTimeOffset? PublishedAt { get; private set; }
@@ -105,18 +109,24 @@ public class Lesson : AuditableEntity
         }
 
         if (string.IsNullOrWhiteSpace(slug))
+        {
             throw new ArgumentException(
                 "Slug không được để trống.",
                 nameof(slug));
+        }
 
         if (string.IsNullOrWhiteSpace(titleVi))
+        {
             throw new ArgumentException(
                 "TitleVi không được để trống.",
                 nameof(titleVi));
+        }
 
         if (sortOrder < 0)
+        {
             throw new ArgumentOutOfRangeException(
                 nameof(sortOrder));
+        }
 
         if (estimatedMinutes < 1 ||
             estimatedMinutes > 300)
@@ -133,19 +143,31 @@ public class Lesson : AuditableEntity
                 "Difficulty phải từ 1 đến 5.");
         }
 
+        var normalizedSlug = NormalizeSlug(slug);
+        var normalizedTitle = titleVi.Trim();
+        var normalizedShortDescription = Normalize(shortDescriptionVi);
+        var normalizedDescription = Normalize(descriptionVi);
+        var normalizedObjective = Normalize(objectiveVi);
+
+        if (HskLevelId == hskLevelId &&
+            Slug == normalizedSlug &&
+            TitleVi == normalizedTitle &&
+            ShortDescriptionVi == normalizedShortDescription &&
+            DescriptionVi == normalizedDescription &&
+            ObjectiveVi == normalizedObjective &&
+            SortOrder == sortOrder &&
+            EstimatedMinutes == estimatedMinutes &&
+            Difficulty == difficulty)
+        {
+            return;
+        }
+
         HskLevelId = hskLevelId;
-        Slug = NormalizeSlug(slug);
-        TitleVi = titleVi.Trim();
-
-        ShortDescriptionVi =
-            Normalize(shortDescriptionVi);
-
-        DescriptionVi =
-            Normalize(descriptionVi);
-
-        ObjectiveVi =
-            Normalize(objectiveVi);
-
+        Slug = normalizedSlug;
+        TitleVi = normalizedTitle;
+        ShortDescriptionVi = normalizedShortDescription;
+        DescriptionVi = normalizedDescription;
+        ObjectiveVi = normalizedObjective;
         SortOrder = sortOrder;
         EstimatedMinutes = estimatedMinutes;
         Difficulty = difficulty;
@@ -173,29 +195,23 @@ public class Lesson : AuditableEntity
                 "SortOrder không được âm.");
         }
 
-        if (
-            CourseChapterId == courseChapterId &&
+        if (CourseChapterId == courseChapterId &&
             SortOrder == sortOrder)
         {
             return;
         }
 
-        CourseChapterId =
-            courseChapterId;
-
-        SortOrder =
-            sortOrder;
+        CourseChapterId = courseChapterId;
+        SortOrder = sortOrder;
 
         MarkContentChanged();
     }
 
-    public void AssignCourseChapter(
-        long? courseChapterId)
+    public void AssignCourseChapter(long? courseChapterId)
     {
         EnsureEditable();
 
-        if (
-            courseChapterId.HasValue &&
+        if (courseChapterId.HasValue &&
             courseChapterId.Value <= 0)
         {
             throw new ArgumentOutOfRangeException(
@@ -208,8 +224,7 @@ public class Lesson : AuditableEntity
             return;
         }
 
-        CourseChapterId =
-            courseChapterId;
+        CourseChapterId = courseChapterId;
 
         MarkContentChanged();
     }
@@ -232,11 +247,8 @@ public class Lesson : AuditableEntity
             return;
         }
 
-        CourseChapterId =
-            null;
-
-        SortOrder =
-            0;
+        CourseChapterId = null;
+        SortOrder = 0;
 
         MarkContentChanged();
     }
@@ -252,34 +264,47 @@ public class Lesson : AuditableEntity
                 nameof(topicId));
         }
 
+        if (TopicId == topicId)
+        {
+            return;
+        }
+
         TopicId = topicId;
 
         MarkContentChanged();
     }
 
-    public void UpdateCover(
-        string? coverImageUrl)
+    public void UpdateCover(string? coverImageUrl)
     {
         EnsureEditable();
 
-        coverImageUrl =
-            Normalize(coverImageUrl);
+        coverImageUrl = Normalize(coverImageUrl);
 
         if (coverImageUrl?.Length > 2048)
+        {
             throw new ArgumentException(
                 "CoverImageUrl quá dài.",
                 nameof(coverImageUrl));
+        }
 
-        CoverImageUrl =
-            coverImageUrl;
+        if (CoverImageUrl == coverImageUrl)
+        {
+            return;
+        }
+
+        CoverImageUrl = coverImageUrl;
 
         MarkContentChanged();
     }
 
     public void SetFeatured(bool featured)
     {
+        EnsureEditable();
+
         if (IsFeatured == featured)
+        {
             return;
+        }
 
         IsFeatured = featured;
 
@@ -288,9 +313,18 @@ public class Lesson : AuditableEntity
 
     public void ChangeOrder(int sortOrder)
     {
+        EnsureEditable();
+
         if (sortOrder < 0)
+        {
             throw new ArgumentOutOfRangeException(
                 nameof(sortOrder));
+        }
+
+        if (SortOrder == sortOrder)
+        {
+            return;
+        }
 
         SortOrder = sortOrder;
 
@@ -300,31 +334,37 @@ public class Lesson : AuditableEntity
     public void SubmitForReview()
     {
         if (Status != ContentStatus.Draft)
+        {
             throw new InvalidOperationException(
                 "Chỉ lesson Draft mới có thể gửi Review.");
+        }
 
         ValidatePublishable();
 
         Status = ContentStatus.Review;
 
-        MarkUpdated();
+        MarkContentChanged();
     }
 
     public void Approve()
     {
         if (Status != ContentStatus.Review)
+        {
             throw new InvalidOperationException(
                 "Chỉ lesson đang Review mới có thể Approve.");
+        }
 
         Status = ContentStatus.Approved;
 
-        MarkUpdated();
+        MarkContentChanged();
     }
 
     public void Publish()
     {
         if (Status == ContentStatus.Published)
+        {
             return;
+        }
 
         if (Status != ContentStatus.Approved)
         {
@@ -337,15 +377,15 @@ public class Lesson : AuditableEntity
         Status = ContentStatus.Published;
         PublishedAt = DateTimeOffset.UtcNow;
 
-        Version++;
-
-        MarkUpdated();
+        MarkContentChanged();
     }
 
     public void Archive()
     {
         if (Status == ContentStatus.Archived)
+        {
             return;
+        }
 
         if (Status != ContentStatus.Published &&
             Status != ContentStatus.Approved)
@@ -356,9 +396,7 @@ public class Lesson : AuditableEntity
 
         Status = ContentStatus.Archived;
 
-        Version++;
-
-        MarkUpdated();
+        MarkContentChanged();
     }
 
     public void RestoreToDraft()
@@ -372,30 +410,42 @@ public class Lesson : AuditableEntity
         Status = ContentStatus.Draft;
         PublishedAt = null;
 
-        Version++;
-
-        MarkUpdated();
+        MarkContentChanged();
     }
 
     private void MarkContentChanged()
     {
-        checked
+        // A newly-created aggregate already starts at revision 1.
+        // Only persisted lessons advance the optimistic-concurrency revision.
+        if (Id > 0)
         {
-            Version++;
+            AdvanceVersion();
         }
 
         MarkUpdated();
     }
 
+    private void AdvanceVersion()
+    {
+        checked
+        {
+            Version++;
+        }
+    }
+
     private void ValidatePublishable()
     {
         if (string.IsNullOrWhiteSpace(Slug))
+        {
             throw new InvalidOperationException(
                 "Lesson chưa có Slug.");
+        }
 
         if (string.IsNullOrWhiteSpace(TitleVi))
+        {
             throw new InvalidOperationException(
                 "Lesson chưa có tiêu đề.");
+        }
 
         if (HskLevelId <= 0)
         {
@@ -407,8 +457,10 @@ public class Lesson : AuditableEntity
     private void EnsureEditable()
     {
         if (Status == ContentStatus.Archived)
+        {
             throw new InvalidOperationException(
                 "Lesson đã Archived.");
+        }
     }
 
     private static string NormalizeSlug(string value)
