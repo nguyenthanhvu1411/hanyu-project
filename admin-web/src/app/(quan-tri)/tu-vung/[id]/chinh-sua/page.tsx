@@ -6,6 +6,7 @@ import { ErrorState } from "@/components/common/error-state";
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { VocabularyEditorTabs } from "@/features/vocabulary/components/vocabulary-editor-tabs";
+import { VocabularyValidationPanel } from "@/features/vocabulary/components/vocabulary-validation-panel";
 
 export default function EditVocabularyPage() {
   const params = useParams<{ id: string }>();
@@ -28,7 +29,10 @@ export default function EditVocabularyPage() {
         title="Vocabulary Editor"
         description="Biên tập thông tin chung, nghĩa, ví dụ, quan hệ và audio trong cùng một workspace."
       />
-      <VocabularyEditorTabs vocabularyId={vocabularyId} />
+      <div className="space-y-5">
+        <VocabularyEditorTabs vocabularyId={vocabularyId} />
+        <VocabularyValidationPanel vocabularyId={vocabularyId} />
+      </div>
     </PageContainer>
   );
 }
