@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/common/error-state";
 import { PermissionGuard } from "@/security/permission-guard";
 import { PERMISSIONS } from "@/constants/permission.constants";
 import { LessonEditor } from "@/features/lesson/components/lesson-editor";
+import { LessonContentManager } from "@/features/lesson/components/lesson-content-manager";
 
 export default function EditLessonPage() {
   const params = useParams<{ id: string }>();
@@ -27,10 +28,25 @@ export default function EditLessonPage() {
     <PermissionGuard permission={PERMISSIONS.LESSONS.UPDATE}>
       <PageContainer>
         <PageHeader
-          title="Chỉnh sửa bài giảng"
-          description="Cập nhật thông tin bài giảng, ảnh bìa và metadata học tập."
+          title="Biên tập bài giảng"
+          description="Quản lý thông tin chung, nội dung bài học, từ vựng, tài nguyên và điều kiện tiên quyết trong cùng một workspace."
         />
-        <LessonEditor lessonId={lessonId} />
+
+        <div className="space-y-6">
+          <LessonEditor lessonId={lessonId} />
+
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-[14px] font-semibold text-[#333]">Nội dung bài giảng</h2>
+              <p className="mt-1 text-[11px] leading-5 text-[#777]">
+                Quản lý LessonSection, Vocabulary, Asset và LessonPrerequisite. Các quy tắc trùng thứ tự,
+                self-reference và prerequisite cycle tiếp tục được backend kiểm tra.
+              </p>
+            </div>
+
+            <LessonContentManager lessonId={lessonId} />
+          </section>
+        </div>
       </PageContainer>
     </PermissionGuard>
   );
