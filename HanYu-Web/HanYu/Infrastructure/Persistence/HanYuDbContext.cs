@@ -138,11 +138,44 @@ public class HanYuDbContext : IdentityDbContext<User, Role, Guid>, HanYu.Applica
     }
 
     /// <summary>
-    /// Final persistence boundary for Lesson classification invariants.
+    /// Final persistence boundary for Course -> Chapter -> Lesson classification invariants.
     /// This intentionally lives below controllers/services so every write path is protected.
     /// </summary>
     private async Task ValidateLessonClassificationAsync(CancellationToken cancellationToken)
     {
+        var courseHskEntries = ChangeTracker
+            .Entries<CourseEntity>()
+            .Where(entry =>
+                entry.State == EntityState.Modified &&
+                entry.Entity.Id > 0 &&
+                entry.Property(nameof(CourseEntity.HskLevelId)).IsModified)
+            .ToArray();
+
+        foreach (var entry in courseHskEntries)
+        {
+            var course = entry.Entity;
+
+            if (!course.HskLevelId.HasValue)
+            {
+                continue;
+            }
+
+            var hasMismatchedLesson = await Lessons
+                .AsNoTracking()
+                .AnyAsync(
+                    lesson =>
+                        lesson.CourseChapter != null &&
+                        lesson.CourseChapter.CourseId == course.Id &&
+                        lesson.HskLevelId != course.HskLevelId.Value,
+                    cancellationToken);
+
+            if (hasMismatchedLesson)
+            {
+                throw new InvalidOperationException(
+                    "Không thể đổi HSK của Course vì đang có Lesson thuộc Course sử dụng HSK khác. Hãy đồng bộ hoặc chuyển các Lesson trước.");
+            }
+        }
+
         var lessonEntries = ChangeTracker
             .Entries<LessonEntity>()
             .Where(entry =>
