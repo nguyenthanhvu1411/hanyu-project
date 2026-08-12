@@ -37,7 +37,15 @@ export const API_ENDPOINTS = {
 
   VOCABULARY: {
     ROOT: "/admin/vocabularies",
+    DETAIL: (id: number) => `/admin/vocabularies/${id}`,
+    SUBMIT_REVIEW: (id: number) => `/admin/vocabularies/${id}/submit-review`,
+    APPROVE: (id: number) => `/admin/vocabularies/${id}/approve`,
+    PUBLISH: (id: number) => `/admin/vocabularies/${id}/publish`,
+    ARCHIVE: (id: number) => `/admin/vocabularies/${id}/archive`,
+    RESTORE: (id: number) => `/admin/vocabularies/${id}/restore`,
     TOPICS: "/admin/vocabulary-topics",
+    PARTS_OF_SPEECH: "/admin/parts-of-speech",
+    PART_OF_SPEECH: (id: number) => `/admin/parts-of-speech/${id}`,
   },
 
   COURSE: {
