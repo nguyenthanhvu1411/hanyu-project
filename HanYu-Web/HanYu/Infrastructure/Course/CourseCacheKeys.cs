@@ -24,4 +24,9 @@ public static class CourseCacheKeys
         string version,
         Guid publicId)
         => $"course:public:{version}:curriculum:{publicId:N}";
+
+    public static string Lessons(
+        string version,
+        string slug)
+        => $"course:public:{version}:lessons:{slug}";
 }
