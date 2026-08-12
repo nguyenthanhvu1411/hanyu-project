@@ -3,6 +3,11 @@ using HanYu.Domain.Enums;
 
 namespace HanYu.Domain.Entities.Vocabulary;
 
+/// <summary>
+/// Shared content taxonomy used across Lesson, Vocabulary and other learning modules.
+/// The CLR namespace is kept for migration compatibility; business usage is no longer
+/// limited to the Vocabulary module.
+/// </summary>
 public class Topic : AuditableEntity
 {
     public string Slug { get; private set; }
@@ -41,6 +46,8 @@ public class Topic : AuditableEntity
         string? descriptionVi,
         int sortOrder)
     {
+        EnsureEditable();
+
         if (string.IsNullOrWhiteSpace(slug))
         {
             throw new ArgumentException(
@@ -51,7 +58,7 @@ public class Topic : AuditableEntity
         if (string.IsNullOrWhiteSpace(nameVi))
         {
             throw new ArgumentException(
-                "Tên topic không được để trống.",
+                "Tên chủ đề không được để trống.",
                 nameof(nameVi));
         }
 
@@ -61,53 +68,93 @@ public class Topic : AuditableEntity
                 nameof(sortOrder));
         }
 
-        Slug =
-            slug.Trim()
-                .ToLowerInvariant();
+        var normalizedSlug = NormalizeSlug(slug);
+        var normalizedName = nameVi.Trim();
+        var normalizedDescription = Normalize(descriptionVi);
 
-        NameVi =
-            nameVi.Trim();
+        if (Slug == normalizedSlug &&
+            NameVi == normalizedName &&
+            DescriptionVi == normalizedDescription &&
+            SortOrder == sortOrder)
+        {
+            return;
+        }
 
-        DescriptionVi =
-            string.IsNullOrWhiteSpace(
-                descriptionVi)
-                ? null
-                : descriptionVi.Trim();
-
-        SortOrder =
-            sortOrder;
+        Slug = normalizedSlug;
+        NameVi = normalizedName;
+        DescriptionVi = normalizedDescription;
+        SortOrder = sortOrder;
 
         MarkUpdated();
     }
 
     public void Publish()
     {
-        Status =
-            ContentStatus.Published;
+        if (Status == ContentStatus.Published)
+        {
+            return;
+        }
 
+        if (Status != ContentStatus.Draft &&
+            Status != ContentStatus.Approved)
+        {
+            throw new InvalidOperationException(
+                "Chỉ chủ đề Draft hoặc Approved mới có thể Publish.");
+        }
+
+        Status = ContentStatus.Published;
         MarkUpdated();
     }
 
     public void Archive()
     {
-        Status =
-            ContentStatus.Archived;
+        if (Status == ContentStatus.Archived)
+        {
+            return;
+        }
 
+        if (Status != ContentStatus.Published)
+        {
+            throw new InvalidOperationException(
+                "Chỉ chủ đề Published mới có thể Archive.");
+        }
+
+        Status = ContentStatus.Archived;
         MarkUpdated();
     }
 
     public void Restore()
     {
-        if (Status !=
-            ContentStatus.Archived)
+        if (Status != ContentStatus.Archived)
         {
             throw new InvalidOperationException(
-                "Topic chưa được archive.");
+                "Chủ đề chưa được Archive.");
         }
 
-        Status =
-            ContentStatus.Draft;
-
+        Status = ContentStatus.Draft;
         MarkUpdated();
     }
+
+    private void EnsureEditable()
+    {
+        if (Status == ContentStatus.Archived)
+        {
+            throw new InvalidOperationException(
+                "Chủ đề Archived không thể chỉnh sửa. Hãy khôi phục về Draft trước.");
+        }
+    }
+
+    private static string NormalizeSlug(string value)
+        => string.Join(
+            '-',
+            value.Trim()
+                .ToLowerInvariant()
+                .Split(
+                    [' ', '-', '_'],
+                    StringSplitOptions.RemoveEmptyEntries));
+
+    private static string? Normalize(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim();
 }
