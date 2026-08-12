@@ -215,6 +215,24 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
     };
   }, [selectedCourseId]);
 
+  const selectedCourse = useMemo(
+    () => courses.find((course) => course.id === selectedCourseId) ?? null,
+    [courses, selectedCourseId],
+  );
+
+  const hskLockedByCourse = Boolean(selectedCourse?.hskLevelId);
+
+  useEffect(() => {
+    const courseHskLevelId = selectedCourse?.hskLevelId;
+    if (!courseHskLevelId) return;
+
+    setForm((current) =>
+      current.hskLevelId === courseHskLevelId
+        ? current
+        : { ...current, hskLevelId: courseHskLevelId },
+    );
+  }, [selectedCourse?.hskLevelId]);
+
   const hskOptions = useMemo(
     () =>
       hskLevels.map((item) => ({
@@ -249,12 +267,14 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
 
   const topicOptions = useMemo(
     () =>
-      topics.map((topic) => ({
-        value: String(topic.id),
-        label: topic.nameVi,
-        description: topic.slug,
-        disabled: topic.status === ContentStatus.Archived && topic.id !== form.topicId,
-      })),
+      topics
+        .filter((topic) => topic.status === ContentStatus.Published || topic.id === form.topicId)
+        .map((topic) => ({
+          value: String(topic.id),
+          label: topic.nameVi,
+          description: topic.slug,
+          disabled: topic.status !== ContentStatus.Published,
+        })),
     [form.topicId, topics],
   );
 
@@ -437,17 +457,25 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
         </FormRow>
 
         <FormRow columns={2}>
-          <FormField label="Cấp độ HSK" required description="Lấy từ danh mục HSK; khi chọn khóa học sẽ tự đồng bộ HSK nếu khóa học đã cấu hình.">
+          <FormField
+            label="Cấp độ HSK"
+            required
+            description={
+              hskLockedByCourse
+                ? `Được khóa theo khóa học${selectedCourse?.hskCode ? ` ${selectedCourse.hskCode}` : ""}; muốn đổi HSK hãy đổi cấu hình khóa học trước.`
+                : "Lấy từ danh mục HSK. Nếu khóa học có HSK, hệ thống sẽ tự đồng bộ và khóa trường này."
+            }
+          >
             <Select
               value={form.hskLevelId > 0 ? String(form.hskLevelId) : ""}
               onValueChange={(value) => setField("hskLevelId", Number(value))}
               options={hskOptions}
               placeholder={catalogLoading ? "Đang tải HSK..." : "Chọn cấp độ HSK"}
-              disabled={catalogLoading}
+              disabled={catalogLoading || hskLockedByCourse}
             />
           </FormField>
 
-          <FormField label="Chủ đề" description="Chọn theo tên chủ đề từ danh mục Topic, không nhập Topic ID thủ công.">
+          <FormField label="Chủ đề" description="Chỉ chủ đề Published mới được chọn cho bài giảng; chủ đề là danh mục nội dung dùng chung.">
             <Select
               value={form.topicId ? String(form.topicId) : ""}
               onValueChange={(value) => setField("topicId", value ? Number(value) : null)}
@@ -503,7 +531,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
       </FormSection>
 
       {detail ? (
-        <FormSection title="Trạng thái và quy trình" description={`Phiên bản v${detail.version} · PublicId ${detail.publicId}`} icon={<ShieldCheck size={18} />}>
+        <FormSection title="Trạng thái và quy trình" description={`Revision kỹ thuật v${detail.version} · PublicId ${detail.publicId}`} icon={<ShieldCheck size={18} />}>
           <div className="grid gap-3 md:grid-cols-5">
             <Metric label="Trạng thái" value={getContentStatusLabel(detail.status)} />
             <Metric label="Nội dung" value={detail.sectionCount} />
