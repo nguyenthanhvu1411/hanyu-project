@@ -138,7 +138,7 @@ export const ADMIN_NAVIGATION: NavigationGroup[] = [
       },
 
       {
-        title: "Loại từ",
+        title: "Từ loại",
         href: ROUTES.LOAI_TU,
         icon: Tags,
       },
