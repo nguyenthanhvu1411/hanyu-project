@@ -2,6 +2,8 @@ using HanYu.API.Common.Extensions;
 using HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
 using HanYu.Application.Interfaces.Vocabulary;
 using HanYu.Domain.Constants;
+using HanYu.Infrastructure.Persistence;
+using HanYu.Infrastructure.Vocabulary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -15,11 +17,14 @@ public sealed class VocabulariesController
     : ControllerBase
 {
     private readonly IVocabularyAdminService _service;
+    private readonly HanYuDbContext _db;
 
     public VocabulariesController(
-        IVocabularyAdminService service)
+        IVocabularyAdminService service,
+        HanYuDbContext db)
     {
         _service = service;
+        _db = db;
     }
 
     [HttpGet]
@@ -39,6 +44,27 @@ public sealed class VocabulariesController
             await _service.GetVocabularyAsync(
                 id,
                 cancellationToken));
+
+    [HttpGet("{id:long}/validate")]
+    public async Task<IActionResult> Validate(
+        long id,
+        [FromQuery] bool forPublish = false,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = await VocabularyWorkflowValidator.ValidateAsync(
+            _db,
+            id,
+            forPublish,
+            cancellationToken);
+
+        return validation is null
+            ? NotFound(new
+            {
+                code = "Vocabulary.NotFound",
+                message = "Không tìm thấy vocabulary."
+            })
+            : Ok(validation);
+    }
 
     [HttpPost]
     [EnableRateLimiting(
@@ -68,11 +94,24 @@ public sealed class VocabulariesController
     public async Task<IActionResult> SubmitReview(
         long id,
         CancellationToken cancellationToken)
-        => this.ToActionResult(
-            await _service
-                .SubmitVocabularyForReviewAsync(
-                    id,
-                    cancellationToken));
+    {
+        var validation = await VocabularyWorkflowValidator.ValidateAsync(
+            _db,
+            id,
+            forPublish: false,
+            cancellationToken);
+
+        if (validation is null)
+            return NotFound(new { code = "Vocabulary.NotFound", message = "Không tìm thấy vocabulary." });
+
+        if (!validation.IsValid)
+            return UnprocessableEntity(validation);
+
+        return this.ToActionResult(
+            await _service.SubmitVocabularyForReviewAsync(
+                id,
+                cancellationToken));
+    }
 
     [HttpPost("{id:long}/approve")]
     public async Task<IActionResult> Approve(
@@ -88,11 +127,24 @@ public sealed class VocabulariesController
     public async Task<IActionResult> Publish(
         long id,
         CancellationToken cancellationToken)
-        => this.ToActionResult(
-            await _service
-                .PublishVocabularyAsync(
-                    id,
-                    cancellationToken));
+    {
+        var validation = await VocabularyWorkflowValidator.ValidateAsync(
+            _db,
+            id,
+            forPublish: true,
+            cancellationToken);
+
+        if (validation is null)
+            return NotFound(new { code = "Vocabulary.NotFound", message = "Không tìm thấy vocabulary." });
+
+        if (!validation.IsValid)
+            return UnprocessableEntity(validation);
+
+        return this.ToActionResult(
+            await _service.PublishVocabularyAsync(
+                id,
+                cancellationToken));
+    }
 
     [HttpPost("{id:long}/archive")]
     public async Task<IActionResult> Archive(
