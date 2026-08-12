@@ -36,6 +36,7 @@ export const API_ENDPOINTS = {
   },
 
   VOCABULARY: {
+    ROOT: "/admin/vocabularies",
     TOPICS: "/admin/vocabulary-topics",
   },
 
