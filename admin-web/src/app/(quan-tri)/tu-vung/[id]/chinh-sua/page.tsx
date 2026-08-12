@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { ErrorState } from "@/components/common/error-state";
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
-import { VocabularyForm } from "@/features/vocabulary/components/vocabulary-form";
+import { VocabularyEditorTabs } from "@/features/vocabulary/components/vocabulary-editor-tabs";
 
 export default function EditVocabularyPage() {
   const params = useParams<{ id: string }>();
@@ -25,10 +25,10 @@ export default function EditVocabularyPage() {
   return (
     <PageContainer>
       <PageHeader
-        title="Chỉnh sửa từ vựng"
-        description="Cập nhật thông tin chung và phân loại. Version kỹ thuật được giữ để bảo vệ optimistic concurrency."
+        title="Vocabulary Editor"
+        description="Biên tập thông tin chung, nghĩa, ví dụ, quan hệ và audio trong cùng một workspace."
       />
-      <VocabularyForm vocabularyId={vocabularyId} />
+      <VocabularyEditorTabs vocabularyId={vocabularyId} />
     </PageContainer>
   );
 }
