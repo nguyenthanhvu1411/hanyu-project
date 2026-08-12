@@ -3,11 +3,13 @@
 import {
   Check,
   ChevronDown,
+  Search,
   X,
 } from "lucide-react";
 
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -43,6 +45,10 @@ interface SelectProps {
 
   clearable?: boolean;
 
+  searchable?: boolean;
+
+  searchPlaceholder?: string;
+
   className?: string;
 }
 
@@ -54,12 +60,19 @@ export function Select({
   disabled = false,
   error = false,
   clearable = false,
+  searchable = false,
+  searchPlaceholder = "Tìm kiếm...",
   className,
 }: SelectProps) {
   const [
     open,
     setOpen,
   ] = useState(false);
+
+  const [
+    search,
+    setSearch,
+  ] = useState("");
 
   const ref =
     useRef<HTMLDivElement>(
@@ -72,6 +85,20 @@ export function Select({
         item.value ===
         value,
     );
+
+  const visibleOptions = useMemo(() => {
+    if (!searchable || !search.trim()) {
+      return options;
+    }
+
+    const keyword = search.trim().toLocaleLowerCase();
+
+    return options.filter((option) =>
+      `${option.label} ${option.description ?? ""}`
+        .toLocaleLowerCase()
+        .includes(keyword),
+    );
+  }, [options, search, searchable]);
 
   useEffect(() => {
     function handleOutside(
@@ -98,6 +125,12 @@ export function Select({
         handleOutside,
       );
   }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setSearch("");
+    }
+  }, [open]);
 
   return (
     <div
@@ -158,12 +191,7 @@ export function Select({
         </span>
 
         <div
-          className="
-            flex
-            shrink-0
-            items-center
-            gap-1
-          "
+          className="flex shrink-0 items-center gap-1"
         >
           {clearable &&
             selected &&
@@ -180,15 +208,7 @@ export function Select({
                     "",
                   );
                 }}
-                className="
-                  flex h-6 w-6
-                  items-center
-                  justify-center
-                  rounded
-                  text-[#aaa]
-                  hover:bg-[#f1f1f1]
-                  hover:text-[#666]
-                "
+                className="flex h-6 w-6 items-center justify-center rounded text-[#aaa] hover:bg-[#f1f1f1] hover:text-[#666]"
               >
                 <X size={13} />
               </span>
@@ -210,103 +230,64 @@ export function Select({
       {open &&
         !disabled && (
           <div
-            className="
-              absolute
-              left-0
-              right-0
-              top-[calc(100%+6px)]
-              z-[90]
-              max-h-[240px]
-              overflow-y-auto
-              rounded-[8px]
-              border
-              border-[#e1dcd5]
-              bg-white
-              p-1
-              shadow-[0_12px_35px_rgba(0,0,0,0.12)]
-            "
+            className="absolute left-0 right-0 top-[calc(100%+6px)] z-[90] max-h-[320px] overflow-hidden rounded-[8px] border border-[#e1dcd5] bg-white shadow-[0_12px_35px_rgba(0,0,0,0.12)]"
           >
-            {options.length ===
-            0 ? (
-              <div
-                className="
-                  px-3 py-6
-                  text-center
-                  text-[11px]
-                  text-[#999]
-                "
-              >
-                Không có dữ liệu.
+            {searchable ? (
+              <div className="border-b border-[#eeeae4] p-2">
+                <div className="flex h-[36px] items-center gap-2 rounded-[6px] border border-[#dedbd6] bg-white px-2.5">
+                  <Search size={13} className="shrink-0 text-[#999]" />
+                  <input
+                    autoFocus
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    onKeyDown={(event) => event.stopPropagation()}
+                    placeholder={searchPlaceholder}
+                    className="min-w-0 flex-1 bg-transparent text-[11px] text-[#444] outline-none placeholder:text-[#aaa]"
+                  />
+                  {search ? (
+                    <button type="button" onClick={() => setSearch("")} className="text-[#aaa] hover:text-[#666]">
+                      <X size={12} />
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            ) : (
-              options.map(
-                (
-                  option,
-                ) => {
-                  const active =
-                    value ===
-                    option.value;
+            ) : null}
+
+            <div className="max-h-[260px] overflow-y-auto p-1">
+              {visibleOptions.length === 0 ? (
+                <div className="px-3 py-6 text-center text-[11px] text-[#999]">
+                  Không có dữ liệu phù hợp.
+                </div>
+              ) : (
+                visibleOptions.map((option) => {
+                  const active = value === option.value;
 
                   return (
                     <button
-                      key={
-                        option.value
-                      }
+                      key={option.value}
                       type="button"
-                      disabled={
-                        option.disabled
-                      }
+                      disabled={option.disabled}
                       onClick={() => {
-                        onValueChange?.(
-                          option.value,
-                        );
-
+                        onValueChange?.(option.value);
                         setOpen(false);
                       }}
                       className={cn(
-                        "flex",
-                        "w-full",
-                        "items-start",
-                        "gap-2",
-                        "rounded-[6px]",
-                        "px-3",
-                        "py-[8px]",
-                        "text-left",
-                        "transition",
-
+                        "flex w-full items-start gap-2 rounded-[6px] px-3 py-[8px] text-left transition",
                         active
                           ? "bg-[#fff0ee] text-[#ef241c]"
                           : "text-[#555] hover:bg-[#faf8f5]",
-
                         option.disabled &&
                           "cursor-not-allowed opacity-40",
                       )}
                     >
                       <div className="min-w-0 flex-1">
-                        <div
-                          className="
-                            truncate
-                            text-[12px]
-                            font-medium
-                          "
-                        >
-                          {
-                            option.label
-                          }
+                        <div className="truncate text-[12px] font-medium">
+                          {option.label}
                         </div>
 
                         {option.description && (
-                          <div
-                            className="
-                              mt-[2px]
-                              text-[10px]
-                              leading-[15px]
-                              text-[#999]
-                            "
-                          >
-                            {
-                              option.description
-                            }
+                          <div className="mt-[2px] text-[10px] leading-[15px] text-[#999]">
+                            {option.description}
                           </div>
                         )}
                       </div>
@@ -314,17 +295,14 @@ export function Select({
                       {active && (
                         <Check
                           size={14}
-                          className="
-                            mt-[1px]
-                            shrink-0
-                          "
+                          className="mt-[1px] shrink-0"
                         />
                       )}
                     </button>
                   );
-                },
-              )
-            )}
+                })
+              )}
+            </div>
           </div>
         )}
     </div>
