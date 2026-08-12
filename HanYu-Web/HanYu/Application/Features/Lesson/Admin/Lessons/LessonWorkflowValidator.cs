@@ -5,6 +5,7 @@ using HanYu.Domain.Entities.Lesson;
 using HanYu.Domain.Entities.Vocabulary;
 using HanYu.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using VocabularyEntity = HanYu.Domain.Entities.Vocabulary.Vocabulary;
 
 namespace HanYu.Application.Features.Lesson.Admin.Lessons;
 
@@ -76,10 +77,6 @@ public static class LessonWorkflowValidator
                     message,
                     field,
                     LessonValidationSeverity.Warning));
-
-        // ========================================================
-        // 1. Aggregate / metadata
-        // ========================================================
 
         if (lesson.IsDeleted)
         {
@@ -163,10 +160,6 @@ public static class LessonWorkflowValidator
                 "Lesson phải ở trạng thái Approved trước khi Publish.",
                 "status");
         }
-
-        // ========================================================
-        // 2. HSK / Topic / Course / Chapter
-        // ========================================================
 
         var hskLevel = await dbContext.HskLevels
             .IgnoreQueryFilters()
@@ -280,10 +273,6 @@ public static class LessonWorkflowValidator
             }
         }
 
-        // ========================================================
-        // 3. Sections
-        // ========================================================
-
         var sections = await dbContext.Set<LessonSection>()
             .IgnoreQueryFilters()
             .AsNoTracking()
@@ -342,10 +331,6 @@ public static class LessonWorkflowValidator
             }
         }
 
-        // ========================================================
-        // 4. Vocabulary
-        // ========================================================
-
         var lessonVocabulary = await dbContext.Set<LessonVocabulary>()
             .AsNoTracking()
             .Where(x => x.LessonId == lesson.Id)
@@ -379,8 +364,8 @@ public static class LessonWorkflowValidator
             .ToArray();
 
         var vocabularies = vocabularyIds.Length == 0
-            ? new Dictionary<long, Vocabulary>()
-            : await dbContext.Set<Vocabulary>()
+            ? new Dictionary<long, VocabularyEntity>()
+            : await dbContext.Set<VocabularyEntity>()
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(x => vocabularyIds.Contains(x.Id))
@@ -433,10 +418,6 @@ public static class LessonWorkflowValidator
                 }
             }
         }
-
-        // ========================================================
-        // 5. Assets
-        // ========================================================
 
         var assets = await dbContext.Set<LessonAsset>()
             .IgnoreQueryFilters()
@@ -545,10 +526,6 @@ public static class LessonWorkflowValidator
                 }
             }
         }
-
-        // ========================================================
-        // 6. Prerequisites
-        // ========================================================
 
         var prerequisites = await dbContext.Set<LessonPrerequisite>()
             .AsNoTracking()
