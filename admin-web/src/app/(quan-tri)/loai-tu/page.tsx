@@ -6,8 +6,8 @@ export default function PartOfSpeechPage() {
   return (
     <PageContainer>
       <PageHeader
-        title="Loại từ"
-        description="Quản lý danh từ, động từ, tính từ và các loại từ dùng trong hệ thống từ vựng."
+        title="Từ loại"
+        description="Quản lý danh từ, động từ, tính từ và các từ loại dùng trong hệ thống từ vựng."
       />
       <PartOfSpeechTable />
     </PageContainer>
