@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BookOpenText, Link2, MessageSquareText, Plus, Search, Trash2, UploadCloud, Volume2 } from "lucide-react";
+import { BookOpenText, Link2, MessageSquareText, Plus, Search, Trash2 } from "lucide-react";
 
 import { apiClient } from "@/lib/api/api-client";
 import { API_ENDPOINTS } from "@/lib/api/api-endpoints";
 import { getContentStatusLabel } from "@/lib/constants/content-status";
+import { AudioAssetPicker } from "./audio-asset-picker";
 import { VocabularyForm } from "./vocabulary-form";
 
 type TabKey = "general" | "meanings" | "examples" | "relations" | "audio";
@@ -39,29 +40,6 @@ interface RelationDto {
   relatedMeaningVi: string;
   relationType: number;
   noteVi: string | null;
-}
-
-interface AudioAssetDto {
-  id: number;
-  storagePath: string;
-  publicUrl: string | null;
-  kind: number;
-  mimeType: string;
-  fileSizeBytes: number | null;
-  durationMs: number | null;
-  voice: string | null;
-  provider: string | null;
-  languageCode: string | null;
-  checksum: string | null;
-  status: number;
-}
-
-interface UploadAudioResult {
-  objectKey: string;
-  publicUrl: string;
-  originalFileName: string;
-  contentType: string;
-  fileSizeBytes: number;
 }
 
 interface VocabularyDto {
@@ -213,7 +191,7 @@ function ExampleManager({ vocabularyId }: { vocabularyId: number }) {
   const [vi, setVi] = useState("");
   const [difficulty, setDifficulty] = useState("1");
   const [sourceNote, setSourceNote] = useState("");
-  const [audioAssetId, setAudioAssetId] = useState("");
+  const [audioAssetId, setAudioAssetId] = useState<number | null>(null);
   const state = useAsyncSection();
 
   const load = useCallback(async () => {
@@ -223,17 +201,40 @@ function ExampleManager({ vocabularyId }: { vocabularyId: number }) {
   }, [state, vocabularyId]);
   useEffect(() => { void load(); }, [load]);
 
-  function reset() { setEditing(null); setZh(""); setPinyin(""); setVi(""); setDifficulty("1"); setSourceNote(""); setAudioAssetId(""); }
+  function reset() {
+    setEditing(null);
+    setZh("");
+    setPinyin("");
+    setVi("");
+    setDifficulty("1");
+    setSourceNote("");
+    setAudioAssetId(null);
+  }
 
   async function save() {
     if (!zh.trim() || !pinyin.trim() || !vi.trim()) return state.setError("Câu tiếng Trung, Pinyin và tiếng Việt là bắt buộc.");
-    state.setBusy(true); state.setError(null);
+    state.setBusy(true);
+    state.setError(null);
     try {
-      const body = { sentenceZh: zh.trim(), sentencePinyin: pinyin.trim(), sentenceVi: vi.trim(), difficulty: Number(difficulty), audioAssetId: audioAssetId ? Number(audioAssetId) : null, sourceNote: sourceNote.trim() || null };
-      await apiClient(editing ? API_ENDPOINTS.VOCABULARY.EXAMPLE(vocabularyId, editing.id) : API_ENDPOINTS.VOCABULARY.EXAMPLES(vocabularyId), { method: editing ? "PUT" : "POST", body });
-      reset(); await load();
-    } catch (error) { state.fail(error, "Không thể lưu ví dụ."); }
-    finally { state.setBusy(false); }
+      const body = {
+        sentenceZh: zh.trim(),
+        sentencePinyin: pinyin.trim(),
+        sentenceVi: vi.trim(),
+        difficulty: Number(difficulty),
+        audioAssetId,
+        sourceNote: sourceNote.trim() || null,
+      };
+      await apiClient(
+        editing ? API_ENDPOINTS.VOCABULARY.EXAMPLE(vocabularyId, editing.id) : API_ENDPOINTS.VOCABULARY.EXAMPLES(vocabularyId),
+        { method: editing ? "PUT" : "POST", body },
+      );
+      reset();
+      await load();
+    } catch (error) {
+      state.fail(error, "Không thể lưu ví dụ.");
+    } finally {
+      state.setBusy(false);
+    }
   }
 
   async function workflow(item: ExampleDto, action: "submit-review" | "approve" | "publish" | "archive" | "restore") {
@@ -244,7 +245,8 @@ function ExampleManager({ vocabularyId }: { vocabularyId: number }) {
       archive: API_ENDPOINTS.VOCABULARY.EXAMPLE_ARCHIVE(vocabularyId, item.id),
       restore: API_ENDPOINTS.VOCABULARY.EXAMPLE_RESTORE(vocabularyId, item.id),
     };
-    await apiClient(paths[action], { method: "POST" }); await load();
+    await apiClient(paths[action], { method: "POST" });
+    await load();
   }
 
   return (
@@ -253,19 +255,49 @@ function ExampleManager({ vocabularyId }: { vocabularyId: number }) {
         <input className="editor-input" value={zh} onChange={(e) => setZh(e.target.value)} placeholder="Câu tiếng Trung" />
         <input className="editor-input" value={pinyin} onChange={(e) => setPinyin(e.target.value)} placeholder="Pinyin" />
         <input className="editor-input" value={vi} onChange={(e) => setVi(e.target.value)} placeholder="Dịch tiếng Việt" />
-        <div className="grid grid-cols-2 gap-2">
-          <select className="editor-input" value={difficulty} onChange={(e) => setDifficulty(e.target.value)}><option value="1">Dễ</option><option value="2">Trung bình</option><option value="3">Khó</option></select>
-          <input className="editor-input" value={audioAssetId} onChange={(e) => setAudioAssetId(e.target.value.replace(/\D/g, ""))} placeholder="AudioAsset ID" />
-        </div>
+        <select className="editor-input" value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
+          <option value="1">Dễ</option>
+          <option value="2">Trung bình</option>
+          <option value="3">Khó</option>
+        </select>
         <input className="editor-input md:col-span-2" value={sourceNote} onChange={(e) => setSourceNote(e.target.value)} placeholder="Nguồn / ghi chú" />
-        <div className="flex gap-2 md:col-span-2"><button type="button" disabled={state.busy} onClick={() => void save()} className="primary-btn">{editing ? "Lưu ví dụ" : "Thêm ví dụ"}</button>{editing && <button type="button" onClick={reset} className="secondary-btn">Hủy</button>}</div>
+
+        <div className="md:col-span-2">
+          <AudioAssetPicker
+            value={audioAssetId}
+            onChange={setAudioAssetId}
+            kind={1}
+            title="Audio câu ví dụ"
+            description="Chọn audio câu ví dụ có sẵn hoặc upload trực tiếp lên Backblaze B2. Không cần nhập AudioAsset ID thủ công."
+            disabled={state.busy}
+          />
+        </div>
+
+        <div className="flex gap-2 md:col-span-2">
+          <button type="button" disabled={state.busy} onClick={() => void save()} className="primary-btn">{editing ? "Lưu ví dụ" : "Thêm ví dụ"}</button>
+          {editing && <button type="button" onClick={reset} className="secondary-btn">Hủy</button>}
+        </div>
       </div>
 
       <div className="mt-4 space-y-2">
         {items.length === 0 && !state.loading && <EmptyText text="Chưa có câu ví dụ." />}
         {items.map((item) => (
-          <RowCard key={item.id} title={item.sentenceZh} subtitle={`${item.sentencePinyin} · ${item.sentenceVi} · ${getContentStatusLabel(item.status)}`}>
-            <button type="button" onClick={() => { setEditing(item); setZh(item.sentenceZh); setPinyin(item.sentencePinyin); setVi(item.sentenceVi); setDifficulty(String(item.difficulty)); setAudioAssetId(item.audioAssetId ? String(item.audioAssetId) : ""); setSourceNote(item.sourceNote ?? ""); }} className="secondary-btn">Sửa</button>
+          <RowCard key={item.id} title={item.sentenceZh} subtitle={`${item.sentencePinyin} · ${item.sentenceVi} · ${getContentStatusLabel(item.status)}${item.audioAssetId ? ` · Audio #${item.audioAssetId}` : " · Chưa có audio"}`}>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(item);
+                setZh(item.sentenceZh);
+                setPinyin(item.sentencePinyin);
+                setVi(item.sentenceVi);
+                setDifficulty(String(item.difficulty));
+                setAudioAssetId(item.audioAssetId);
+                setSourceNote(item.sourceNote ?? "");
+              }}
+              className="secondary-btn"
+            >
+              Sửa
+            </button>
             {item.status === 0 && <button type="button" onClick={() => void workflow(item, "submit-review")} className="secondary-btn">Gửi duyệt</button>}
             {item.status === 1 && <button type="button" onClick={() => void workflow(item, "approve")} className="secondary-btn">Duyệt</button>}
             {item.status === 2 && <button type="button" onClick={() => void workflow(item, "publish")} className="secondary-btn">Xuất bản</button>}
@@ -340,38 +372,27 @@ function RelationManager({ vocabularyId }: { vocabularyId: number }) {
 
 function AudioManager({ vocabularyId }: { vocabularyId: number }) {
   const [vocabulary, setVocabulary] = useState<VocabularyDto | null>(null);
-  const [assets, setAssets] = useState<AudioAssetDto[]>([]);
-  const [selectedId, setSelectedId] = useState("");
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const state = useAsyncSection();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    state.start();
+    setLoading(true);
+    setError(null);
     try {
-      const [vocab, audioPage] = await Promise.all([
-        apiClient<VocabularyDto>(API_ENDPOINTS.VOCABULARY.DETAIL(vocabularyId)),
-        apiClient<PagedResult<AudioAssetDto>>(`${API_ENDPOINTS.VOCABULARY.AUDIO_ASSETS}?page=1&pageSize=100`),
-      ]);
-      setVocabulary(vocab);
-      setSelectedId(vocab.audioAssetId ? String(vocab.audioAssetId) : "");
-      setAssets(audioPage.items.filter((item) => item.kind === 0));
-      state.success();
-    } catch (error) {
-      state.fail(error, "Không thể tải Audio Asset.");
+      setVocabulary(await apiClient<VocabularyDto>(API_ENDPOINTS.VOCABULARY.DETAIL(vocabularyId)));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Không thể tải thông tin audio từ vựng.");
+    } finally {
+      setLoading(false);
     }
-  }, [state, vocabularyId]);
+  }, [vocabularyId]);
 
   useEffect(() => { void load(); }, [load]);
-
-  const selectedAsset = useMemo(
-    () => assets.find((item) => String(item.id) === selectedId) ?? null,
-    [assets, selectedId],
-  );
 
   async function attachAudio(audioAssetId: number | null) {
     if (!vocabulary) return;
 
-    await apiClient(API_ENDPOINTS.VOCABULARY.DETAIL(vocabularyId), {
+    const updated = await apiClient<VocabularyDto>(API_ENDPOINTS.VOCABULARY.DETAIL(vocabularyId), {
       method: "PUT",
       body: {
         hskLevelId: vocabulary.hskLevelId,
@@ -388,154 +409,26 @@ function AudioManager({ vocabularyId }: { vocabularyId: number }) {
         version: vocabulary.version,
       },
     });
+
+    setVocabulary(updated);
   }
 
-  async function attach() {
-    if (!vocabulary) return;
-    state.setBusy(true);
-    state.setError(null);
-    try {
-      await attachAudio(selectedId ? Number(selectedId) : null);
-      await load();
-    } catch (error) {
-      state.fail(error, "Không thể gắn Audio Asset vào từ vựng.");
-    } finally {
-      state.setBusy(false);
-    }
+  if (loading) {
+    return <div className="rounded-[11px] border border-[#e8e3dc] bg-white p-6 text-[13px] text-[#777]">Đang tải audio...</div>;
   }
 
-  async function uploadAndAttach() {
-    if (!uploadFile) return state.setError("Hãy chọn file audio trước khi tải lên.");
-    if (uploadFile.size > 25 * 1024 * 1024) return state.setError("File audio không được vượt quá 25 MB.");
-
-    state.setBusy(true);
-    state.setError(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", uploadFile);
-
-      const uploaded = await apiClient<UploadAudioResult>(API_ENDPOINTS.ADMIN.UPLOAD_AUDIO, {
-        method: "POST",
-        body: formData,
-      });
-
-      const created = await apiClient<AudioAssetDto>(API_ENDPOINTS.VOCABULARY.AUDIO_ASSETS, {
-        method: "POST",
-        body: {
-          storagePath: uploaded.objectKey,
-          kind: 0,
-          mimeType: uploaded.contentType,
-        },
-      });
-
-      await apiClient<AudioAssetDto>(API_ENDPOINTS.VOCABULARY.AUDIO_ASSET(created.id), {
-        method: "PUT",
-        body: {
-          storagePath: uploaded.objectKey,
-          mimeType: uploaded.contentType,
-          fileSizeBytes: uploaded.fileSizeBytes,
-          durationMs: null,
-          checksum: null,
-          voice: null,
-          provider: "admin-upload",
-          languageCode: "zh-CN",
-          publicUrl: uploaded.publicUrl,
-        },
-      });
-
-      await attachAudio(created.id);
-      setUploadFile(null);
-      await load();
-    } catch (error) {
-      state.fail(error, "Không thể upload và gắn audio vào từ vựng.");
-    } finally {
-      state.setBusy(false);
-    }
-  }
-
-  async function publishSelectedAudio() {
-    if (!selectedAsset) return;
-    state.setBusy(true);
-    state.setError(null);
-    try {
-      await apiClient(API_ENDPOINTS.VOCABULARY.AUDIO_ASSET_PUBLISH(selectedAsset.id), { method: "POST" });
-      await load();
-    } catch (error) {
-      state.fail(error, "Không thể xuất bản Audio Asset.");
-    } finally {
-      state.setBusy(false);
-    }
+  if (!vocabulary) {
+    return <EditorSection title="Audio phát âm" description="Quản lý audio phát âm của từ vựng." icon={<BookOpenText size={16} />} error={error}><EmptyText text="Không thể tải thông tin từ vựng." /></EditorSection>;
   }
 
   return (
-    <EditorSection
-      title="Audio phát âm"
-      description="Upload trực tiếp lên S3-compatible storage (Backblaze B2), tạo AudioAsset và tự động gắn vào Vocabulary."
-      icon={<Volume2 size={16} />}
-      error={state.error}
-    >
-      <div className="rounded-[9px] border border-dashed border-[#ddd8d1] bg-[#faf9f7] p-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#fff0ee] text-[#ef241c]">
-            <UploadCloud size={17} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-semibold text-[#444]">Upload audio mới</div>
-            <div className="mt-1 text-[10px] leading-4 text-[#888]">MP3, M4A, WAV, OGG, WEBM hoặc AAC · tối đa 25 MB.</div>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <input
-                type="file"
-                accept="audio/*,.mp3,.m4a,.wav,.ogg,.webm,.aac"
-                disabled={state.busy}
-                onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
-                className="block min-w-0 flex-1 text-[10px] text-[#666] file:mr-3 file:rounded-[6px] file:border-0 file:bg-white file:px-3 file:py-2 file:text-[10px] file:font-medium file:text-[#555]"
-              />
-              <button type="button" disabled={state.busy || !uploadFile} onClick={() => void uploadAndAttach()} className="primary-btn">
-                {state.busy ? "Đang xử lý..." : "Upload & gắn Audio"}
-              </button>
-            </div>
-            {uploadFile && <div className="mt-2 text-[10px] text-[#777]">{uploadFile.name} · {(uploadFile.size / 1024 / 1024).toFixed(2)} MB</div>}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-[9px] bg-[#faf9f7] p-3">
-        <div className="mb-2 text-[10px] font-medium text-[#777]">Hoặc dùng lại AudioAsset đã có</div>
-        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-          <select className="editor-input" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
-            <option value="">Không gắn audio</option>
-            {assets.map((asset) => (
-              <option key={asset.id} value={asset.id}>#{asset.id} · {asset.storagePath} · {getContentStatusLabel(asset.status)}</option>
-            ))}
-          </select>
-          <button type="button" disabled={state.busy} onClick={() => void attach()} className="primary-btn">Lưu Audio</button>
-        </div>
-      </div>
-
-      {selectedAsset ? (
-        <div className="mt-4 rounded-[9px] border border-[#e8e3dc] p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="text-[11px] font-semibold text-[#444]">Audio #{selectedAsset.id}</div>
-              <div className="mt-1 break-all text-[10px] text-[#888]">{selectedAsset.storagePath}</div>
-              <div className="mt-2 text-[10px] text-[#777]">
-                {selectedAsset.mimeType} · {selectedAsset.fileSizeBytes ? `${(selectedAsset.fileSizeBytes / 1024 / 1024).toFixed(2)} MB` : "chưa có kích thước"} · {getContentStatusLabel(selectedAsset.status)}
-              </div>
-            </div>
-            {selectedAsset.status !== 3 && selectedAsset.status !== 4 && (
-              <button type="button" disabled={state.busy} onClick={() => void publishSelectedAudio()} className="secondary-btn">Xuất bản Audio</button>
-            )}
-          </div>
-          {selectedAsset.publicUrl && <audio controls src={selectedAsset.publicUrl} className="mt-3 h-9 w-full" />}
-        </div>
-      ) : (
-        <div className="mt-4"><EmptyText text="Từ vựng hiện chưa gắn audio." /></div>
-      )}
-
-      <p className="mt-3 text-[10px] leading-4 text-[#999]">
-        Audio mới được tạo ở trạng thái Draft. Hãy kiểm tra phát âm và Publish Audio trước khi Publish Vocabulary.
-      </p>
-    </EditorSection>
+    <AudioAssetPicker
+      value={vocabulary.audioAssetId}
+      onChange={attachAudio}
+      kind={0}
+      title="Audio phát âm từ vựng"
+      description="Chọn AudioAsset phát âm có sẵn hoặc upload trực tiếp lên Backblaze B2. Audio mới được tạo ở trạng thái Draft; hãy kiểm tra và Publish trước khi Publish Vocabulary."
+    />
   );
 }
 
