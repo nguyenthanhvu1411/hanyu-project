@@ -24,11 +24,14 @@ public sealed class ContentTaxonomySeeder
     public async Task SeedAsync(
         CancellationToken cancellationToken = default)
     {
-        var existingSlugs = await _db.Set<Topic>()
+        var existingSlugValues = await _db.Set<Topic>()
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Select(x => x.Slug)
-            .ToHashSetAsync(cancellationToken);
+            .ToArrayAsync(cancellationToken);
+
+        var existingSlugs = existingSlugValues.ToHashSet(
+            StringComparer.OrdinalIgnoreCase);
 
         var definitions = new[]
         {
@@ -69,8 +72,6 @@ public sealed class ContentTaxonomySeeder
                 definition.DescriptionVi,
                 definition.SortOrder);
 
-            // Default taxonomy is immediately usable by Lesson/Vocabulary selectors,
-            // both of which prefer/require Published topics for publish workflows.
             topic.Publish();
 
             _db.Add(topic);
