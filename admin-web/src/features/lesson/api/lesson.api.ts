@@ -25,6 +25,11 @@ import type {
   UpdateLessonVocabularyRequest,
 } from "../types/lesson.types";
 
+interface SlugAvailabilityResponse {
+  slug: string;
+  available: boolean;
+}
+
 function buildQuery(query: AdminLessonQuery) {
   const params = new URLSearchParams();
   Object.entries(query)
@@ -43,19 +48,11 @@ export const lessonApi = {
     const normalized = slug.trim().toLowerCase();
     if (!normalized) return true;
 
-    const queryString = buildQuery({
-      search: normalized,
-      includeDeleted: true,
-      page: 1,
-      pageSize: 100,
-    });
-    const result = await apiClient<PagedResult<AdminLessonListItem>>(
-      `${API_ENDPOINTS.LESSON.ROOT}?${queryString}`,
+    const result = await apiClient<SlugAvailabilityResponse>(
+      API_ENDPOINTS.LESSON.SLUG_AVAILABILITY(normalized, excludeId),
     );
 
-    return !result.items.some(
-      (item) => item.slug.toLowerCase() === normalized && item.id !== excludeId,
-    );
+    return result.available;
   },
   listTopics() {
     return apiClient<AdminLessonTopicOption[]>(API_ENDPOINTS.VOCABULARY.TOPICS);
