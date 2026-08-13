@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { Alert } from "@/components/ui/alert";
 import { TopicForm, type TopicFormValues } from "@/features/vocabulary/components/topic-form";
 import { apiClient } from "@/lib/api/api-client";
 import { API_ENDPOINTS } from "@/lib/api/api-endpoints";
@@ -37,9 +38,22 @@ export default function CreateTopicPage() {
 
   return (
     <PageContainer>
-      <PageHeader title="Thêm chủ đề" description="Tạo chủ đề nội dung dùng chung cho từ vựng và bài giảng." />
-      {error && <div className="mb-4 rounded-[8px] border border-[#f0cfcb] bg-[#fff5f4] px-3 py-2 text-[11px] text-[#b9433d]">{error}</div>}
-      <TopicForm submitting={submitting} onSubmit={handleSubmit} onCancel={() => router.push("/chu-de-tu-vung")} />
+      <PageHeader
+        title="Thêm chủ đề"
+        description="Tạo chủ đề nội dung dùng chung cho từ vựng và bài giảng."
+      />
+
+      {error && (
+        <Alert variant="danger" title="Không thể tạo chủ đề" className="mb-4">
+          {error}
+        </Alert>
+      )}
+
+      <TopicForm
+        submitting={submitting}
+        onSubmit={handleSubmit}
+        onCancel={() => router.push("/chu-de-tu-vung")}
+      />
     </PageContainer>
   );
 }
