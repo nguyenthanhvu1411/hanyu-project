@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Archive,
@@ -24,7 +24,7 @@ import { FormSection } from "@/components/forms/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { SlugInput } from "@/components/ui/slug-input";
+import { SlugInput, type SlugValidationState } from "@/components/ui/slug-input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { PERMISSIONS } from "@/constants/permission.constants";
@@ -101,6 +101,10 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
   const [saving, setSaving] = useState(false);
   const [workflowLoading, setWorkflowLoading] = useState<string | null>(null);
   const [validationMessages, setValidationMessages] = useState<string[]>([]);
+  const [slugValidation, setSlugValidation] = useState<SlugValidationState>({
+    checking: false,
+    error: null,
+  });
 
   useEffect(() => {
     let active = true;
@@ -266,6 +270,18 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
     [form.topicId, topics],
   );
 
+  const validateLessonSlug = useCallback(
+    async (slug: string) => {
+      if (editing && detail?.slug.toLowerCase() === slug.toLowerCase()) {
+        return null;
+      }
+
+      const available = await lessonApi.isSlugAvailable(slug, editing ? lessonId : undefined);
+      return available ? null : "Slug đã tồn tại ở một bài giảng khác.";
+    },
+    [detail?.slug, editing, lessonId],
+  );
+
   const canSubmit = useMemo(
     () =>
       form.titleVi.trim().length > 0 &&
@@ -278,8 +294,9 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
       form.estimatedMinutes > 0 &&
       Number.isInteger(form.difficulty) &&
       form.difficulty >= 1 &&
-      form.difficulty <= 5,
-    [form],
+      form.difficulty <= 5 &&
+      !slugValidation.error,
+    [form, slugValidation.error],
   );
 
   function setField<K extends keyof CreateLessonRequest>(key: K, value: CreateLessonRequest[K]) {
@@ -299,7 +316,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit || saving) return;
+    if (!canSubmit || saving || slugValidation.checking) return;
 
     setSaving(true);
     try {
@@ -413,6 +430,8 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
           label="Đường dẫn (slug)"
           placeholder="chao-hoi-va-gioi-thieu-ban-than"
           previewPrefix="/bai-giang/"
+          validateSlug={validateLessonSlug}
+          onValidationChange={setSlugValidation}
         />
 
         <FormRow columns={2}>
@@ -567,7 +586,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
       <PermissionGuard permission={editing ? PERMISSIONS.LESSONS.UPDATE : PERMISSIONS.LESSONS.CREATE} fallback={null}>
         <FormActions
           loading={saving}
-          disabled={!canSubmit}
+          disabled={!canSubmit || slugValidation.checking}
           submitText={editing ? "Lưu thay đổi" : "Tạo bài giảng"}
           onCancel={() => router.push(editing && lessonId ? `/bai-giang/${lessonId}` : "/bai-giang")}
         />
