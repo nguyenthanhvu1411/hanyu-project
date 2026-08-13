@@ -2673,6 +2673,79 @@ namespace HanYu.Migrations
                     b.ToTable("lesson_sections", (string)null);
                 });
 
+            modelBuilder.Entity("HanYu.Domain.Entities.Lesson.LessonSectionAsset", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CaptionVi")
+                        .HasColumnType("text")
+                        .HasColumnName("caption_vi");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_id");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid?>("DeletedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by_id");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_required");
+
+                    b.Property<long>("LessonAssetId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("lesson_asset_id");
+
+                    b.Property<long>("LessonSectionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("lesson_section_id");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("public_id");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_lesson_section_assets");
+
+                    b.HasIndex("LessonAssetId")
+                        .HasDatabaseName("ix_lesson_section_assets_lesson_asset_id");
+
+                    b.HasIndex("LessonSectionId", "LessonAssetId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_lesson_section_assets_lesson_section_id_lesson_asset_id");
+
+                    b.HasIndex("LessonSectionId", "SortOrder")
+                        .HasDatabaseName("ix_lesson_section_assets_lesson_section_id_sort_order");
+
+                    b.ToTable("lesson_section_assets", (string)null);
+                });
+
             modelBuilder.Entity("HanYu.Domain.Entities.Lesson.LessonVocabulary", b =>
                 {
                     b.Property<long>("LessonId")
@@ -5580,6 +5653,27 @@ namespace HanYu.Migrations
                         .HasConstraintName("fk_lesson_sections_lessons_lesson_id");
 
                     b.Navigation("Lesson");
+                });
+
+            modelBuilder.Entity("HanYu.Domain.Entities.Lesson.LessonSectionAsset", b =>
+                {
+                    b.HasOne("HanYu.Domain.Entities.Lesson.LessonAsset", "LessonAsset")
+                        .WithMany()
+                        .HasForeignKey("LessonAssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_lesson_section_assets_lesson_assets_lesson_asset_id");
+
+                    b.HasOne("HanYu.Domain.Entities.Lesson.LessonSection", "LessonSection")
+                        .WithMany()
+                        .HasForeignKey("LessonSectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_lesson_section_assets_lesson_sections_lesson_section_id");
+
+                    b.Navigation("LessonAsset");
+
+                    b.Navigation("LessonSection");
                 });
 
             modelBuilder.Entity("HanYu.Domain.Entities.Lesson.LessonVocabulary", b =>
