@@ -1,3 +1,4 @@
+using HanYu.API.Common;
 using HanYu.API.Common.Extensions;
 using HanYu.Application.Common.Models;
 using HanYu.Application.Features.Lesson.Admin.Lessons;
@@ -44,6 +45,26 @@ public sealed class LessonsController : ControllerBase
         CancellationToken cancellationToken)
         => this.ToActionResult(await _service.GetLessonsAsync(query, cancellationToken));
 
+    [HttpGet("slug-availability")]
+    public async Task<IActionResult> GetSlugAvailability(
+        [FromQuery] string slug,
+        [FromQuery] long? excludeId,
+        CancellationToken cancellationToken)
+    {
+        var normalized = SlugAvailabilityQueries.Normalize(slug);
+        var available = await SlugAvailabilityQueries.IsLessonSlugAvailableAsync(
+            _dbContext,
+            normalized,
+            excludeId,
+            cancellationToken);
+
+        return Ok(new
+        {
+            Slug = normalized,
+            Available = available
+        });
+    }
+
     [HttpGet("{id:long}")]
     public async Task<IActionResult> Get(long id, CancellationToken cancellationToken)
         => this.ToActionResult(await _service.GetLessonAsync(id, cancellationToken));
@@ -54,7 +75,24 @@ public sealed class LessonsController : ControllerBase
     public async Task<IActionResult> Create(
         CreateLessonRequest request,
         CancellationToken cancellationToken)
-        => this.ToActionResult(await _service.CreateLessonAsync(request, cancellationToken));
+    {
+        var slug = SlugAvailabilityQueries.Normalize(request.Slug);
+        if (slug.Length > 0 &&
+            !await SlugAvailabilityQueries.IsLessonSlugAvailableAsync(
+                _dbContext,
+                slug,
+                cancellationToken: cancellationToken))
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminLessonDetailDto>(
+                    Error.Conflict(
+                        "Lesson.SlugAlreadyExists",
+                        "Slug bài giảng đã tồn tại.")));
+        }
+
+        return this.ToActionResult(
+            await _service.CreateLessonAsync(request, cancellationToken));
+    }
 
     [HttpPut("{id:long}")]
     [Authorize(Roles = ContentEditRoles)]
@@ -63,7 +101,25 @@ public sealed class LessonsController : ControllerBase
         long id,
         UpdateLessonRequest request,
         CancellationToken cancellationToken)
-        => this.ToActionResult(await _service.UpdateLessonAsync(id, request, cancellationToken));
+    {
+        var slug = SlugAvailabilityQueries.Normalize(request.Slug);
+        if (slug.Length > 0 &&
+            !await SlugAvailabilityQueries.IsLessonSlugAvailableAsync(
+                _dbContext,
+                slug,
+                id,
+                cancellationToken))
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminLessonDetailDto>(
+                    Error.Conflict(
+                        "Lesson.SlugAlreadyExists",
+                        "Slug bài giảng đã được bài giảng khác sử dụng.")));
+        }
+
+        return this.ToActionResult(
+            await _service.UpdateLessonAsync(id, request, cancellationToken));
+    }
 
     [HttpGet("{id:long}/validate")]
     public async Task<IActionResult> Validate(
