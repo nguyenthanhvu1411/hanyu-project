@@ -1,7 +1,47 @@
 "use client";
 
-import { LessonContentManager } from "./lesson-content-manager";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, Link2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { EmptyState } from "@/components/common/empty-state";
+import { FormField } from "@/components/forms/form-field";
+import { FormRow } from "@/components/forms/form-row";
+import { FormSection } from "@/components/forms/form-section";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { ContentStatus } from "@/lib/constants/content-status";
+import { lessonApi } from "../api/lesson.api";
+import type { AdminLessonListItem, AdminLessonPrerequisite, AdminLessonVocabulary, AdminVocabularyLookupOption } from "../types/lesson.types";
 
 export function LessonRelationsManager({ lessonId }: { lessonId: number }) {
-  return <LessonContentManager lessonId={lessonId} />;
+  const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
+  const [vocabulary, setVocabulary] = useState<AdminLessonVocabulary[]>([]), [prerequisites, setPrerequisites] = useState<AdminLessonPrerequisite[]>([]);
+  const [vocabularyLookup, setVocabularyLookup] = useState<AdminVocabularyLookupOption[]>([]), [lessonLookup, setLessonLookup] = useState<AdminLessonListItem[]>([]);
+  const load = useCallback(async () => { setLoading(true); try { const [v,p,vl,ll] = await Promise.all([lessonApi.listVocabulary(lessonId), lessonApi.listPrerequisites(lessonId), lessonApi.listVocabularyOptions(), lessonApi.list({ page:1, pageSize:100, sortBy:"titleVi" })]); setVocabulary(v); setPrerequisites(p); setVocabularyLookup(vl.items); setLessonLookup(ll.items); } catch (e) { toast.error(e instanceof Error ? e.message : "Không thể tải liên kết Lesson."); } finally { setLoading(false); } }, [lessonId]);
+  useEffect(() => { void load(); }, [load]);
+  async function run(action:()=>Promise<unknown>, message:string) { setBusy(true); try { await action(); await load(); toast.success(message); return true; } catch(e) { toast.error(e instanceof Error ? e.message : "Thao tác thất bại."); return false; } finally { setBusy(false); } }
+  if (loading) return <div className="space-y-3"><Skeleton className="h-52 rounded-[11px]"/><Skeleton className="h-52 rounded-[11px]"/></div>;
+  return <div className="space-y-5"><div className="flex justify-end"><Button type="button" variant="outline" size="sm" onClick={()=>void load()} disabled={busy} className="gap-2"><RefreshCw size={14}/>Làm mới</Button></div><VocabularyRelations lessonId={lessonId} items={vocabulary} lookup={vocabularyLookup} busy={busy} run={run}/><PrerequisiteRelations lessonId={lessonId} items={prerequisites} lookup={lessonLookup} busy={busy} run={run}/></div>;
+}
+
+function VocabularyRelations({lessonId,items,lookup,busy,run}:{lessonId:number;items:AdminLessonVocabulary[];lookup:AdminVocabularyLookupOption[];busy:boolean;run:(a:()=>Promise<unknown>,m:string)=>Promise<boolean>}) {
+  const [id,setId]=useState(""), [order,setOrder]=useState(items.length), [required,setRequired]=useState(true), [deleting,setDeleting]=useState<AdminLessonVocabulary|null>(null);
+  const ordered=useMemo(()=>[...items].sort((a,b)=>a.sortOrder-b.sortOrder||a.vocabularyId-b.vocabularyId),[items]);
+  const attached=useMemo(()=>new Set(items.map(x=>x.vocabularyId)),[items]);
+  const options=useMemo(()=>lookup.filter(x=>x.status===ContentStatus.Published&&!attached.has(x.id)).map(x=>({value:String(x.id),label:`${x.simplified} — ${x.pinyin}`,description:`${x.primaryMeaningVi} · ${x.hskCode}`})),[lookup,attached]);
+  async function submit(e:FormEvent){e.preventDefault();const value=Number(id);if(!Number.isSafeInteger(value)||value<=0)return toast.error("Hãy chọn từ vựng hợp lệ.");if(await run(()=>lessonApi.attachVocabulary(lessonId,{vocabularyId:value,sortOrder:order,isRequired:required}),"Đã gắn từ vựng.")){setId("");setOrder(items.length+1);setRequired(true);}}
+  async function move(index:number,direction:-1|1){const j=index+direction;if(j<0||j>=ordered.length)return;const a=ordered[index],b=ordered[j],temp=Math.max(...ordered.map(x=>x.sortOrder),0)+100;await run(async()=>{await lessonApi.updateVocabulary(lessonId,a.vocabularyId,{sortOrder:temp,isRequired:a.isRequired});await lessonApi.updateVocabulary(lessonId,b.vocabularyId,{sortOrder:a.sortOrder,isRequired:b.isRequired});await lessonApi.updateVocabulary(lessonId,a.vocabularyId,{sortOrder:b.sortOrder,isRequired:a.isRequired});},"Đã đổi thứ tự từ vựng.");}
+  return <div className="space-y-3"><form onSubmit={submit}><FormSection title={`Từ vựng (${items.length})`} description="Chỉ quản lý Vocabulary liên kết với Lesson; Section và Media nằm trong Content Editor." icon={<Link2 size={18}/>}><FormRow columns={3}><FormField label="Từ vựng" required><Select value={id} onValueChange={setId} options={options} searchable clearable placeholder="Chọn từ vựng"/></FormField><FormField label="Thứ tự"><Input type="number" min={0} value={order} onChange={e=>setOrder(Number(e.target.value)||0)}/></FormField><FormField label="Yêu cầu"><Switch checked={required} onCheckedChange={setRequired} label={required?"Bắt buộc":"Không bắt buộc"}/></FormField></FormRow><div className="flex justify-end"><Button type="submit" disabled={busy||!id} className="gap-2"><Plus size={14}/>Gắn từ vựng</Button></div></FormSection></form>{ordered.length===0?<EmptyState title="Chưa có từ vựng" description="Bài giảng chưa gắn từ vựng nào."/>:<div className="space-y-2">{ordered.map((x,i)=><Card key={x.vocabularyId}><CardContent className="flex items-center justify-between gap-3 py-3"><div><div className="flex flex-wrap items-center gap-2"><b className="text-[15px]">{x.simplified}</b><Badge>{x.pinyin}</Badge>{x.isRequired&&<Badge variant="warning">Bắt buộc</Badge>}<Badge variant="info">#{x.sortOrder}</Badge></div><p className="mt-1 text-[12px] text-[#666]">{x.primaryMeaningVi}</p></div><div className="flex gap-1"><Button type="button" variant="outline" size="icon" disabled={busy||i===0} onClick={()=>void move(i,-1)}><ArrowUp size={14}/></Button><Button type="button" variant="outline" size="icon" disabled={busy||i===ordered.length-1} onClick={()=>void move(i,1)}><ArrowDown size={14}/></Button><Button type="button" variant="outline" size="sm" disabled={busy} onClick={()=>void run(()=>lessonApi.updateVocabulary(lessonId,x.vocabularyId,{sortOrder:x.sortOrder,isRequired:!x.isRequired}),"Đã cập nhật yêu cầu từ vựng.")}>{x.isRequired?"Không bắt buộc":"Bắt buộc"}</Button><Button type="button" variant="dangerGhost" size="icon" disabled={busy} onClick={()=>setDeleting(x)}><Trash2 size={14}/></Button></div></CardContent></Card>)}</div>}<ConfirmDialog open={!!deleting} title="Gỡ từ vựng?" description="Vocabulary gốc không bị xóa." confirmLabel="Gỡ" loading={busy} onClose={()=>setDeleting(null)} onConfirm={async()=>{if(deleting&&await run(()=>lessonApi.detachVocabulary(lessonId,deleting.vocabularyId),"Đã gỡ từ vựng."))setDeleting(null);}}/></div>;
+}
+
+function PrerequisiteRelations({lessonId,items,lookup,busy,run}:{lessonId:number;items:AdminLessonPrerequisite[];lookup:AdminLessonListItem[];busy:boolean;run:(a:()=>Promise<unknown>,m:string)=>Promise<boolean>}) {
+  const [id,setId]=useState(""),[deleting,setDeleting]=useState<AdminLessonPrerequisite|null>(null);const existing=useMemo(()=>new Set(items.map(x=>x.requiredLessonId)),[items]);const options=useMemo(()=>lookup.filter(x=>x.id!==lessonId&&x.status===ContentStatus.Published&&!existing.has(x.id)).map(x=>({value:String(x.id),label:x.titleVi,description:`${x.hskCode??"Không HSK"} · ${x.slug}`})),[lookup,lessonId,existing]);
+  async function submit(e:FormEvent){e.preventDefault();const value=Number(id);if(!Number.isSafeInteger(value)||value<=0||value===lessonId)return toast.error("Hãy chọn Lesson tiên quyết hợp lệ.");if(await run(()=>lessonApi.addPrerequisite(lessonId,{requiredLessonId:value}),"Đã thêm bài học tiên quyết."))setId("");}
+  return <div className="space-y-3"><form onSubmit={submit}><FormSection title={`Bài học tiên quyết (${items.length})`} description="Backend kiểm tra duplicate, self-reference và prerequisite cycle." icon={<Link2 size={18}/>}><FormRow columns={2}><FormField label="Lesson tiên quyết" required><Select value={id} onValueChange={setId} options={options} searchable clearable placeholder="Chọn bài giảng"/></FormField><div className="flex items-end justify-end"><Button type="submit" disabled={busy||!id} className="gap-2"><Plus size={14}/>Thêm tiên quyết</Button></div></FormRow></FormSection></form>{items.length===0?<EmptyState title="Không có bài học tiên quyết" description="Lesson hiện không phụ thuộc bài học khác."/>:<div className="space-y-2">{items.map(x=><Card key={x.requiredLessonId}><CardContent className="flex items-center justify-between gap-3 py-3"><div><div className="text-[14px] font-semibold">{x.titleVi}</div><div className="mt-1 text-[12px] text-[#888]">{x.slug}</div></div><Button type="button" variant="dangerGhost" size="sm" className="gap-2" disabled={busy} onClick={()=>setDeleting(x)}><Trash2 size={14}/>Gỡ</Button></CardContent></Card>)}</div>}<ConfirmDialog open={!!deleting} title="Gỡ bài học tiên quyết?" description="Lesson gốc vẫn được giữ nguyên." confirmLabel="Gỡ" loading={busy} onClose={()=>setDeleting(null)} onConfirm={async()=>{if(deleting&&await run(()=>lessonApi.removePrerequisite(lessonId,deleting.requiredLessonId),"Đã gỡ bài học tiên quyết."))setDeleting(null);}}/></div>;
 }
