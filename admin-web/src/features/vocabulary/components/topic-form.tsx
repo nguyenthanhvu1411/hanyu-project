@@ -25,12 +25,13 @@ export interface TopicFormValues {
   sortOrder: number;
 }
 
-interface TopicSlugOption {
-  id: number;
+interface SlugAvailabilityResponse {
   slug: string;
+  available: boolean;
 }
 
 interface TopicFormProps {
+  topicId?: number;
   initialValues?: TopicFormValues;
   submitting?: boolean;
   onSubmit: (values: TopicFormValues) => Promise<void> | void;
@@ -45,6 +46,7 @@ const EMPTY_VALUES: TopicFormValues = {
 };
 
 export function TopicForm({
+  topicId,
   initialValues,
   submitting = false,
   onSubmit,
@@ -68,11 +70,13 @@ export function TopicForm({
       const normalized = slug.toLowerCase();
       if (initialValues?.slug.toLowerCase() === normalized) return null;
 
-      const topics = await apiClient<TopicSlugOption[]>(API_ENDPOINTS.VOCABULARY.TOPICS);
-      const duplicated = topics.some((topic) => topic.slug.toLowerCase() === normalized);
-      return duplicated ? "Slug đã tồn tại ở một chủ đề khác." : null;
+      const result = await apiClient<SlugAvailabilityResponse>(
+        API_ENDPOINTS.VOCABULARY.TOPIC_SLUG_AVAILABILITY(normalized, topicId),
+      );
+
+      return result.available ? null : "Slug đã tồn tại ở một chủ đề khác.";
     },
-    [initialValues?.slug],
+    [initialValues?.slug, topicId],
   );
 
   return (
