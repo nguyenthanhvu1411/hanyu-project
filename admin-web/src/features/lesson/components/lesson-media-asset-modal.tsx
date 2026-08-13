@@ -133,7 +133,7 @@ export function LessonAssetModal({
       }
     >
       <div className="space-y-4">
-        {error && <Alert variant="error">{error}</Alert>}
+        {error && <Alert variant="danger">{error}</Alert>}
 
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Loại tài nguyên">
@@ -202,52 +202,16 @@ export function LessonAssetModal({
   );
 }
 
-function AssetPreview({
-  assetType,
-  url,
-  audioAssetId,
-  caption,
-}: {
-  assetType: LessonAssetType;
-  url: string;
-  audioAssetId: number | null;
-  caption: string;
-}) {
+function AssetPreview({ assetType, url, audioAssetId, caption }: { assetType: LessonAssetType; url: string; audioAssetId: number | null; caption: string }) {
   if (assetType === LessonAssetType.Image && url) {
-    return (
-      <figure className="overflow-hidden rounded-[9px] border border-[#e8e3dc] bg-[#faf9f7]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={caption || "Lesson asset"} className="max-h-[320px] w-full object-contain" />
-        {caption && <figcaption className="px-3 py-2 text-[12px] text-[#777]">{caption}</figcaption>}
-      </figure>
-    );
+    return <figure className="overflow-hidden rounded-[9px] border border-[#e8e3dc] bg-[#faf9f7]">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={url} alt={caption || "Lesson asset"} className="max-h-[320px] w-full object-contain" />{caption && <figcaption className="px-3 py-2 text-[12px] text-[#777]">{caption}</figcaption>}</figure>;
   }
-
   if (assetType === LessonAssetType.Audio) {
-    return (
-      <div className="rounded-[9px] border border-[#e8e3dc] bg-[#faf9f7] p-4">
-        <div className="flex items-center gap-2"><Headphones size={16} /><Badge>Âm thanh</Badge></div>
-        <div className="mt-2 text-[12px] text-[#777]">{audioAssetId ? `AudioAsset #${audioAssetId}` : url || "Chưa chọn audio"}</div>
-      </div>
-    );
+    return <div className="rounded-[9px] border border-[#e8e3dc] bg-[#faf9f7] p-4"><div className="flex items-center gap-2"><Headphones size={16} /><Badge>Âm thanh</Badge></div><div className="mt-2 text-[12px] text-[#777]">{audioAssetId ? `AudioAsset #${audioAssetId}` : url || "Chưa chọn audio"}</div></div>;
   }
-
-  return (
-    <div className="rounded-[9px] border border-[#e8e3dc] bg-[#faf9f7] p-4">
-      <div className="flex items-center gap-2">
-        {assetType === LessonAssetType.Document ? <FileText size={16} /> : <ImageIcon size={16} />}
-        <Badge>{lessonAssetTypeLabels[assetType]}</Badge>
-      </div>
-      <div className="mt-2 break-all text-[12px] text-[#777]">{url || "Chưa có URL"}</div>
-    </div>
-  );
+  return <div className="rounded-[9px] border border-[#e8e3dc] bg-[#faf9f7] p-4"><div className="flex items-center gap-2">{assetType === LessonAssetType.Document ? <FileText size={16} /> : <ImageIcon size={16} />}<Badge>{lessonAssetTypeLabels[assetType]}</Badge></div><div className="mt-2 break-all text-[12px] text-[#777]">{url || "Chưa có URL"}</div></div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1.5">
-      <span className="text-[13px] font-medium text-[#555]">{label}</span>
-      {children}
-    </label>
-  );
+  return <label className="block space-y-1.5"><span className="text-[13px] font-medium text-[#555]">{label}</span>{children}</label>;
 }
