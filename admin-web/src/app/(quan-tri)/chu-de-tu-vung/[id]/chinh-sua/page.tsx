@@ -101,6 +101,7 @@ export default function EditTopicPage() {
       )}
 
       <TopicForm
+        topicId={topic.id}
         initialValues={{
           slug: topic.slug,
           nameVi: topic.nameVi,
