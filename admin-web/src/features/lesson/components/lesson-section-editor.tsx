@@ -7,7 +7,9 @@ import {
   Bold,
   BookOpenText,
   Eye,
+  FileText,
   Heading2,
+  Headphones,
   ImageIcon,
   Italic,
   Link2,
@@ -34,6 +36,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils/cn";
 
 import { lessonApi } from "../api/lesson.api";
+import { lessonSectionAssetsApi } from "../api/lesson-section-assets.api";
+import type { AdminLessonSectionAsset } from "../types/lesson-section-asset.types";
 import {
   LessonAssetType,
   LessonSectionType,
@@ -74,6 +78,7 @@ const sectionTypeOptions = Object.entries(lessonSectionTypeLabels).map(([value, 
 export function LessonSectionEditor({ lessonId }: LessonSectionEditorProps) {
   const [sections, setSections] = useState<AdminLessonSection[]>([]);
   const [assets, setAssets] = useState<AdminLessonAsset[]>([]);
+  const [sectionMedia, setSectionMedia] = useState<Record<number, AdminLessonSectionAsset[]>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -94,8 +99,17 @@ export function LessonSectionEditor({ lessonId }: LessonSectionEditorProps) {
         lessonApi.listSections(lessonId),
         lessonApi.listAssets(lessonId),
       ]);
+
+      const mediaEntries = await Promise.all(
+        sectionData.map(async (section) => [
+          section.id,
+          await lessonSectionAssetsApi.list(lessonId, section.id),
+        ] as const),
+      );
+
       setSections(sectionData);
       setAssets(assetData);
+      setSectionMedia(Object.fromEntries(mediaEntries));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Không thể tải nội dung bài giảng.");
     } finally {
@@ -373,50 +387,64 @@ export function LessonSectionEditor({ lessonId }: LessonSectionEditorProps) {
               <Alert variant="info">Chưa có section. Hãy tạo phần nội dung đầu tiên cho bài giảng.</Alert>
             ) : (
               <div className="space-y-2">
-                {ordered.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "rounded-[10px] border px-3 py-3 transition",
-                      editingId === item.id ? "border-[#efaca8] bg-[#fff8f7]" : "border-[#e8e3dc] bg-white",
-                    )}
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[14px] font-semibold text-[#333]">
-                            {index + 1}. {item.titleVi || lessonSectionTypeLabels[item.sectionType]}
-                          </span>
-                          <Badge>{lessonSectionTypeLabels[item.sectionType]}</Badge>
-                          {item.isRequired && <Badge variant="warning">Bắt buộc</Badge>}
-                        </div>
-                        <div className="mt-1 text-[12px] text-[#888]">
-                          Thứ tự {item.sortOrder} · {item.estimatedSeconds ?? 0} giây
-                        </div>
-                        {item.contentVi && (
-                          <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-[13px] leading-5 text-[#666]">
-                            {item.contentVi}
-                          </p>
-                        )}
-                      </div>
+                {ordered.map((item, index) => {
+                  const media = [...(sectionMedia[item.id] ?? [])]
+                    .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
 
-                      <div className="flex shrink-0 flex-wrap gap-1.5">
-                        <Button type="button" variant="ghost" size="sm" disabled={busy || index === 0} onClick={() => void move(index, -1)} aria-label="Đưa section lên">
-                          <ArrowUp size={14} />
-                        </Button>
-                        <Button type="button" variant="ghost" size="sm" disabled={busy || index === ordered.length - 1} onClick={() => void move(index, 1)} aria-label="Đưa section xuống">
-                          <ArrowDown size={14} />
-                        </Button>
-                        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => editSection(item)} className="gap-1.5">
-                          <Pencil size={13} /> Sửa
-                        </Button>
-                        <Button type="button" variant="dangerGhost" size="sm" disabled={busy} onClick={() => setDeleting(item)} className="gap-1.5">
-                          <Trash2 size={13} /> Xóa
-                        </Button>
+                  return (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        "rounded-[10px] border px-3 py-3 transition",
+                        editingId === item.id ? "border-[#efaca8] bg-[#fff8f7]" : "border-[#e8e3dc] bg-white",
+                      )}
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[14px] font-semibold text-[#333]">
+                              {index + 1}. {item.titleVi || lessonSectionTypeLabels[item.sectionType]}
+                            </span>
+                            <Badge>{lessonSectionTypeLabels[item.sectionType]}</Badge>
+                            {item.isRequired && <Badge variant="warning">Bắt buộc</Badge>}
+                            {media.length > 0 && <Badge variant="info">{media.length} media</Badge>}
+                          </div>
+                          <div className="mt-1 text-[12px] text-[#888]">
+                            Thứ tự {item.sortOrder} · {item.estimatedSeconds ?? 0} giây
+                          </div>
+                          {item.contentVi && (
+                            <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-[13px] leading-5 text-[#666]">
+                              {item.contentVi}
+                            </p>
+                          )}
+
+                          {media.length > 0 && (
+                            <div className="mt-3 grid gap-2 border-t border-[#eee9e2] pt-3 md:grid-cols-2">
+                              {media.map((mediaItem) => (
+                                <SectionMediaPreview key={mediaItem.id} item={mediaItem} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex shrink-0 flex-wrap gap-1.5">
+                          <Button type="button" variant="ghost" size="sm" disabled={busy || index === 0} onClick={() => void move(index, -1)} aria-label="Đưa section lên">
+                            <ArrowUp size={14} />
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" disabled={busy || index === ordered.length - 1} onClick={() => void move(index, 1)} aria-label="Đưa section xuống">
+                            <ArrowDown size={14} />
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => editSection(item)} className="gap-1.5">
+                            <Pencil size={13} /> Sửa
+                          </Button>
+                          <Button type="button" variant="dangerGhost" size="sm" disabled={busy} onClick={() => setDeleting(item)} className="gap-1.5">
+                            <Trash2 size={13} /> Xóa
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -506,6 +534,47 @@ function ToolbarButton({ label, onClick, children }: { label: string; onClick: (
   );
 }
 
+function SectionMediaPreview({ item }: { item: AdminLessonSectionAsset }) {
+  const type = item.assetType.toLowerCase();
+  const caption = item.captionVi || item.assetCaptionVi || "Tài nguyên";
+
+  if (type.includes("image")) {
+    return (
+      <div className="overflow-hidden rounded-[8px] border border-[#e8e3dc] bg-[#faf9f7]">
+        {item.url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.url} alt={caption} className="h-[120px] w-full object-cover" />
+        ) : (
+          <div className="flex h-[90px] items-center justify-center text-[12px] text-[#999]">Image chưa có URL</div>
+        )}
+        <div className="flex items-center gap-2 px-2.5 py-2 text-[12px] text-[#666]">
+          <ImageIcon size={13} /> <span className="truncate">{caption}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (type.includes("audio")) {
+    return (
+      <div className="rounded-[8px] border border-[#e8e3dc] bg-[#faf9f7] p-2.5">
+        <div className="mb-2 flex items-center gap-2 text-[12px] font-medium text-[#666]"><Headphones size={13} /> {caption}</div>
+        {item.url ? (
+          <audio controls preload="metadata" className="h-9 w-full" src={item.url}>Trình duyệt không hỗ trợ audio.</audio>
+        ) : (
+          <div className="text-[12px] text-[#999]">AudioAsset #{item.audioAssetId ?? "?"}</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[74px] items-center justify-between gap-2 rounded-[8px] border border-[#e8e3dc] bg-[#faf9f7] p-2.5">
+      <div className="flex min-w-0 items-center gap-2 text-[12px] text-[#666]"><FileText size={14} /><span className="truncate">{caption}</span></div>
+      {item.url && <a href={item.url} target="_blank" rel="noreferrer" className="shrink-0 text-[12px] font-medium text-[#ef241c] hover:underline">Mở</a>}
+    </div>
+  );
+}
+
 function SectionContentPreview({
   content,
   assets,
@@ -550,7 +619,7 @@ function SectionContentPreview({
         return <p key={index}>{renderInline(trimmed)}</p>;
       })}
       {assets.length > 0 && !compact && (
-        <div className="pt-3 text-[11px] text-[#aaa]">Preview dùng Markdown nhẹ; media được lấy từ URL tài nguyên Lesson.</div>
+        <div className="pt-3 text-[11px] text-[#aaa]">Preview dùng Markdown nhẹ; media liên kết section được hiển thị trực tiếp trong Section Card.</div>
       )}
     </div>
   );
