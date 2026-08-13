@@ -1,7 +1,7 @@
 "use client";
 
 import { RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,25 +33,15 @@ export function SlugInput({
   className,
 }: SlugInputProps) {
   const [manual, setManual] = useState(() => mode === "edit" && Boolean(value));
-  const initializedRef = useRef(false);
 
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-
-    if (mode === "create" && !value) {
-      onChange(slugify(sourceValue));
-    }
-  }, [mode, onChange, sourceValue, value]);
-
-  useEffect(() => {
-    if (manual || mode !== "create") return;
+    if (manual) return;
 
     const generated = slugify(sourceValue);
     if (generated !== value) {
       onChange(generated);
     }
-  }, [manual, mode, onChange, sourceValue, value]);
+  }, [manual, onChange, sourceValue, value]);
 
   const preview = value ? `${previewPrefix}${value}` : "Slug sẽ tự sinh theo tên";
 
@@ -101,11 +91,11 @@ export function SlugInput({
       <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] leading-5 text-[#8a8a8a]">
         <span>{preview}</span>
         <span>
-          {mode === "edit"
-            ? "Đổi tên không tự đổi URL. Chỉ đổi slug khi bạn chỉnh trực tiếp."
-            : manual
-              ? "Slug đang được chỉnh thủ công."
-              : "Đang tự động theo tên."}
+          {manual
+            ? mode === "edit"
+              ? "URL hiện tại được giữ nguyên cho đến khi bạn sửa slug."
+              : "Slug đang được chỉnh thủ công."
+            : "Đang tự động theo tên."}
         </span>
       </div>
     </label>
