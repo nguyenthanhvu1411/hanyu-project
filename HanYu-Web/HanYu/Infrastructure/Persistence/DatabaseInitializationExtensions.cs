@@ -31,6 +31,17 @@ public static class DatabaseInitializationExtensions
             .SeedAsync(
                 cancellationToken);
 
+        // Shared Topic taxonomy used by both Vocabulary and Lesson.
+        // Create through ActivatorUtilities so the seeder can reuse the current
+        // scoped DbContext and logger without requiring another DI registration.
+        var taxonomySeeder =
+            ActivatorUtilities.CreateInstance<ContentTaxonomySeeder>(
+                provider);
+
+        await taxonomySeeder
+            .SeedAsync(
+                cancellationToken);
+
         var contentSeeder =
             provider.GetRequiredService<CourseContentSeeder>();
 
