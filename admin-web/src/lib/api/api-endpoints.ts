@@ -45,6 +45,11 @@ export const API_ENDPOINTS = {
     ARCHIVE: (id: number) => `/admin/vocabularies/${id}/archive`,
     RESTORE: (id: number) => `/admin/vocabularies/${id}/restore`,
     TOPICS: "/admin/vocabulary-topics",
+    TOPIC_SLUG_AVAILABILITY: (slug: string, excludeId?: number) => {
+      const params = new URLSearchParams({ slug });
+      if (excludeId !== undefined) params.set("excludeId", String(excludeId));
+      return `/admin/vocabulary-topics/slug-availability?${params.toString()}`;
+    },
     PARTS_OF_SPEECH: "/admin/parts-of-speech",
     PART_OF_SPEECH: (id: number) => `/admin/parts-of-speech/${id}`,
     MEANINGS: (id: number) => `/admin/vocabularies/${id}/meanings`,
@@ -67,6 +72,11 @@ export const API_ENDPOINTS = {
   COURSE: {
     ROOT: "/admin/courses",
     DETAIL: (courseId: number) => `/admin/courses/${courseId}`,
+    SLUG_AVAILABILITY: (slug: string, excludeId?: number) => {
+      const params = new URLSearchParams({ slug });
+      if (excludeId !== undefined) params.set("excludeId", String(excludeId));
+      return `/admin/courses/slug-availability?${params.toString()}`;
+    },
     VALIDATE: (courseId: number) => `/admin/courses/${courseId}/validate`,
     SUBMIT_REVIEW: (courseId: number) => `/admin/courses/${courseId}/submit-review`,
     APPROVE: (courseId: number) => `/admin/courses/${courseId}/approve`,
@@ -95,6 +105,11 @@ export const API_ENDPOINTS = {
   LESSON: {
     ROOT: "/admin/lessons",
     DETAIL: (lessonId: number) => `/admin/lessons/${lessonId}`,
+    SLUG_AVAILABILITY: (slug: string, excludeId?: number) => {
+      const params = new URLSearchParams({ slug });
+      if (excludeId !== undefined) params.set("excludeId", String(excludeId));
+      return `/admin/lessons/slug-availability?${params.toString()}`;
+    },
     VALIDATE: (lessonId: number) => `/admin/lessons/${lessonId}/validate`,
     SUBMIT_REVIEW: (lessonId: number) => `/admin/lessons/${lessonId}/submit-review`,
     APPROVE: (lessonId: number) => `/admin/lessons/${lessonId}/approve`,
