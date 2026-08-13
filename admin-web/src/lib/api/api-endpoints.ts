@@ -38,6 +38,7 @@ export const API_ENDPOINTS = {
   VOCABULARY: {
     ROOT: "/admin/vocabularies",
     DETAIL: (id: number) => `/admin/vocabularies/${id}`,
+    AUDIO: (id: number) => `/admin/vocabularies/${id}/audio`,
     VALIDATE: (id: number, forPublish = false) => `/admin/vocabularies/${id}/validate${forPublish ? "?forPublish=true" : ""}`,
     SUBMIT_REVIEW: (id: number) => `/admin/vocabularies/${id}/submit-review`,
     APPROVE: (id: number) => `/admin/vocabularies/${id}/approve`,
@@ -56,6 +57,7 @@ export const API_ENDPOINTS = {
     MEANING: (id: number, meaningId: number) => `/admin/vocabularies/${id}/meanings/${meaningId}`,
     EXAMPLES: (id: number) => `/admin/vocabularies/${id}/examples`,
     EXAMPLE: (id: number, exampleId: number) => `/admin/vocabularies/${id}/examples/${exampleId}`,
+    EXAMPLE_AUDIO: (id: number, exampleId: number) => `/admin/vocabularies/${id}/examples/${exampleId}/audio`,
     EXAMPLE_SUBMIT_REVIEW: (id: number, exampleId: number) => `/admin/vocabularies/${id}/examples/${exampleId}/submit-review`,
     EXAMPLE_APPROVE: (id: number, exampleId: number) => `/admin/vocabularies/${id}/examples/${exampleId}/approve`,
     EXAMPLE_PUBLISH: (id: number, exampleId: number) => `/admin/vocabularies/${id}/examples/${exampleId}/publish`,
