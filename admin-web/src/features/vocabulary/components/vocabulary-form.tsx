@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ErrorState } from "@/components/common/error-state";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api/api-client";
 import { API_ENDPOINTS } from "@/lib/api/api-endpoints";
 
@@ -37,7 +43,6 @@ interface VocabularyDto {
   simplified: string;
   traditional: string | null;
   pinyin: string;
-  pinyinNormalized: string;
   primaryMeaningVi: string;
   notesVi: string | null;
   difficulty: number;
@@ -76,6 +81,12 @@ const EMPTY_FORM: FormValues = {
   version: 0,
 };
 
+const DIFFICULTY_OPTIONS = [
+  { value: "1", label: "1 — Dễ" },
+  { value: "2", label: "2 — Trung bình" },
+  { value: "3", label: "3 — Khó" },
+];
+
 function normalizePinyin(value: string) {
   return value
     .normalize("NFD")
@@ -109,9 +120,7 @@ export function VocabularyForm({ vocabularyId }: VocabularyFormProps) {
           apiClient<HskLevelDto[]>(API_ENDPOINTS.LEARNING.HSK_LEVELS),
           apiClient<TopicDto[]>(API_ENDPOINTS.VOCABULARY.TOPICS),
           apiClient<PartOfSpeechDto[]>(API_ENDPOINTS.VOCABULARY.PARTS_OF_SPEECH),
-          vocabularyId
-            ? apiClient<VocabularyDto>(API_ENDPOINTS.VOCABULARY.DETAIL(vocabularyId))
-            : Promise.resolve(null),
+          vocabularyId ? apiClient<VocabularyDto>(API_ENDPOINTS.VOCABULARY.DETAIL(vocabularyId)) : Promise.resolve(null),
         ]);
 
         if (cancelled) return;
@@ -134,23 +143,36 @@ export function VocabularyForm({ vocabularyId }: VocabularyFormProps) {
             version: vocabulary.version,
           });
         }
-      } catch (exception) {
-        if (!cancelled) {
-          setError(exception instanceof Error ? exception.message : "Không thể tải dữ liệu biên tập từ vựng.");
-        }
+      } catch (caught) {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "Không thể tải dữ liệu biên tập từ vựng.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [vocabularyId]);
 
   const publishedTopics = useMemo(
     () => topics.filter((topic) => topic.status === 3 || String(topic.id) === form.topicId),
     [form.topicId, topics],
+  );
+
+  const hskOptions = useMemo(
+    () => hskLevels
+      .filter((item) => item.isActive !== false || String(item.id) === form.hskLevelId)
+      .map((item) => ({ value: String(item.id), label: `${item.code} — ${item.nameVi}` })),
+    [form.hskLevelId, hskLevels],
+  );
+
+  const partOptions = useMemo(
+    () => partsOfSpeech.map((item) => ({ value: String(item.id), label: `${item.nameVi} (${item.code})`, description: item.nameEn ?? undefined })),
+    [partsOfSpeech],
+  );
+
+  const topicOptions = useMemo(
+    () => publishedTopics.map((item) => ({ value: String(item.id), label: item.nameVi, description: item.slug, disabled: item.status !== 3 })),
+    [publishedTopics],
   );
 
   function update<K extends keyof FormValues>(key: K, value: FormValues[K]) {
@@ -182,8 +204,6 @@ export function VocabularyForm({ vocabularyId }: VocabularyFormProps) {
       difficulty: Number(form.difficulty),
       partOfSpeechId: form.partOfSpeechId ? Number(form.partOfSpeechId) : null,
       topicId: form.topicId ? Number(form.topicId) : null,
-      // Audio is managed in the dedicated Audio tab. Keep the current relation
-      // when general information is saved so this form can never detach it by accident.
       audioAssetId: form.audioAssetId ? Number(form.audioAssetId) : null,
     };
 
@@ -196,26 +216,19 @@ export function VocabularyForm({ vocabularyId }: VocabularyFormProps) {
         });
         router.push(`/tu-vung/${vocabularyId}`);
       } else {
-        const created = await apiClient<VocabularyDto>(API_ENDPOINTS.VOCABULARY.ROOT, {
-          method: "POST",
-          body: payload,
-        });
+        const created = await apiClient<VocabularyDto>(API_ENDPOINTS.VOCABULARY.ROOT, { method: "POST", body: payload });
         router.push(`/tu-vung/${created.id}`);
       }
       router.refresh();
-    } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Không thể lưu từ vựng.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Không thể lưu từ vựng.");
     } finally {
       setSubmitting(false);
     }
   }
 
   if (loading) {
-    return (
-      <div className="rounded-[11px] border border-[#e8e3dc] bg-white p-6 text-[11px] text-[#777]">
-        Đang tải dữ liệu biên tập...
-      </div>
-    );
+    return <Card><CardContent className="p-6 text-[13px] text-[#777]">Đang tải dữ liệu biên tập...</CardContent></Card>;
   }
 
   if (error && isEditing && !form.simplified) {
@@ -223,117 +236,59 @@ export function VocabularyForm({ vocabularyId }: VocabularyFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {error && (
-        <div className="rounded-[8px] border border-[#f0cfcb] bg-[#fff5f4] px-3 py-2 text-[11px] text-[#b9433d]">
-          {error}
-        </div>
-      )}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <Alert variant="danger">{error}</Alert>}
 
-      <section className="rounded-[11px] border border-[#e8e3dc] bg-white p-4">
-        <div className="mb-4">
-          <h2 className="text-[13px] font-semibold text-[#333]">Thông tin chung</h2>
-          <p className="mt-1 text-[11px] text-[#888]">Quản lý Hán tự, Pinyin, nghĩa chính và phân loại từ vựng.</p>
-        </div>
-
+      <FormCard title="Thông tin chung" description="Quản lý Hán tự, Pinyin và nghĩa chính của từ vựng.">
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Chữ giản thể *">
-            <input value={form.simplified} onChange={(e) => update("simplified", e.target.value)} placeholder="你好" className="field-input text-[16px]" />
-          </Field>
-          <Field label="Chữ phồn thể">
-            <input value={form.traditional} onChange={(e) => update("traditional", e.target.value)} placeholder="你好" className="field-input text-[16px]" />
-          </Field>
-          <Field label="Pinyin *">
-            <input value={form.pinyin} onChange={(e) => update("pinyin", e.target.value)} placeholder="nǐ hǎo" className="field-input" />
-          </Field>
-          <Field label="Nghĩa chính tiếng Việt *">
-            <input value={form.primaryMeaningVi} onChange={(e) => update("primaryMeaningVi", e.target.value)} placeholder="Xin chào" className="field-input" />
-          </Field>
+          <Field label="Chữ giản thể *"><Input value={form.simplified} onChange={(e) => update("simplified", e.target.value)} placeholder="你好" className="h-10 text-[16px]" /></Field>
+          <Field label="Chữ phồn thể"><Input value={form.traditional} onChange={(e) => update("traditional", e.target.value)} placeholder="你好" className="h-10 text-[16px]" /></Field>
+          <Field label="Pinyin *"><Input value={form.pinyin} onChange={(e) => update("pinyin", e.target.value)} placeholder="nǐ hǎo" className="h-10" /></Field>
+          <Field label="Nghĩa chính tiếng Việt *"><Input value={form.primaryMeaningVi} onChange={(e) => update("primaryMeaningVi", e.target.value)} placeholder="Xin chào" className="h-10" /></Field>
         </div>
-      </section>
+      </FormCard>
 
-      <section className="rounded-[11px] border border-[#e8e3dc] bg-white p-4">
-        <div className="mb-4">
-          <h2 className="text-[13px] font-semibold text-[#333]">Phân loại</h2>
-          <p className="mt-1 text-[11px] text-[#888]">HSK là bắt buộc; Chủ đề và Loại từ dùng danh mục quản trị hiện có.</p>
-        </div>
-
+      <FormCard title="Phân loại" description="HSK là bắt buộc; Chủ đề và Loại từ dùng danh mục quản trị hiện có.">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Field label="Cấp độ HSK *">
-            <select value={form.hskLevelId} onChange={(e) => update("hskLevelId", e.target.value)} className="field-input">
-              <option value="">Chọn HSK</option>
-              {hskLevels.filter((item) => item.isActive !== false || String(item.id) === form.hskLevelId).map((item) => (
-                <option key={item.id} value={item.id}>{item.code} — {item.nameVi}</option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Loại từ">
-            <select value={form.partOfSpeechId} onChange={(e) => update("partOfSpeechId", e.target.value)} className="field-input">
-              <option value="">Chưa phân loại</option>
-              {partsOfSpeech.map((item) => (
-                <option key={item.id} value={item.id}>{item.nameVi} ({item.code})</option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Chủ đề">
-            <select value={form.topicId} onChange={(e) => update("topicId", e.target.value)} className="field-input">
-              <option value="">Chưa gắn chủ đề</option>
-              {publishedTopics.map((item) => (
-                <option key={item.id} value={item.id} disabled={item.status !== 3}>{item.nameVi}{item.status !== 3 ? " (không Published)" : ""}</option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Độ khó">
-            <select value={form.difficulty} onChange={(e) => update("difficulty", e.target.value)} className="field-input">
-              <option value="1">1 — Dễ</option>
-              <option value="2">2 — Trung bình</option>
-              <option value="3">3 — Khó</option>
-            </select>
-          </Field>
+          <Field label="Cấp độ HSK *"><Select value={form.hskLevelId} onValueChange={(value) => update("hskLevelId", value)} options={hskOptions} placeholder="Chọn HSK" /></Field>
+          <Field label="Loại từ"><Select value={form.partOfSpeechId} onValueChange={(value) => update("partOfSpeechId", value)} options={partOptions} placeholder="Chưa phân loại" clearable searchable /></Field>
+          <Field label="Chủ đề"><Select value={form.topicId} onValueChange={(value) => update("topicId", value)} options={topicOptions} placeholder="Chưa gắn chủ đề" clearable searchable /></Field>
+          <Field label="Độ khó"><Select value={form.difficulty} onValueChange={(value) => update("difficulty", value)} options={DIFFICULTY_OPTIONS} /></Field>
         </div>
-      </section>
+      </FormCard>
 
-      <section className="rounded-[11px] border border-[#e8e3dc] bg-white p-4">
-        <div className="mb-4">
-          <h2 className="text-[13px] font-semibold text-[#333]">Ghi chú nội bộ</h2>
-          <p className="mt-1 text-[11px] text-[#888]">Audio phát âm được quản lý riêng trong tab Audio để tránh nhập ID thủ công hoặc vô tình thay đổi liên kết.</p>
-        </div>
+      <FormCard title="Ghi chú nội bộ" description="Audio phát âm được quản lý riêng trong tab Audio để tránh nhập ID thủ công hoặc vô tình thay đổi liên kết.">
         <Field label="Ghi chú cho biên tập viên">
-          <textarea value={form.notesVi} onChange={(e) => update("notesVi", e.target.value)} rows={5} placeholder="Ghi chú cho biên tập viên..." className="field-input h-auto py-2 leading-5" />
+          <Textarea value={form.notesVi} onChange={(e) => update("notesVi", e.target.value)} rows={5} placeholder="Ghi chú cho biên tập viên..." />
         </Field>
-      </section>
+      </FormCard>
 
       <div className="flex justify-end gap-2">
-        <button type="button" disabled={submitting} onClick={() => router.back()} className="h-[38px] rounded-[7px] border border-[#ddd8d1] px-4 text-[11px] font-medium text-[#555] hover:bg-[#f7f6f3] disabled:opacity-50">Hủy</button>
-        <button type="submit" disabled={submitting} className="h-[38px] rounded-[7px] bg-[#ef241c] px-5 text-[11px] font-semibold text-white hover:bg-[#d91f18] disabled:opacity-50">{submitting ? "Đang lưu..." : isEditing ? "Lưu thay đổi" : "Tạo từ vựng"}</button>
+        <Button type="button" variant="outline" size="md" disabled={submitting} onClick={() => router.back()}>Hủy</Button>
+        <Button type="submit" size="md" loading={submitting}>{isEditing ? "Lưu thay đổi" : "Tạo từ vựng"}</Button>
       </div>
-
-      <style jsx>{`
-        .field-input {
-          height: 38px;
-          width: 100%;
-          border-radius: 7px;
-          border: 1px solid #dfdbd4;
-          background: white;
-          padding-left: 12px;
-          padding-right: 12px;
-          font-size: 11px;
-          color: #444;
-          outline: none;
-        }
-        .field-input:focus { border-color: #ef5b55; }
-      `}</style>
     </form>
+  );
+}
+
+function FormCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="mb-4">
+          <h2 className="text-[16px] font-semibold text-[#333]">{title}</h2>
+          <p className="mt-1 text-[13px] leading-5 text-[#777]">{description}</p>
+        </div>
+        {children}
+      </CardContent>
+    </Card>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1.5">
-      <span className="text-[11px] font-medium text-[#555]">{label}</span>
+      <span className="text-[13px] font-medium text-[#555]">{label}</span>
       {children}
     </label>
   );
