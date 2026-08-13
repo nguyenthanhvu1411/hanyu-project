@@ -211,6 +211,26 @@ function ExampleManager({ vocabularyId }: { vocabularyId: number }) {
     setAudioAssetId(null);
   }
 
+  async function changeExampleAudio(nextAudioAssetId: number | null) {
+    setAudioAssetId(nextAudioAssetId);
+
+    if (!editing) {
+      return;
+    }
+
+    const updated = await apiClient<ExampleDto>(
+      API_ENDPOINTS.VOCABULARY.EXAMPLE_AUDIO(vocabularyId, editing.id),
+      {
+        method: "PUT",
+        body: { audioAssetId: nextAudioAssetId },
+      },
+    );
+
+    setEditing(updated);
+    setAudioAssetId(updated.audioAssetId);
+    await load();
+  }
+
   async function save() {
     if (!zh.trim() || !pinyin.trim() || !vi.trim()) return state.setError("Câu tiếng Trung, Pinyin và tiếng Việt là bắt buộc.");
     state.setBusy(true);
@@ -265,10 +285,10 @@ function ExampleManager({ vocabularyId }: { vocabularyId: number }) {
         <div className="md:col-span-2">
           <AudioAssetPicker
             value={audioAssetId}
-            onChange={setAudioAssetId}
+            onChange={changeExampleAudio}
             kind={1}
             title="Audio câu ví dụ"
-            description="Chọn audio câu ví dụ có sẵn hoặc upload trực tiếp lên Backblaze B2. Không cần nhập AudioAsset ID thủ công."
+            description="Chọn audio câu ví dụ có sẵn hoặc upload trực tiếp lên Backblaze B2. Khi đang sửa, thay đổi audio được lưu qua command riêng mà không ghi đè nội dung câu."
             disabled={state.busy}
           />
         </div>
@@ -392,19 +412,9 @@ function AudioManager({ vocabularyId }: { vocabularyId: number }) {
   async function attachAudio(audioAssetId: number | null) {
     if (!vocabulary) return;
 
-    const updated = await apiClient<VocabularyDto>(API_ENDPOINTS.VOCABULARY.DETAIL(vocabularyId), {
+    const updated = await apiClient<VocabularyDto>(API_ENDPOINTS.VOCABULARY.AUDIO(vocabularyId), {
       method: "PUT",
       body: {
-        hskLevelId: vocabulary.hskLevelId,
-        simplified: vocabulary.simplified,
-        traditional: vocabulary.traditional,
-        pinyin: vocabulary.pinyin,
-        pinyinNormalized: vocabulary.pinyinNormalized,
-        primaryMeaningVi: vocabulary.primaryMeaningVi,
-        notesVi: vocabulary.notesVi,
-        difficulty: vocabulary.difficulty,
-        partOfSpeechId: vocabulary.partOfSpeechId,
-        topicId: vocabulary.topicId,
         audioAssetId,
         version: vocabulary.version,
       },
@@ -427,7 +437,7 @@ function AudioManager({ vocabularyId }: { vocabularyId: number }) {
       onChange={attachAudio}
       kind={0}
       title="Audio phát âm từ vựng"
-      description="Chọn AudioAsset phát âm có sẵn hoặc upload trực tiếp lên Backblaze B2. Audio mới được tạo ở trạng thái Draft; hãy kiểm tra và Publish trước khi Publish Vocabulary."
+      description="Chọn AudioAsset phát âm có sẵn hoặc upload trực tiếp lên Backblaze B2. Đổi audio dùng command riêng có kiểm tra Version, không ghi đè các trường Vocabulary khác."
     />
   );
 }
