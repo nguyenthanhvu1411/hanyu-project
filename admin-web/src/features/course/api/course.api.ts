@@ -22,6 +22,11 @@ import type {
   ReorderChaptersRequest,
 } from "../types/curriculum.types";
 
+interface SlugAvailabilityResponse {
+  slug: string;
+  available: boolean;
+}
+
 function buildQuery(query: AdminCourseQuery): string {
   const params = new URLSearchParams();
   if (query.search) params.set("search", query.search);
@@ -56,18 +61,11 @@ export const courseApi = {
     const normalized = slug.trim().toLowerCase();
     if (!normalized) return true;
 
-    const result = await apiClient<PagedResult<AdminCourseListItem>>(
-      `${API_ENDPOINTS.COURSE.ROOT}?${buildQuery({
-        search: normalized,
-        includeDeleted: true,
-        page: 1,
-        pageSize: 100,
-      })}`,
+    const result = await apiClient<SlugAvailabilityResponse>(
+      API_ENDPOINTS.COURSE.SLUG_AVAILABILITY(normalized, excludeId),
     );
 
-    return !result.items.some(
-      (item) => item.slug.toLowerCase() === normalized && item.id !== excludeId,
-    );
+    return result.available;
   },
   getById(id: number) {
     return apiClient<AdminCourseDetail>(API_ENDPOINTS.COURSE.DETAIL(id));
