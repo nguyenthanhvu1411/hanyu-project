@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +12,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { SlugInput } from "@/components/ui/slug-input";
+import { SlugInput, type SlugValidationState } from "@/components/ui/slug-input";
 import { Textarea } from "@/components/ui/textarea";
+import { apiClient } from "@/lib/api/api-client";
+import { API_ENDPOINTS } from "@/lib/api/api-endpoints";
 import { slugify } from "@/lib/utils/slug";
 
 export interface TopicFormValues {
@@ -21,6 +23,11 @@ export interface TopicFormValues {
   nameVi: string;
   descriptionVi: string;
   sortOrder: number;
+}
+
+interface TopicSlugOption {
+  id: number;
+  slug: string;
 }
 
 interface TopicFormProps {
@@ -46,10 +53,27 @@ export function TopicForm({
   const [values, setValues] = useState<TopicFormValues>(
     initialValues ?? EMPTY_VALUES,
   );
+  const [slugValidation, setSlugValidation] = useState<SlugValidationState>({
+    checking: false,
+    error: null,
+  });
 
   useEffect(() => {
     setValues(initialValues ?? EMPTY_VALUES);
+    setSlugValidation({ checking: false, error: null });
   }, [initialValues]);
+
+  const validateTopicSlug = useCallback(
+    async (slug: string) => {
+      const normalized = slug.toLowerCase();
+      if (initialValues?.slug.toLowerCase() === normalized) return null;
+
+      const topics = await apiClient<TopicSlugOption[]>(API_ENDPOINTS.VOCABULARY.TOPICS);
+      const duplicated = topics.some((topic) => topic.slug.toLowerCase() === normalized);
+      return duplicated ? "Slug đã tồn tại ở một chủ đề khác." : null;
+    },
+    [initialValues?.slug],
+  );
 
   return (
     <form
@@ -57,7 +81,14 @@ export function TopicForm({
         event.preventDefault();
 
         const finalSlug = slugify(values.slug || values.nameVi);
-        if (!values.nameVi.trim() || !finalSlug) return;
+        if (
+          !values.nameVi.trim() ||
+          !finalSlug ||
+          slugValidation.checking ||
+          slugValidation.error
+        ) {
+          return;
+        }
 
         await onSubmit({
           ...values,
@@ -100,6 +131,9 @@ export function TopicForm({
             mode={initialValues ? "edit" : "create"}
             required
             placeholder="chao-hoi"
+            previewPrefix="/chu-de/"
+            validateSlug={validateTopicSlug}
+            onValidationChange={setSlugValidation}
             onChange={(slug) =>
               setValues((current) => ({
                 ...current,
@@ -150,7 +184,11 @@ export function TopicForm({
             variant="primary"
             size="md"
             loading={submitting}
-            disabled={!values.nameVi.trim()}
+            disabled={
+              !values.nameVi.trim() ||
+              slugValidation.checking ||
+              Boolean(slugValidation.error)
+            }
           >
             {initialValues ? "Lưu thay đổi" : "Tạo chủ đề"}
           </Button>
