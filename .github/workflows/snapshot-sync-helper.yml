@@ -1,0 +1,43 @@
+name: Snapshot Sync Helper
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  snapshot:
+    if: github.head_ref == 'agent/lesson-integration-admin-web'
+    runs-on: ubuntu-latest
+    env:
+      ConnectionStrings__DefaultConnection: Host=localhost;Port=5432;Database=hanyu_snapshot;Username=hanyu;Password=hanyu
+      Jwt__SecretKey: snapshot-helper-secret-key-at-least-32-bytes-long
+      ASPNETCORE_ENVIRONMENT: Development
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore solution
+        run: dotnet restore HanYu-Web/HanYu-Web.sln
+
+      - name: Restore local tools
+        working-directory: HanYu-Web/HanYu
+        run: dotnet tool restore
+
+      - name: Generate synchronized snapshot
+        working-directory: HanYu-Web/HanYu
+        run: >-
+          dotnet ef migrations add __SnapshotSyncProbe
+          --project HanYu.csproj
+          --output-dir Migrations/__SnapshotSyncProbe
+
+      - name: Upload synchronized snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: synchronized-model-snapshot
+          path: HanYu-Web/HanYu/Migrations/HanYuDbContextModelSnapshot.cs
+          retention-days: 1
