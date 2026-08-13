@@ -1,11 +1,16 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CheckCircle2, Loader2, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { slugify } from "@/lib/utils/slug";
+
+export interface SlugValidationState {
+  checking: boolean;
+  error: string | null;
+}
 
 interface SlugInputProps {
   value: string;
@@ -18,6 +23,9 @@ interface SlugInputProps {
   disabled?: boolean;
   previewPrefix?: string;
   className?: string;
+  validateSlug?: (slug: string) => Promise<string | null>;
+  validationDelayMs?: number;
+  onValidationChange?: (state: SlugValidationState) => void;
 }
 
 export function SlugInput({
@@ -31,8 +39,22 @@ export function SlugInput({
   disabled = false,
   previewPrefix = "/",
   className,
+  validateSlug,
+  validationDelayMs = 450,
+  onValidationChange,
 }: SlugInputProps) {
   const [manual, setManual] = useState(() => mode === "edit" && Boolean(value));
+  const [validation, setValidation] = useState<SlugValidationState>({
+    checking: false,
+    error: null,
+  });
+  const validationSequence = useRef(0);
+
+  useEffect(() => {
+    if (mode === "edit" && value) {
+      setManual(true);
+    }
+  }, [mode, value]);
 
   useEffect(() => {
     if (manual) return;
@@ -42,6 +64,43 @@ export function SlugInput({
       onChange(generated);
     }
   }, [manual, onChange, sourceValue, value]);
+
+  useEffect(() => {
+    const slug = slugify(value);
+    const sequence = ++validationSequence.current;
+
+    if (!validateSlug || !slug || disabled) {
+      const next = { checking: false, error: null };
+      setValidation(next);
+      onValidationChange?.(next);
+      return;
+    }
+
+    const checkingState = { checking: true, error: null };
+    setValidation(checkingState);
+    onValidationChange?.(checkingState);
+
+    const timer = window.setTimeout(() => {
+      void validateSlug(slug)
+        .then((error) => {
+          if (validationSequence.current !== sequence) return;
+          const next = { checking: false, error };
+          setValidation(next);
+          onValidationChange?.(next);
+        })
+        .catch(() => {
+          if (validationSequence.current !== sequence) return;
+          const next = {
+            checking: false,
+            error: "Không thể kiểm tra slug lúc này.",
+          };
+          setValidation(next);
+          onValidationChange?.(next);
+        });
+    }, Math.max(0, validationDelayMs));
+
+    return () => window.clearTimeout(timer);
+  }, [disabled, onValidationChange, validateSlug, validationDelayMs, value]);
 
   const preview = value ? `${previewPrefix}${value}` : "Slug sẽ tự sinh theo tên";
 
@@ -56,6 +115,7 @@ export function SlugInput({
           value={value}
           disabled={disabled}
           placeholder={placeholder}
+          aria-invalid={Boolean(validation.error)}
           onChange={(event) => {
             const rawValue = event.target.value;
 
@@ -88,14 +148,26 @@ export function SlugInput({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] leading-5 text-[#8a8a8a]">
-        <span>{preview}</span>
-        <span>
-          {manual
-            ? mode === "edit"
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] leading-5">
+        <span className={validation.error ? "text-[#b42318]" : "text-[#8a8a8a]"}>
+          {validation.error ?? preview}
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-[#8a8a8a]">
+          {validation.checking ? (
+            <>
+              <Loader2 size={13} className="animate-spin" /> Đang kiểm tra slug...
+            </>
+          ) : validateSlug && value && !validation.error ? (
+            <>
+              <CheckCircle2 size={13} /> Slug có thể sử dụng
+            </>
+          ) : manual ? (
+            mode === "edit"
               ? "URL hiện tại được giữ nguyên cho đến khi bạn sửa slug."
               : "Slug đang được chỉnh thủ công."
-            : "Đang tự động theo tên."}
+          ) : (
+            "Đang tự động theo tên."
+          )}
         </span>
       </div>
     </label>
