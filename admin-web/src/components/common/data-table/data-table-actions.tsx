@@ -29,7 +29,7 @@ interface MenuPosition {
   left: number;
 }
 
-const MENU_WIDTH = 160;
+const MENU_WIDTH = 176;
 const MENU_GAP = 6;
 const VIEWPORT_PADDING = 8;
 
@@ -50,8 +50,7 @@ export function DataTableActions({
     if (!trigger) return;
 
     const triggerRect = trigger.getBoundingClientRect();
-    const menuHeight = menuRef.current?.offsetHeight ?? 160;
-
+    const menuHeight = menuRef.current?.offsetHeight ?? 176;
     const spaceBelow = window.innerHeight - triggerRect.bottom;
     const shouldOpenUp =
       spaceBelow < menuHeight + MENU_GAP + VIEWPORT_PADDING &&
@@ -60,7 +59,6 @@ export function DataTableActions({
     const desiredTop = shouldOpenUp
       ? triggerRect.top - menuHeight - MENU_GAP
       : triggerRect.bottom + MENU_GAP;
-
     const desiredLeft = triggerRect.right - MENU_WIDTH;
 
     setPosition({
@@ -80,7 +78,6 @@ export function DataTableActions({
 
     updatePosition();
     const frame = window.requestAnimationFrame(updatePosition);
-
     return () => window.cancelAnimationFrame(frame);
   }, [open, updatePosition]);
 
@@ -89,14 +86,12 @@ export function DataTableActions({
 
     function handlePointerDown(event: MouseEvent) {
       const target = event.target as Node;
-
       if (
         triggerRef.current?.contains(target) ||
         menuRef.current?.contains(target)
       ) {
         return;
       }
-
       setOpen(false);
     }
 
@@ -119,15 +114,12 @@ export function DataTableActions({
     <div
       ref={menuRef}
       role="menu"
-      className="fixed z-[1000] w-[160px] rounded-[8px] border border-[#e7e2db] bg-white p-1 shadow-lg"
-      style={{
-        top: position.top,
-        left: position.left,
-      }}
+      className="fixed z-[1000] w-[176px] rounded-[8px] border border-[#e7e2db] bg-white p-1 shadow-lg"
+      style={{ top: position.top, left: position.left }}
     >
       {onView && (
         <ActionButton
-          icon={<Eye size={14} />}
+          icon={<Eye size={15} />}
           onClick={() => {
             setOpen(false);
             onView();
@@ -139,7 +131,7 @@ export function DataTableActions({
 
       {onEdit && (
         <ActionButton
-          icon={<Pencil size={14} />}
+          icon={<Pencil size={15} />}
           onClick={() => {
             setOpen(false);
             onEdit();
@@ -149,15 +141,11 @@ export function DataTableActions({
         </ActionButton>
       )}
 
-      {customActions && (
-        <div onClick={() => setOpen(false)}>
-          {customActions}
-        </div>
-      )}
+      {customActions && <div onClick={() => setOpen(false)}>{customActions}</div>}
 
       {onRestore && (
         <ActionButton
-          icon={<RotateCcw size={14} />}
+          icon={<RotateCcw size={15} />}
           onClick={() => {
             setOpen(false);
             onRestore();
@@ -171,7 +159,7 @@ export function DataTableActions({
         <>
           <div className="my-1 h-px bg-[#eee]" />
           <ActionButton
-            icon={<Trash2 size={14} />}
+            icon={<Trash2 size={15} />}
             onClick={() => {
               setOpen(false);
               onDelete();
@@ -193,9 +181,9 @@ export function DataTableActions({
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-[#777] transition hover:bg-[#f2f2f2]"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] text-[#777] transition hover:bg-[#f2f2f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ef241c]/20"
       >
-        <MoreHorizontal size={17} />
+        <MoreHorizontal size={18} />
       </button>
 
       {menu && createPortal(menu, document.body)}
@@ -221,7 +209,7 @@ export function ActionButton({
       type="button"
       role="menuitem"
       onClick={onClick}
-      className={`flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-[11px] transition ${
+      className={`flex h-9 w-full items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] font-medium transition ${
         danger
           ? "text-[#e2372f] hover:bg-[#fff0ee]"
           : "text-[#555] hover:bg-[#f7f7f7]"
