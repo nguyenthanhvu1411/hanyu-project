@@ -10,7 +10,7 @@ import { apiClient } from "@/lib/api/api-client";
 import { API_ENDPOINTS } from "@/lib/api/api-endpoints";
 import { getContentStatusLabel } from "@/lib/constants/content-status";
 
-export type AudioAssetKind = 0 | 1;
+export type AudioAssetKind = 0 | 1 | 2;
 
 interface AudioAssetDto {
   id: number;
@@ -94,12 +94,11 @@ export function AudioAssetPicker({
   );
 
   const options = useMemo(
-    () =>
-      assets.map((asset) => ({
-        value: String(asset.id),
-        label: `Audio #${asset.id}`,
-        description: `${asset.storagePath} · ${getContentStatusLabel(asset.status)}`,
-      })),
+    () => assets.map((asset) => ({
+      value: String(asset.id),
+      label: `Audio #${asset.id}`,
+      description: `${asset.storagePath} · ${getContentStatusLabel(asset.status)}`,
+    })),
     [assets],
   );
 
@@ -259,19 +258,17 @@ export function AudioAssetPicker({
                   {selectedAsset.mimeType} · {selectedAsset.fileSizeBytes ? `${(selectedAsset.fileSizeBytes / 1024 / 1024).toFixed(2)} MB` : "chưa có kích thước"} · {getContentStatusLabel(selectedAsset.status)}
                 </div>
               </div>
-              {selectedAsset.status !== 3 && selectedAsset.status !== 4 && (
-                <Button type="button" variant="outline" size="sm" disabled={disabled || busy} onClick={() => void publishSelected()}>
-                  Xuất bản Audio
-                </Button>
-              )}
+              <Button type="button" variant="outline" size="sm" disabled={disabled || busy} onClick={() => void publishSelected()}>
+                Xuất bản Audio
+              </Button>
             </div>
-            {selectedAsset.publicUrl && <audio controls src={selectedAsset.publicUrl} className="mt-3 h-10 w-full" />}
+            {selectedAsset.publicUrl && <audio controls className="mt-3 w-full" src={selectedAsset.publicUrl} />}
           </div>
-        ) : (
-          <div className="rounded-[8px] border border-dashed border-[#ddd8d1] px-4 py-6 text-center text-[13px] text-[#999]">
-            Chưa gắn audio.
+        ) : value ? (
+          <div className="rounded-[8px] border border-[#e8e3dc] bg-[#faf9f7] px-3 py-2 text-[13px] text-[#777]">
+            AudioAsset #{value} đang được gắn nhưng không nằm trong trang dữ liệu hiện tại.
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
