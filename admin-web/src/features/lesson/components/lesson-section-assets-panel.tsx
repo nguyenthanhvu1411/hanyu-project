@@ -1,7 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ImageIcon, Link2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  FileText,
+  Headphones,
+  ImageIcon,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert } from "@/components/ui/alert";
@@ -15,8 +27,19 @@ import { Switch } from "@/components/ui/switch";
 
 import { lessonApi } from "../api/lesson.api";
 import { lessonSectionAssetsApi } from "../api/lesson-section-assets.api";
-import { lessonAssetTypeLabels, lessonSectionTypeLabels, type AdminLessonAsset, type AdminLessonSection } from "../types/lesson.types";
+import {
+  lessonAssetTypeLabels,
+  lessonSectionTypeLabels,
+  type AdminLessonAsset,
+  type AdminLessonSection,
+} from "../types/lesson.types";
 import type { AdminLessonSectionAsset } from "../types/lesson-section-asset.types";
+
+interface EditState {
+  id: number;
+  captionVi: string;
+  isRequired: boolean;
+}
 
 export function LessonSectionAssetsPanel({ lessonId }: { lessonId: number }) {
   const [sections, setSections] = useState<AdminLessonSection[]>([]);
@@ -29,8 +52,13 @@ export function LessonSectionAssetsPanel({ lessonId }: { lessonId: number }) {
   const [required, setRequired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<AdminLessonSectionAsset | null>(null);
+  const [editing, setEditing] = useState<EditState | null>(null);
 
   const selectedSectionId = Number(sectionId) || 0;
+  const orderedLinks = useMemo(
+    () => [...links].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id),
+    [links],
+  );
 
   const loadBase = useCallback(async () => {
     try {
@@ -62,7 +90,10 @@ export function LessonSectionAssetsPanel({ lessonId }: { lessonId: number }) {
   }, [lessonId, selectedSectionId]);
 
   useEffect(() => { void loadBase(); }, [loadBase]);
-  useEffect(() => { void loadLinks(); }, [loadLinks]);
+  useEffect(() => {
+    setEditing(null);
+    void loadLinks();
+  }, [loadLinks]);
 
   const linkedAssetIds = useMemo(() => new Set(links.map((item) => item.lessonAssetId)), [links]);
   const availableAssets = useMemo(() => assets.filter((item) => !linkedAssetIds.has(item.id)), [assets, linkedAssetIds]);
@@ -94,6 +125,59 @@ export function LessonSectionAssetsPanel({ lessonId }: { lessonId: number }) {
     }
   }
 
+  async function saveEdit(item: AdminLessonSectionAsset) {
+    if (!editing || editing.id !== item.id) return;
+    setBusy(true);
+    try {
+      await lessonSectionAssetsApi.update(lessonId, selectedSectionId, item.id, {
+        sortOrder: item.sortOrder,
+        captionVi: editing.captionVi.trim() || null,
+        isRequired: editing.isRequired,
+      });
+      setEditing(null);
+      await loadLinks();
+      toast.success("Đã cập nhật media của section.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không thể cập nhật media.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function move(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= orderedLinks.length) return;
+
+    const current = orderedLinks[index];
+    const target = orderedLinks[targetIndex];
+    const temporaryOrder = Math.max(...orderedLinks.map((item) => item.sortOrder), 0) + 100;
+
+    setBusy(true);
+    try {
+      await lessonSectionAssetsApi.update(lessonId, selectedSectionId, current.id, {
+        sortOrder: temporaryOrder,
+        captionVi: current.captionVi ?? null,
+        isRequired: current.isRequired,
+      });
+      await lessonSectionAssetsApi.update(lessonId, selectedSectionId, target.id, {
+        sortOrder: current.sortOrder,
+        captionVi: target.captionVi ?? null,
+        isRequired: target.isRequired,
+      });
+      await lessonSectionAssetsApi.update(lessonId, selectedSectionId, current.id, {
+        sortOrder: target.sortOrder,
+        captionVi: current.captionVi ?? null,
+        isRequired: current.isRequired,
+      });
+      await loadLinks();
+      toast.success("Đã cập nhật thứ tự media.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không thể đổi thứ tự media.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remove() {
     if (!deleting || !selectedSectionId) return;
     setBusy(true);
@@ -115,7 +199,7 @@ export function LessonSectionAssetsPanel({ lessonId }: { lessonId: number }) {
         <div>
           <CardTitle>Media theo section</CardTitle>
           <p className="mt-1 text-[13px] leading-5 text-[#777]">
-            Gắn hình ảnh, audio hoặc tài liệu của Lesson vào từng section bằng quan hệ dữ liệu thật, không cần nhúng URL thủ công.
+            Gắn, chỉnh caption, đánh dấu bắt buộc, sắp xếp và xem trước Image / Audio / Document ngay trong từng section.
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void Promise.all([loadBase(), loadLinks()])} disabled={busy}>
@@ -173,27 +257,85 @@ export function LessonSectionAssetsPanel({ lessonId }: { lessonId: number }) {
               </div>
             </div>
 
-            <div className="space-y-2">
-              {links.length === 0 ? (
+            <div className="space-y-3">
+              {orderedLinks.length === 0 ? (
                 <Alert variant="default">Section này chưa được gắn media.</Alert>
-              ) : links.map((item, index) => (
-                <div key={item.id} className="flex flex-col gap-3 rounded-[9px] border border-[#e7e2db] p-3 md:flex-row md:items-center md:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[14px] font-medium text-[#333]">{index + 1}. {item.captionVi || item.assetCaptionVi || `${item.assetType} #${item.lessonAssetId}`}</span>
-                      <Badge>{item.assetType}</Badge>
-                      {item.isRequired && <Badge variant="warning">Bắt buộc</Badge>}
-                    </div>
-                    <div className="mt-1 flex items-center gap-1.5 text-[12px] text-[#888]">
-                      {item.assetType.toLowerCase().includes("image") ? <ImageIcon size={13} /> : <Link2 size={13} />}
-                      <span className="truncate">{item.url || (item.audioAssetId ? `AudioAsset #${item.audioAssetId}` : "Không có URL")}</span>
+              ) : orderedLinks.map((item, index) => {
+                const isEditing = editing?.id === item.id;
+                return (
+                  <div key={item.id} className="rounded-[10px] border border-[#e7e2db] bg-white p-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        {isEditing ? (
+                          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                            <Field label="Caption">
+                              <Input
+                                value={editing.captionVi}
+                                onChange={(event) => setEditing({ ...editing, captionVi: event.target.value })}
+                                placeholder={item.assetCaptionVi || "Caption media"}
+                              />
+                            </Field>
+                            <div className="flex h-10 items-center gap-2 rounded-[8px] border border-[#e7e2db] px-3">
+                              <Switch
+                                checked={editing.isRequired}
+                                onCheckedChange={(value) => setEditing({ ...editing, isRequired: value })}
+                              />
+                              <span className="text-[13px] text-[#555]">Bắt buộc</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[14px] font-medium text-[#333]">
+                              {index + 1}. {item.captionVi || item.assetCaptionVi || `${item.assetType} #${item.lessonAssetId}`}
+                            </span>
+                            <Badge>{item.assetType}</Badge>
+                            {item.isRequired && <Badge variant="warning">Bắt buộc</Badge>}
+                            <Badge variant="info">#{item.sortOrder}</Badge>
+                          </div>
+                        )}
+
+                        <div className="mt-3">
+                          <MediaPreview item={item} />
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-wrap gap-1.5">
+                        <Button type="button" variant="outline" size="icon" aria-label="Đưa lên" title="Đưa lên" onClick={() => void move(index, -1)} disabled={busy || index === 0}>
+                          <ArrowUp size={14} />
+                        </Button>
+                        <Button type="button" variant="outline" size="icon" aria-label="Đưa xuống" title="Đưa xuống" onClick={() => void move(index, 1)} disabled={busy || index === orderedLinks.length - 1}>
+                          <ArrowDown size={14} />
+                        </Button>
+                        {isEditing ? (
+                          <>
+                            <Button type="button" variant="secondary" size="icon" aria-label="Lưu" title="Lưu" onClick={() => void saveEdit(item)} disabled={busy}>
+                              <Save size={14} />
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" aria-label="Hủy" title="Hủy" onClick={() => setEditing(null)} disabled={busy}>
+                              <X size={14} />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="Chỉnh sửa"
+                            title="Chỉnh sửa"
+                            onClick={() => setEditing({ id: item.id, captionVi: item.captionVi ?? "", isRequired: item.isRequired })}
+                            disabled={busy}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                        )}
+                        <Button type="button" variant="dangerGhost" size="icon" aria-label="Gỡ media" title="Gỡ media" onClick={() => setDeleting(item)} disabled={busy}>
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  <Button type="button" variant="dangerGhost" size="sm" className="gap-1.5" onClick={() => setDeleting(item)} disabled={busy}>
-                    <Trash2 size={13} /> Gỡ
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -209,6 +351,41 @@ export function LessonSectionAssetsPanel({ lessonId }: { lessonId: number }) {
         onConfirm={remove}
       />
     </Card>
+  );
+}
+
+function MediaPreview({ item }: { item: AdminLessonSectionAsset }) {
+  const type = item.assetType.toLowerCase();
+  const caption = item.captionVi || item.assetCaptionVi || "Tài nguyên";
+
+  if (type.includes("image")) {
+    return item.url ? (
+      <figure className="overflow-hidden rounded-[9px] border border-[#ece7e0] bg-[#faf9f7]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={item.url} alt={caption} className="max-h-[320px] w-full object-contain" />
+        <figcaption className="flex items-center gap-2 border-t border-[#ece7e0] px-3 py-2 text-[12px] text-[#777]">
+          <ImageIcon size={13} /> {caption}
+        </figcaption>
+      </figure>
+    ) : <Alert variant="default">Image chưa có URL public để preview.</Alert>;
+  }
+
+  if (type.includes("audio")) {
+    return item.url ? (
+      <div className="rounded-[9px] border border-[#ece7e0] bg-[#faf9f7] p-3">
+        <div className="mb-2 flex items-center gap-2 text-[13px] font-medium text-[#555]"><Headphones size={14} /> {caption}</div>
+        <audio controls preload="metadata" className="w-full" src={item.url}>Trình duyệt không hỗ trợ audio.</audio>
+      </div>
+    ) : (
+      <Alert variant="default">AudioAsset #{item.audioAssetId ?? "?"} chưa trả public URL cho admin preview.</Alert>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[9px] border border-[#ece7e0] bg-[#faf9f7] px-3 py-3">
+      <div className="flex min-w-0 items-center gap-2 text-[13px] text-[#555]"><FileText size={15} /><span className="truncate">{caption}</span></div>
+      {item.url ? <a href={item.url} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-[#ef241c] hover:underline">Mở tài liệu</a> : <span className="text-[12px] text-[#999]">Chưa có URL</span>}
+    </div>
   );
 }
 
