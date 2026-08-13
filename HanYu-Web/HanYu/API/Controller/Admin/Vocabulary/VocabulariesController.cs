@@ -1,12 +1,16 @@
+using HanYu.API.Common;
 using HanYu.API.Common.Extensions;
+using HanYu.Application.Common.Models;
 using HanYu.Application.Features.Vocabulary.Admin.Vocabulary;
 using HanYu.Application.Interfaces.Vocabulary;
 using HanYu.Domain.Constants;
+using HanYu.Domain.Enums;
 using HanYu.Infrastructure.Persistence;
 using HanYu.Infrastructure.Vocabulary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 
 namespace HanYu.API.Controller.Admin.Vocabulary;
 
@@ -72,10 +76,25 @@ public sealed class VocabulariesController
     public async Task<IActionResult> Create(
         CreateVocabularyRequest request,
         CancellationToken cancellationToken)
-        => this.ToActionResult(
+    {
+        var audioValidation = await VocabularyAudioGuard.ValidateAsync(
+            _db,
+            request.AudioAssetId,
+            AudioAssetKind.Vocabulary,
+            cancellationToken);
+
+        if (audioValidation.IsFailure)
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminVocabularyResponse>(
+                    audioValidation.Error));
+        }
+
+        return this.ToActionResult(
             await _service.CreateVocabularyAsync(
                 request,
                 cancellationToken));
+    }
 
     [HttpPut("{id:long}")]
     [EnableRateLimiting(
@@ -84,11 +103,88 @@ public sealed class VocabulariesController
         long id,
         UpdateVocabularyRequest request,
         CancellationToken cancellationToken)
-        => this.ToActionResult(
+    {
+        var audioValidation = await VocabularyAudioGuard.ValidateAsync(
+            _db,
+            request.AudioAssetId,
+            AudioAssetKind.Vocabulary,
+            cancellationToken);
+
+        if (audioValidation.IsFailure)
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminVocabularyResponse>(
+                    audioValidation.Error));
+        }
+
+        return this.ToActionResult(
             await _service.UpdateVocabularyAsync(
                 id,
                 request,
                 cancellationToken));
+    }
+
+    [HttpPut("{id:long}/audio")]
+    [EnableRateLimiting(
+        ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
+    public async Task<IActionResult> ChangeAudio(
+        long id,
+        ChangeVocabularyAudioRequest request,
+        CancellationToken cancellationToken)
+    {
+        var entity = await _db.Set<Domain.Entities.Vocabulary.Vocabulary>()
+            .FirstOrDefaultAsync(
+                item => item.Id == id,
+                cancellationToken);
+
+        if (entity is null)
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminVocabularyResponse>(
+                    Error.NotFound(
+                        "Vocabulary.NotFound",
+                        "Không tìm thấy vocabulary.")));
+        }
+
+        if (entity.Version != request.Version)
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminVocabularyResponse>(
+                    Error.Conflict(
+                        "Vocabulary.VersionConflict",
+                        "Dữ liệu đã thay đổi. Hãy tải lại trước khi đổi audio.")));
+        }
+
+        if (entity.Status == ContentStatus.Archived)
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminVocabularyResponse>(
+                    Error.Conflict(
+                        "Vocabulary.Archived",
+                        "Không thể đổi audio của vocabulary Archived.")));
+        }
+
+        var audioValidation = await VocabularyAudioGuard.ValidateAsync(
+            _db,
+            request.AudioAssetId,
+            AudioAssetKind.Vocabulary,
+            cancellationToken);
+
+        if (audioValidation.IsFailure)
+        {
+            return this.ToActionResult(
+                Result.Failure<AdminVocabularyResponse>(
+                    audioValidation.Error));
+        }
+
+        entity.ChangeAudio(request.AudioAssetId);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return this.ToActionResult(
+            await _service.GetVocabularyAsync(
+                id,
+                cancellationToken));
+    }
 
     [HttpPost("{id:long}/submit-review")]
     public async Task<IActionResult> SubmitReview(
