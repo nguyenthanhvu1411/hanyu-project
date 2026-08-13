@@ -220,4 +220,11 @@ public sealed record AdminMediaUploadResponse(
     string FileName,
     string ContentType,
     long Size,
-    string Kind);
+    string Kind)
+{
+    // Compatibility aliases used by the Vocabulary Audio uploader.
+    // Keep the original Url/FileName/Size contract for existing media consumers.
+    public string PublicUrl => Url;
+    public string OriginalFileName => FileName;
+    public long FileSizeBytes => Size;
+}
