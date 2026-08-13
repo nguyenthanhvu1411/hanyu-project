@@ -99,7 +99,7 @@ public sealed class PublicCourseService : IPublicCourseService
                 x.CoverImageUrl,
                 x.EstimatedMinutes,
                 x.IsFeatured,
-                x.Chapters.Count(c => !c.IsDeleted && c.IsActive)))
+                x.Chapters.Count(c => c.DeletedAt == null && c.IsActive)))
             .ToListAsync(cancellationToken);
 
         var result = new PagedResult<PublicCourseListItemDto>(items, page, pageSize, total);
@@ -265,7 +265,7 @@ public sealed class PublicCourseService : IPublicCourseService
                 on lesson.CourseChapterId equals (long?)chapter.Id
             where lesson.Status == ContentStatus.Published &&
                   chapter.CourseId == courseId.Value &&
-                  !chapter.IsDeleted &&
+                  chapter.DeletedAt == null &&
                   chapter.IsActive
             orderby chapter.SortOrder, lesson.SortOrder, lesson.Id
             select new PublicCourseLessonDto(
