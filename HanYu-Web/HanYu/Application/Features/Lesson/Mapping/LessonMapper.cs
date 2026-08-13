@@ -27,7 +27,8 @@ public static class LessonMapper
     }
 
     public static LessonSectionResponse ToSection(
-        LessonSection entity)
+        LessonSection entity,
+        IReadOnlyCollection<LessonSectionMediaResponse>? media = null)
     {
         return new LessonSectionResponse(
             entity.PublicId,
@@ -36,7 +37,8 @@ public static class LessonMapper
             entity.ContentVi,
             entity.SortOrder,
             entity.IsRequired,
-            entity.EstimatedSeconds);
+            entity.EstimatedSeconds,
+            media ?? Array.Empty<LessonSectionMediaResponse>());
     }
 
     public static LessonAssetResponse ToAsset(
