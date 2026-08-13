@@ -49,11 +49,12 @@ export function SlugInput({
     error: null,
   });
   const validationSequence = useRef(0);
+  const editValueInitialized = useRef(mode === "edit" && Boolean(value));
 
   useEffect(() => {
-    if (mode === "edit" && value) {
-      setManual(true);
-    }
+    if (mode !== "edit" || editValueInitialized.current || !value) return;
+    editValueInitialized.current = true;
+    setManual(true);
   }, [mode, value]);
 
   useEffect(() => {
