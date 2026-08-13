@@ -52,6 +52,23 @@ export const courseApi = {
       `${API_ENDPOINTS.COURSE.ROOT}?${buildQuery(query)}`,
     );
   },
+  async isSlugAvailable(slug: string, excludeId?: number) {
+    const normalized = slug.trim().toLowerCase();
+    if (!normalized) return true;
+
+    const result = await apiClient<PagedResult<AdminCourseListItem>>(
+      `${API_ENDPOINTS.COURSE.ROOT}?${buildQuery({
+        search: normalized,
+        includeDeleted: true,
+        page: 1,
+        pageSize: 100,
+      })}`,
+    );
+
+    return !result.items.some(
+      (item) => item.slug.toLowerCase() === normalized && item.id !== excludeId,
+    );
+  },
   getById(id: number) {
     return apiClient<AdminCourseDetail>(API_ENDPOINTS.COURSE.DETAIL(id));
   },
