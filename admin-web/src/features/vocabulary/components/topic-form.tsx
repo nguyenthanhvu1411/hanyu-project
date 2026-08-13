@@ -12,7 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SlugInput } from "@/components/ui/slug-input";
 import { Textarea } from "@/components/ui/textarea";
+import { slugify } from "@/lib/utils/slug";
 
 export interface TopicFormValues {
   slug: string;
@@ -35,18 +37,6 @@ const EMPTY_VALUES: TopicFormValues = {
   sortOrder: 0,
 };
 
-function normalizeSlug(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "d")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 export function TopicForm({
   initialValues,
   submitting = false,
@@ -56,22 +46,22 @@ export function TopicForm({
   const [values, setValues] = useState<TopicFormValues>(
     initialValues ?? EMPTY_VALUES,
   );
-  const [slugTouched, setSlugTouched] = useState(Boolean(initialValues?.slug));
 
   useEffect(() => {
     setValues(initialValues ?? EMPTY_VALUES);
-    setSlugTouched(Boolean(initialValues?.slug));
   }, [initialValues]);
 
   return (
     <form
       onSubmit={async (event) => {
         event.preventDefault();
-        if (!values.nameVi.trim() || !values.slug.trim()) return;
+
+        const finalSlug = slugify(values.slug || values.nameVi);
+        if (!values.nameVi.trim() || !finalSlug) return;
 
         await onSubmit({
           ...values,
-          slug: normalizeSlug(values.slug),
+          slug: finalSlug,
           nameVi: values.nameVi.trim(),
           descriptionVi: values.descriptionVi.trim(),
           sortOrder: Number.isFinite(values.sortOrder) ? values.sortOrder : 0,
@@ -93,34 +83,30 @@ export function TopicForm({
             <span className="text-[13px] font-medium text-[#555]">Tên chủ đề *</span>
             <Input
               value={values.nameVi}
-              onChange={(event) => {
-                const nameVi = event.target.value;
+              onChange={(event) =>
                 setValues((current) => ({
                   ...current,
-                  nameVi,
-                  slug: slugTouched ? current.slug : normalizeSlug(nameVi),
-                }));
-              }}
+                  nameVi: event.target.value,
+                }))
+              }
               placeholder="Ví dụ: Chào hỏi, Gia đình, Du lịch..."
               className="h-10 px-3 text-[14px]"
             />
           </label>
 
-          <label className="space-y-2">
-            <span className="text-[13px] font-medium text-[#555]">Slug *</span>
-            <Input
-              value={values.slug}
-              onChange={(event) => {
-                setSlugTouched(true);
-                setValues((current) => ({
-                  ...current,
-                  slug: normalizeSlug(event.target.value),
-                }));
-              }}
-              placeholder="chao-hoi"
-              className="h-10 px-3 text-[14px]"
-            />
-          </label>
+          <SlugInput
+            value={values.slug}
+            sourceValue={values.nameVi}
+            mode={initialValues ? "edit" : "create"}
+            required
+            placeholder="chao-hoi"
+            onChange={(slug) =>
+              setValues((current) => ({
+                ...current,
+                slug,
+              }))
+            }
+          />
 
           <label className="space-y-2">
             <span className="text-[13px] font-medium text-[#555]">Thứ tự hiển thị</span>
@@ -164,7 +150,7 @@ export function TopicForm({
             variant="primary"
             size="md"
             loading={submitting}
-            disabled={!values.nameVi.trim() || !values.slug.trim()}
+            disabled={!values.nameVi.trim()}
           >
             {initialValues ? "Lưu thay đổi" : "Tạo chủ đề"}
           </Button>
