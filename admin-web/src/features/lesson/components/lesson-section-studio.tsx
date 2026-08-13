@@ -31,6 +31,7 @@ export function LessonSectionStudio({ lessonId }: { lessonId: number }) {
   const [mediaSection, setMediaSection] = useState<AdminLessonSection | null>(null);
   const [editingMedia, setEditingMedia] = useState<AdminLessonSectionAsset | null>(null);
   const [editingAsset, setEditingAsset] = useState<AdminLessonAsset | null>(null);
+  const [deletingAsset, setDeletingAsset] = useState<AdminLessonAsset | null>(null);
   const [assetModalOpen, setAssetModalOpen] = useState(false);
 
   const orderedSections = useMemo(() => [...sections].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id), [sections]);
@@ -147,6 +148,23 @@ export function LessonSectionStudio({ lessonId }: { lessonId: number }) {
     } finally { setBusy(false); }
   }
 
+  async function removeAsset() {
+    if (!deletingAsset) return;
+    setBusy(true);
+    try {
+      await lessonApi.deleteAsset(lessonId, deletingAsset.id);
+      setDeletingAsset(null);
+      if (editingAsset?.id === deletingAsset.id) {
+        setEditingAsset(null);
+        setAssetModalOpen(false);
+      }
+      await load();
+      toast.success("Đã xóa tài nguyên khỏi Lesson.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không thể xóa tài nguyên. Hãy gỡ các liên kết section nếu backend yêu cầu.");
+    } finally { setBusy(false); }
+  }
+
   if (loading) {
     return <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]"><Skeleton className="h-[620px] rounded-[12px]" /><Skeleton className="h-[620px] rounded-[12px]" /></div>;
   }
@@ -208,14 +226,19 @@ export function LessonSectionStudio({ lessonId }: { lessonId: number }) {
         <aside className="xl:sticky xl:top-4 xl:self-start">
           <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-3">
-              <div><CardTitle>Kho media Lesson ({orderedAssets.length})</CardTitle><p className="mt-1 text-[13px] leading-5 text-[#777]">Upload hoặc chỉnh tài nguyên rồi gắn vào section.</p></div>
+              <div><CardTitle>Kho media Lesson ({orderedAssets.length})</CardTitle><p className="mt-1 text-[13px] leading-5 text-[#777]">Upload, chỉnh sửa hoặc xóa tài nguyên; sau đó gắn vào section bằng modal.</p></div>
               <Button type="button" size="icon" onClick={() => { setEditingAsset(null); setAssetModalOpen(true); }} aria-label="Thêm tài nguyên"><Plus size={14} /></Button>
             </CardHeader>
             <CardContent>
               {orderedAssets.length === 0 ? <Alert variant="info">Lesson chưa có tài nguyên.</Alert> : <div className="space-y-2">{orderedAssets.map((asset) => (
-                <button key={asset.id} type="button" className="block w-full rounded-[9px] border border-[#e8e3dc] p-3 text-left" onClick={() => { setEditingAsset(asset); setAssetModalOpen(true); }}>
-                  <AssetPreview asset={asset} />
-                </button>
+                <div key={asset.id} className="flex items-start gap-1 rounded-[9px] border border-[#e8e3dc] p-2">
+                  <button type="button" className="min-w-0 flex-1 rounded-[7px] p-1 text-left" onClick={() => { setEditingAsset(asset); setAssetModalOpen(true); }}>
+                    <AssetPreview asset={asset} />
+                  </button>
+                  <Button type="button" variant="dangerGhost" size="icon" disabled={busy} aria-label="Xóa tài nguyên" title="Xóa tài nguyên" onClick={() => setDeletingAsset(asset)}>
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
               ))}</div>}
             </CardContent>
           </Card>
@@ -226,6 +249,7 @@ export function LessonSectionStudio({ lessonId }: { lessonId: number }) {
       <LessonSectionMediaModal open={Boolean(mediaSection)} section={mediaSection} assets={assets} existingLinks={mediaSection ? mediaBySection[mediaSection.id] ?? [] : []} editing={editingMedia} loading={busy} onClose={() => { setMediaSection(null); setEditingMedia(null); }} onAttach={attachMedia} onUpdate={updateMedia} />
       <LessonAssetModal open={assetModalOpen} asset={editingAsset} defaultSortOrder={orderedAssets.length} loading={busy} onClose={() => { setAssetModalOpen(false); setEditingAsset(null); }} onSubmit={saveAsset} />
       <ConfirmDialog open={Boolean(deletingSection)} title="Xóa section?" description={`Section “${deletingSection?.titleVi || (deletingSection ? lessonSectionTypeLabels[deletingSection.sectionType] : "") }” sẽ bị xóa khỏi bài giảng.`} confirmLabel="Xóa section" loading={busy} onClose={() => setDeletingSection(null)} onConfirm={removeSection} />
+      <ConfirmDialog open={Boolean(deletingAsset)} title="Xóa tài nguyên Lesson?" description={`Tài nguyên “${deletingAsset?.captionVi || (deletingAsset ? lessonAssetTypeLabels[deletingAsset.assetType] : "") }” sẽ bị xóa khỏi Lesson. Nếu đang được section sử dụng, backend có thể yêu cầu gỡ liên kết trước.`} confirmLabel="Xóa tài nguyên" loading={busy} onClose={() => setDeletingAsset(null)} onConfirm={removeAsset} />
     </>
   );
 }
@@ -243,5 +267,12 @@ function AssetPreview({ asset }: { asset: AdminLessonAsset }) {
 }
 
 function sectionRequest(item: AdminLessonSection, sortOrder: number): CreateLessonSectionRequest {
-  return { sectionType: item.sectionType, titleVi: item.titleVi ?? null, contentVi: item.contentVi ?? null, sortOrder, isRequired: item.isRequired, estimatedSeconds: item.estimatedSeconds ?? null };
+  return {
+    sectionType: item.sectionType,
+    titleVi: item.titleVi ?? null,
+    contentVi: item.contentVi ?? null,
+    sortOrder,
+    isRequired: item.isRequired,
+    estimatedSeconds: item.estimatedSeconds ?? null,
+  };
 }
