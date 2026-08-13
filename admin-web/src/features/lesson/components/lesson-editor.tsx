@@ -24,6 +24,7 @@ import { FormSection } from "@/components/forms/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { SlugInput } from "@/components/ui/slug-input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { PERMISSIONS } from "@/constants/permission.constants";
@@ -32,6 +33,7 @@ import { courseApi } from "@/features/course/api/course.api";
 import type { AdminCourseChapter, AdminCourseListItem } from "@/features/course/types/course.types";
 import { learningApi } from "@/features/learning/learning.api";
 import { ContentStatus, getContentStatusLabel } from "@/lib/constants/content-status";
+import { slugify } from "@/lib/utils/slug";
 import { PermissionGuard } from "@/security/permission-guard";
 
 import { lessonApi } from "../api/lesson.api";
@@ -63,28 +65,14 @@ const EMPTY_FORM: CreateLessonRequest = {
   isFeatured: false,
 };
 
-function slugifyVietnamese(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-}
-
 function normalizeRequest(form: CreateLessonRequest): CreateLessonRequest {
   const titleVi = form.titleVi.trim();
-  const slug = form.slug.trim() || slugifyVietnamese(titleVi);
 
   return {
     ...form,
     courseChapterId: form.courseChapterId || null,
     topicId: form.topicId || null,
-    slug,
+    slug: slugify(form.slug || titleVi),
     titleVi,
     shortDescriptionVi: form.shortDescriptionVi?.trim() || null,
     descriptionVi: form.descriptionVi?.trim() || null,
@@ -281,7 +269,7 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
   const canSubmit = useMemo(
     () =>
       form.titleVi.trim().length > 0 &&
-      slugifyVietnamese(form.titleVi).length > 0 &&
+      slugify(form.titleVi).length > 0 &&
       Number.isSafeInteger(form.hskLevelId) &&
       form.hskLevelId > 0 &&
       Number.isInteger(form.sortOrder) &&
@@ -307,14 +295,6 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
     if (selected?.hskLevelId) {
       setField("hskLevelId", selected.hskLevelId);
     }
-  }
-
-  function changeTitle(value: string) {
-    setForm((current) => ({
-      ...current,
-      titleVi: value,
-      slug: current.slug.trim() ? current.slug : "",
-    }));
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -414,23 +394,26 @@ export function LessonEditor({ lessonId }: LessonEditorProps) {
 
       <FormSection
         title="Thông tin bài giảng"
-        description="Thiết lập tên, slug và nội dung mô tả. Nếu để trống slug, hệ thống tự tạo từ tên bài giảng."
+        description="Tên và đường dẫn công khai của bài giảng. Khi tạo mới, slug tự động theo tên; khi chỉnh sửa, URL hiện tại được giữ nguyên."
         icon={<BookOpenText size={18} />}
       >
         <FormField label="Tên bài giảng" required>
-          <Input value={form.titleVi} onChange={(event) => changeTitle(event.target.value)} placeholder="Ví dụ: Chào hỏi và giới thiệu bản thân" />
-        </FormField>
-
-        <FormField
-          label="Slug"
-          description={form.slug.trim() ? "Bạn đang dùng slug tùy chỉnh." : `Tự động khi lưu: ${slugifyVietnamese(form.titleVi) || "nhap-ten-bai-giang"}`}
-        >
           <Input
-            value={form.slug}
-            onChange={(event) => setField("slug", slugifyVietnamese(event.target.value))}
-            placeholder="Để trống để tự tạo từ tên bài giảng"
+            value={form.titleVi}
+            onChange={(event) => setField("titleVi", event.target.value)}
+            placeholder="Ví dụ: Chào hỏi và giới thiệu bản thân"
           />
         </FormField>
+
+        <SlugInput
+          value={form.slug}
+          sourceValue={form.titleVi}
+          onChange={(value) => setField("slug", value)}
+          mode={editing ? "edit" : "create"}
+          label="Đường dẫn (slug)"
+          placeholder="chao-hoi-va-gioi-thieu-ban-than"
+          previewPrefix="/bai-giang/"
+        />
 
         <FormRow columns={2}>
           <FormField label="Khóa học" description="Chọn khóa học trước để tải đúng danh sách chương.">
