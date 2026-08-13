@@ -27,15 +27,19 @@ public sealed class LessonSectionAssetAdminService
         if (!validation.IsSuccess)
             return Result.Failure<IReadOnlyCollection<AdminLessonSectionAssetResponse>>(validation.Error);
 
-        var items = await _db.Set<LessonSectionAsset>()
+        var entities = await _db.Set<LessonSectionAsset>()
             .AsNoTracking()
+            .Include(x => x.LessonAsset)
             .Where(x => x.LessonSectionId == sectionId)
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Id)
-            .Select(x => Map(x))
             .ToListAsync(cancellationToken);
 
-        return Result.Success<IReadOnlyCollection<AdminLessonSectionAssetResponse>>(items);
+        IReadOnlyCollection<AdminLessonSectionAssetResponse> items = entities
+            .Select(x => Map(x, x.LessonAsset))
+            .ToArray();
+
+        return Result.Success(items);
     }
 
     public async Task<Result<AdminLessonSectionAssetResponse>> AttachAsync(
@@ -139,11 +143,8 @@ public sealed class LessonSectionAssetAdminService
             : Result.Failure(Error.NotFound("LessonSectionAsset.SectionNotFound", "Không tìm thấy section thuộc Lesson này."));
     }
 
-    private static AdminLessonSectionAssetResponse Map(LessonSectionAsset x, LessonAsset? asset = null)
-    {
-        asset ??= x.LessonAsset;
-        return new AdminLessonSectionAssetResponse(
+    private static AdminLessonSectionAssetResponse Map(LessonSectionAsset x, LessonAsset asset)
+        => new(
             x.Id, x.PublicId, x.LessonSectionId, x.LessonAssetId, x.SortOrder, x.CaptionVi, x.IsRequired,
             asset.AssetType.ToString(), asset.Url, asset.AudioAssetId, asset.CaptionVi, x.CreatedAt, x.UpdatedAt);
-    }
 }
