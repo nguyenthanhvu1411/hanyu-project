@@ -8,8 +8,8 @@ import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { PERMISSIONS } from "@/constants/permission.constants";
-import { LessonSectionAssetsPanel } from "@/features/lesson/components/lesson-section-assets-panel";
-import { LessonSectionEditor } from "@/features/lesson/components/lesson-section-editor";
+import { LessonSectionStudio } from "@/features/lesson/components/lesson-section-studio";
+import { LessonValidationPanel } from "@/features/lesson/components/lesson-validation-panel";
 import { PermissionGuard } from "@/security/permission-guard";
 
 export default function LessonContentPage() {
@@ -31,7 +31,7 @@ export default function LessonContentPage() {
       <PageContainer>
         <PageHeader
           title="Lesson Content Editor"
-          description="Soạn LessonSection, sắp xếp nội dung, gắn media theo section và xem trước bài học trước khi xuất bản."
+          description="Workspace duy nhất để quản lý LessonSection, kho media Lesson và media theo từng section bằng modal workflow."
           actions={
             <>
               <Link href={`/bai-giang/${lessonId}`}>
@@ -41,7 +41,7 @@ export default function LessonContentPage() {
               </Link>
               <Link href={`/bai-giang/${lessonId}/noi-dung/quan-ly`}>
                 <Button variant="outline" size="md" className="gap-2">
-                  <Boxes size={14} /> Tài nguyên & liên kết
+                  <Boxes size={14} /> Từ vựng & tiên quyết
                 </Button>
               </Link>
               <Link href={`/bai-giang/${lessonId}/chinh-sua`}>
@@ -53,9 +53,9 @@ export default function LessonContentPage() {
           }
         />
 
-        <div className="space-y-4">
-          <LessonSectionEditor lessonId={lessonId} />
-          <LessonSectionAssetsPanel lessonId={lessonId} />
+        <div className="space-y-5">
+          <LessonSectionStudio lessonId={lessonId} />
+          <LessonValidationPanel lessonId={lessonId} />
         </div>
       </PageContainer>
     </PermissionGuard>
