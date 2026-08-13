@@ -1,9 +1,15 @@
+using HanYu.API.Common;
 using HanYu.API.Common.Extensions;
+using HanYu.Application.Common.Models;
 using HanYu.Application.Features.Lesson.Admin.Assets;
 using HanYu.Application.Interfaces.Lesson;
+using HanYu.Application.Interfaces.Persistence;
 using HanYu.Domain.Constants;
+using HanYu.Domain.Entities.Lesson;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 
 namespace HanYu.API.Controller.Admin.Lesson;
 
@@ -19,10 +25,14 @@ public sealed class LessonAssetsController : ControllerBase
         Roles.SuperAdmin + "," + Roles.Admin + "," + Roles.ContentManager + "," + Roles.ContentEditor;
 
     private readonly ILessonAdminService _service;
+    private readonly IHanYuDbContext _dbContext;
 
-    public LessonAssetsController(ILessonAdminService service)
+    public LessonAssetsController(
+        ILessonAdminService service,
+        IHanYuDbContext dbContext)
     {
         _service = service;
+        _dbContext = dbContext;
     }
 
     [HttpGet]
@@ -31,6 +41,7 @@ public sealed class LessonAssetsController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = ContentEditRoles)]
+    [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Create(
         long lessonId,
         CreateLessonAssetRequest request,
@@ -39,6 +50,7 @@ public sealed class LessonAssetsController : ControllerBase
 
     [HttpPut("{assetId:long}")]
     [Authorize(Roles = ContentEditRoles)]
+    [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Update(
         long lessonId,
         long assetId,
@@ -48,9 +60,32 @@ public sealed class LessonAssetsController : ControllerBase
 
     [HttpDelete("{assetId:long}")]
     [Authorize(Roles = ContentEditRoles)]
+    [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
     public async Task<IActionResult> Delete(
         long lessonId,
         long assetId,
         CancellationToken cancellationToken)
-        => this.ToActionResult(await _service.DeleteAssetAsync(lessonId, assetId, cancellationToken));
+    {
+        var linkedToSection = await _dbContext.Set<LessonSectionAsset>()
+            .AsNoTracking()
+            .AnyAsync(
+                x => x.LessonAssetId == assetId &&
+                     x.LessonAsset.LessonId == lessonId,
+                cancellationToken);
+
+        if (linkedToSection)
+        {
+            return this.ToActionResult(
+                Result.Failure(
+                    Error.Conflict(
+                        "LessonAsset.InUse",
+                        "Tài nguyên đang được sử dụng trong một hoặc nhiều section. Hãy gỡ media khỏi các section trước khi xóa tài nguyên.")));
+        }
+
+        return this.ToActionResult(
+            await _service.DeleteAssetAsync(
+                lessonId,
+                assetId,
+                cancellationToken));
+    }
 }
