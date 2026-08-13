@@ -12,12 +12,14 @@ import { FormRow } from "@/components/forms/form-row";
 import { FormSection } from "@/components/forms/form-section";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { SlugInput } from "@/components/ui/slug-input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
 import type { AdminHskLevelDto } from "@/dto/learning/hsk-level.dto";
 import { learningApi } from "@/features/learning/learning.api";
 import { normalizeApiError } from "@/lib/api/api-error";
+import { slugify } from "@/lib/utils/slug";
 
 import { courseApi } from "../api/course.api";
 import type { AdminCourseDetail, CreateCourseRequest } from "../types/course.types";
@@ -39,22 +41,13 @@ const EMPTY_FORM: CreateCourseRequest = {
   isFeatured: false,
 };
 
-function slugify(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/đ/g, "d")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 function normalizeRequest(form: CreateCourseRequest): CreateCourseRequest {
+  const titleVi = form.titleVi.trim();
+
   return {
     code: form.code.trim().toUpperCase(),
-    slug: form.slug.trim(),
-    titleVi: form.titleVi.trim(),
+    slug: slugify(form.slug || titleVi),
+    titleVi,
     shortDescriptionVi: form.shortDescriptionVi?.trim() || null,
     descriptionVi: form.descriptionVi?.trim() || null,
     hskLevelId: form.hskLevelId || null,
@@ -71,7 +64,6 @@ export function CourseForm({ courseId }: CourseFormProps) {
 
   const [detail, setDetail] = useState<AdminCourseDetail | null>(null);
   const [form, setForm] = useState<CreateCourseRequest>(EMPTY_FORM);
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(editing);
   const [hskLevels, setHskLevels] = useState<AdminHskLevelDto[]>([]);
   const [loading, setLoading] = useState(editing);
   const [hskLoading, setHskLoading] = useState(true);
@@ -119,7 +111,6 @@ export function CourseForm({ courseId }: CourseFormProps) {
         if (!active) return;
 
         setDetail(course);
-        setSlugManuallyEdited(true);
         setForm({
           code: course.code,
           slug: course.slug,
@@ -166,6 +157,7 @@ export function CourseForm({ courseId }: CourseFormProps) {
     () =>
       form.code.trim().length > 0 &&
       form.titleVi.trim().length > 0 &&
+      slugify(form.titleVi).length > 0 &&
       Number.isInteger(form.sortOrder) &&
       form.sortOrder >= 0,
     [form],
@@ -176,19 +168,6 @@ export function CourseForm({ courseId }: CourseFormProps) {
     value: CreateCourseRequest[K],
   ) {
     setForm((current) => ({ ...current, [key]: value }));
-  }
-
-  function changeTitle(value: string) {
-    setForm((current) => ({
-      ...current,
-      titleVi: value,
-      slug: slugManuallyEdited ? current.slug : slugify(value),
-    }));
-  }
-
-  function changeSlug(value: string) {
-    setSlugManuallyEdited(value.trim().length > 0);
-    setField("slug", value);
   }
 
   async function persistUploadedCover(storageReference: string) {
@@ -245,7 +224,6 @@ export function CourseForm({ courseId }: CourseFormProps) {
           slug: updated.slug,
           coverImageUrl: updated.coverImageUrl ?? current.coverImageUrl,
         }));
-        setSlugManuallyEdited(true);
         appToast.success("Cập nhật khóa học thành công.");
         router.push(`/khoa-hoc/${courseId}`);
       } else {
@@ -294,7 +272,7 @@ export function CourseForm({ courseId }: CourseFormProps) {
 
       <FormSection
         title="Thông tin khóa học"
-        description="Thông tin định danh và nội dung chính của khóa học."
+        description="Tên và đường dẫn công khai của khóa học. Khi tạo mới, slug tự động theo tên; khi chỉnh sửa, URL hiện tại được giữ nguyên."
         icon={<BookOpen size={18} />}
       >
         <FormRow columns={2}>
@@ -306,30 +284,26 @@ export function CourseForm({ courseId }: CourseFormProps) {
               placeholder="Ví dụ: HSK1-A"
             />
           </FormField>
-          <FormField
-            label="Đường dẫn (slug)"
-            description="Không bắt buộc. Để trống, frontend và backend tự sinh từ tên khóa học."
-          >
+
+          <FormField label="Tên khóa học" required>
             <Input
-              value={form.slug}
-              onChange={(e) => changeSlug(e.target.value)}
-              onBlur={(e) => {
-                const normalized = slugify(e.target.value);
-                if (normalized) setField("slug", normalized);
-              }}
-              maxLength={200}
-              placeholder="Tự sinh, ví dụ: hsk-1-can-ban"
+              value={form.titleVi}
+              onChange={(e) => setField("titleVi", e.target.value)}
+              maxLength={250}
+              placeholder="Ví dụ: HSK 1 căn bản"
             />
           </FormField>
         </FormRow>
 
-        <FormField label="Tên khóa học" required>
-          <Input
-            value={form.titleVi}
-            onChange={(e) => changeTitle(e.target.value)}
-            maxLength={250}
-          />
-        </FormField>
+        <SlugInput
+          value={form.slug}
+          sourceValue={form.titleVi}
+          onChange={(value) => setField("slug", value)}
+          mode={editing ? "edit" : "create"}
+          label="Đường dẫn (slug)"
+          placeholder="hsk-1-can-ban"
+          previewPrefix="/khoa-hoc/"
+        />
 
         <FormField label="Mô tả ngắn">
           <Textarea
