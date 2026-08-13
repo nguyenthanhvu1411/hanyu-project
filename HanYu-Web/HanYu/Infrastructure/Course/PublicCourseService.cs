@@ -3,6 +3,7 @@ using HanYu.Application.Common.Models;
 using HanYu.Application.Features.Course.Public;
 using HanYu.Application.Interfaces.Course;
 using HanYu.Application.Interfaces.Persistence;
+using HanYu.Domain.Entities.Course;
 using HanYu.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -243,35 +244,31 @@ public sealed class PublicCourseService : IPublicCourseService
             return Result.Success<IReadOnlyCollection<PublicCourseLessonDto>>(cachedItems);
         }
 
-        var courseExists = await _dbContext.Courses
+        var courseId = await _dbContext.Courses
             .AsNoTracking()
-            .AnyAsync(
-                x => x.Slug == slug &&
-                     x.Status == ContentStatus.Published &&
-                     x.IsActive,
-                cancellationToken);
+            .Where(x =>
+                x.Slug == slug &&
+                x.Status == ContentStatus.Published &&
+                x.IsActive)
+            .Select(x => (long?)x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (!courseExists)
+        if (!courseId.HasValue)
         {
             return Result.Failure<IReadOnlyCollection<PublicCourseLessonDto>>(
                 Error.NotFound("Course.NotFound", "Không tìm thấy khóa học."));
         }
 
-        var items = await _dbContext.Lessons
-            .AsNoTracking()
-            .Where(
-                lesson =>
-                    lesson.Status == ContentStatus.Published &&
-                    lesson.CourseChapter != null &&
-                    !lesson.CourseChapter.IsDeleted &&
-                    lesson.CourseChapter.IsActive &&
-                    lesson.CourseChapter.Course.Status == ContentStatus.Published &&
-                    lesson.CourseChapter.Course.IsActive &&
-                    lesson.CourseChapter.Course.Slug == slug)
-            .OrderBy(lesson => lesson.CourseChapter!.SortOrder)
-            .ThenBy(lesson => lesson.SortOrder)
-            .ThenBy(lesson => lesson.Id)
-            .Select(lesson => new PublicCourseLessonDto(
+        var items = await (
+            from lesson in _dbContext.Lessons.AsNoTracking()
+            join chapter in _dbContext.Set<CourseChapter>().AsNoTracking()
+                on lesson.CourseChapterId equals (long?)chapter.Id
+            where lesson.Status == ContentStatus.Published &&
+                  chapter.CourseId == courseId.Value &&
+                  !chapter.IsDeleted &&
+                  chapter.IsActive
+            orderby chapter.SortOrder, lesson.SortOrder, lesson.Id
+            select new PublicCourseLessonDto(
                 lesson.PublicId,
                 lesson.Slug,
                 lesson.TitleVi,
