@@ -182,6 +182,8 @@ export function VocabularyForm({ vocabularyId }: VocabularyFormProps) {
       difficulty: Number(form.difficulty),
       partOfSpeechId: form.partOfSpeechId ? Number(form.partOfSpeechId) : null,
       topicId: form.topicId ? Number(form.topicId) : null,
+      // Audio is managed in the dedicated Audio tab. Keep the current relation
+      // when general information is saved so this form can never detach it by accident.
       audioAssetId: form.audioAssetId ? Number(form.audioAssetId) : null,
     };
 
@@ -295,16 +297,13 @@ export function VocabularyForm({ vocabularyId }: VocabularyFormProps) {
       </section>
 
       <section className="rounded-[11px] border border-[#e8e3dc] bg-white p-4">
-        <h2 className="text-[13px] font-semibold text-[#333]">Ghi chú và Audio</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-[1fr_220px]">
-          <Field label="Ghi chú nội bộ">
-            <textarea value={form.notesVi} onChange={(e) => update("notesVi", e.target.value)} rows={5} placeholder="Ghi chú cho biên tập viên..." className="field-input h-auto py-2 leading-5" />
-          </Field>
-          <Field label="AudioAsset ID">
-            <input value={form.audioAssetId} onChange={(e) => update("audioAssetId", e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Để trống nếu chưa có" className="field-input" />
-            <p className="mt-1 text-[10px] leading-4 text-[#999]">Audio picker/upload sẽ được chuyển sang tab Audio ở bước tiếp theo.</p>
-          </Field>
+        <div className="mb-4">
+          <h2 className="text-[13px] font-semibold text-[#333]">Ghi chú nội bộ</h2>
+          <p className="mt-1 text-[11px] text-[#888]">Audio phát âm được quản lý riêng trong tab Audio để tránh nhập ID thủ công hoặc vô tình thay đổi liên kết.</p>
         </div>
+        <Field label="Ghi chú cho biên tập viên">
+          <textarea value={form.notesVi} onChange={(e) => update("notesVi", e.target.value)} rows={5} placeholder="Ghi chú cho biên tập viên..." className="field-input h-auto py-2 leading-5" />
+        </Field>
       </section>
 
       <div className="flex justify-end gap-2">
