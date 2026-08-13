@@ -72,6 +72,49 @@ public sealed class LessonSectionAssetIntegrationTests : IntegrationTestBase
         (await after.Content.ReadAsStringAsync()).Should().NotContain("Ảnh sau reorder");
     }
 
+    [Fact]
+    public async Task PublicLesson_ReturnsSectionMediaInConfiguredOrder()
+    {
+        var data = await TestDataSeeder.SeedLearningDataAsync(Factory);
+        var ids = await Factory.ExecuteDbAsync(async db =>
+        {
+            var section = await db.Set<LessonSection>()
+                .SingleAsync(x => x.PublicId == data.SectionPublicId);
+
+            var image = new LessonAsset(data.LessonId, LessonAssetType.Image, 0);
+            image.Update("/media/public-image.png", "Ảnh gốc", null, 0);
+            var document = new LessonAsset(data.LessonId, LessonAssetType.Document, 1);
+            document.Update("/media/public-document.pdf", "Tài liệu gốc", null, 1);
+            db.Add(image);
+            db.Add(document);
+            await db.SaveChangesAsync();
+
+            db.Add(new LessonSectionAsset(section.Id, image.Id, 1, "Ảnh public", false));
+            db.Add(new LessonSectionAsset(section.Id, document.Id, 0, "Tài liệu public", true));
+            await db.SaveChangesAsync();
+
+            return (image.PublicId, document.PublicId);
+        });
+
+        var response = await Factory.CreateAnonymousClient()
+            .GetAsync($"/api/v1/public/lessons/{data.LessonPublicId}");
+        await AssertSuccessAsync(response);
+
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var sectionJson = json.RootElement.GetProperty("sections").EnumerateArray()
+            .Single(x => x.GetProperty("publicId").GetGuid() == data.SectionPublicId);
+        var media = sectionJson.GetProperty("media").EnumerateArray().ToArray();
+
+        media.Should().HaveCount(2);
+        media[0].GetProperty("assetPublicId").GetGuid().Should().Be(ids.Item2);
+        media[0].GetProperty("sortOrder").GetInt32().Should().Be(0);
+        media[0].GetProperty("captionVi").GetString().Should().Be("Tài liệu public");
+        media[0].GetProperty("isRequired").GetBoolean().Should().BeTrue();
+        media[1].GetProperty("assetPublicId").GetGuid().Should().Be(ids.Item1);
+        media[1].GetProperty("sortOrder").GetInt32().Should().Be(1);
+        media[1].GetProperty("captionVi").GetString().Should().Be("Ảnh public");
+    }
+
     private async Task<Fixture> CreateFixtureAsync()
     {
         return await Factory.ExecuteDbAsync(async db =>
