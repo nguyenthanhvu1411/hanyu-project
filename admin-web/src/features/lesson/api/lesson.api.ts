@@ -39,6 +39,24 @@ export const lessonApi = {
     const path = queryString ? `${API_ENDPOINTS.LESSON.ROOT}?${queryString}` : API_ENDPOINTS.LESSON.ROOT;
     return apiClient<PagedResult<AdminLessonListItem>>(path);
   },
+  async isSlugAvailable(slug: string, excludeId?: number) {
+    const normalized = slug.trim().toLowerCase();
+    if (!normalized) return true;
+
+    const queryString = buildQuery({
+      search: normalized,
+      includeDeleted: true,
+      page: 1,
+      pageSize: 100,
+    });
+    const result = await apiClient<PagedResult<AdminLessonListItem>>(
+      `${API_ENDPOINTS.LESSON.ROOT}?${queryString}`,
+    );
+
+    return !result.items.some(
+      (item) => item.slug.toLowerCase() === normalized && item.id !== excludeId,
+    );
+  },
   listTopics() {
     return apiClient<AdminLessonTopicOption[]>(API_ENDPOINTS.VOCABULARY.TOPICS);
   },
