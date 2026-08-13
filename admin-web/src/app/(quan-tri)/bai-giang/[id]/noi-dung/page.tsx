@@ -8,6 +8,7 @@ import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { PERMISSIONS } from "@/constants/permission.constants";
+import { LessonSectionAssetsPanel } from "@/features/lesson/components/lesson-section-assets-panel";
 import { LessonSectionEditor } from "@/features/lesson/components/lesson-section-editor";
 import { PermissionGuard } from "@/security/permission-guard";
 
@@ -30,7 +31,7 @@ export default function LessonContentPage() {
       <PageContainer>
         <PageHeader
           title="Lesson Content Editor"
-          description="Soạn LessonSection, sắp xếp nội dung, chèn media và xem trước bài học trước khi xuất bản."
+          description="Soạn LessonSection, sắp xếp nội dung, gắn media theo section và xem trước bài học trước khi xuất bản."
           actions={
             <>
               <Link href={`/bai-giang/${lessonId}`}>
@@ -52,7 +53,10 @@ export default function LessonContentPage() {
           }
         />
 
-        <LessonSectionEditor lessonId={lessonId} />
+        <div className="space-y-4">
+          <LessonSectionEditor lessonId={lessonId} />
+          <LessonSectionAssetsPanel lessonId={lessonId} />
+        </div>
       </PageContainer>
     </PermissionGuard>
   );
