@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, ImageIcon, Settings2 } from "lucide-react";
 
@@ -12,7 +12,7 @@ import { FormRow } from "@/components/forms/form-row";
 import { FormSection } from "@/components/forms/form-section";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { SlugInput } from "@/components/ui/slug-input";
+import { SlugInput, type SlugValidationState } from "@/components/ui/slug-input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { appToast } from "@/components/ui/toast";
@@ -71,6 +71,10 @@ export function CourseForm({ courseId }: CourseFormProps) {
   const [coverSaving, setCoverSaving] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [hskError, setHskError] = useState<string | null>(null);
+  const [slugValidation, setSlugValidation] = useState<SlugValidationState>({
+    checking: false,
+    error: null,
+  });
 
   useEffect(() => {
     let active = true;
@@ -153,14 +157,27 @@ export function CourseForm({ courseId }: CourseFormProps) {
     [form.hskLevelId, hskLevels],
   );
 
+  const validateCourseSlug = useCallback(
+    async (slug: string) => {
+      if (editing && detail?.slug.toLowerCase() === slug.toLowerCase()) {
+        return null;
+      }
+
+      const available = await courseApi.isSlugAvailable(slug, editing ? courseId : undefined);
+      return available ? null : "Slug đã tồn tại ở một khóa học khác.";
+    },
+    [courseId, detail?.slug, editing],
+  );
+
   const valid = useMemo(
     () =>
       form.code.trim().length > 0 &&
       form.titleVi.trim().length > 0 &&
       slugify(form.titleVi).length > 0 &&
       Number.isInteger(form.sortOrder) &&
-      form.sortOrder >= 0,
-    [form],
+      form.sortOrder >= 0 &&
+      !slugValidation.error,
+    [form, slugValidation.error],
   );
 
   function setField<K extends keyof CreateCourseRequest>(
@@ -207,7 +224,7 @@ export function CourseForm({ courseId }: CourseFormProps) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!valid || saving || coverSaving) return;
+    if (!valid || saving || coverSaving || slugValidation.checking) return;
 
     setSaving(true);
     setError(null);
@@ -303,6 +320,8 @@ export function CourseForm({ courseId }: CourseFormProps) {
           label="Đường dẫn (slug)"
           placeholder="hsk-1-can-ban"
           previewPrefix="/khoa-hoc/"
+          validateSlug={validateCourseSlug}
+          onValidationChange={setSlugValidation}
         />
 
         <FormField label="Mô tả ngắn">
@@ -400,7 +419,7 @@ export function CourseForm({ courseId }: CourseFormProps) {
 
       <FormActions
         loading={saving || coverSaving}
-        disabled={!valid || coverSaving}
+        disabled={!valid || coverSaving || slugValidation.checking}
         submitText={editing ? "Lưu thay đổi" : "Tạo khóa học"}
         onCancel={() =>
           router.push(editing && courseId ? `/khoa-hoc/${courseId}` : "/khoa-hoc")
