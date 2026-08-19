@@ -43,6 +43,8 @@ export interface AdminLearningGoal {
   pausedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  userDisplayName?: string | null;
+  userEmail?: string | null;
 }
 
 export interface AdminLearningGoalQuery {
@@ -85,6 +87,11 @@ export interface AdminLearningActivity {
   metadataJson: string | null;
   startedAt: string;
   completedAt: string | null;
+  userDisplayName?: string | null;
+  userEmail?: string | null;
+  lessonTitleVi?: string | null;
+  vocabularySimplified?: string | null;
+  vocabularyPinyin?: string | null;
 }
 
 export interface AdminLearningActivityQuery {
@@ -126,6 +133,8 @@ export interface AdminLearningSummary {
   overallMasteryPercent: number;
   lastLearningAt: string | null;
   updatedAt: string;
+  userDisplayName?: string | null;
+  userEmail?: string | null;
 }
 
 export interface AdminLearningSummaryQuery {
