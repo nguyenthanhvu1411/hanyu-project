@@ -2,5 +2,6 @@ namespace HanYu.API.Common.Extensions;
 
 public static class ApiFoundationExtensions
 {
-    public const string AdminWriteRateLimitPolicy = "AdminWriteRateLimitPolicy";
+    // Must match RateLimitingExtensions.AdminWrite registered by AddHanYuRateLimiting().
+    public const string AdminWriteRateLimitPolicy = "rl_admin_write";
 }

@@ -1,8 +1,6 @@
 import * as React from "react";
 
-import {
-  cn,
-} from "@/lib/utils/cn";
+import { cn } from "@/lib/utils/cn";
 
 export function Card({
   className,
@@ -66,9 +64,9 @@ export function CardDescription({
     <p
       className={cn(
         "mt-1",
-        "text-[10px]",
-        "leading-[16px]",
-        "text-[#888]",
+        "text-[13px]",
+        "leading-5",
+        "text-[#777]",
         className,
       )}
       {...props}

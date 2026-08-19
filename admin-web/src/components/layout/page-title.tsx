@@ -25,9 +25,9 @@ export function PageTitle({
         <p
           className="
             mt-1
-            text-[12px]
-            leading-[18px]
-            text-[#818181]
+            text-[13px]
+            leading-5
+            text-[#777]
           "
         >
           {description}

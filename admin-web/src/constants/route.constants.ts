@@ -30,11 +30,15 @@ export const ROUTES = {
   MUC_TIEU_HOC_TAP: "/muc-tieu-hoc-tap",
   HOAT_DONG_HOC_TAP: "/hoat-dong-hoc-tap",
   TONG_HOP_HOC_TAP: "/tong-hop-hoc-tap",
+  ON_TAP: "/on-tap",
 
   NGAN_HANG_CAU_HOI: "/ngan-hang-cau-hoi",
   CAU_HOI: "/cau-hoi",
   BAI_KIEM_TRA: "/bai-kiem-tra",
   LUOT_LAM_BAI: "/luot-lam-bai",
+
+  VAN_HANH_NOI_DUNG: "/van-hanh-noi-dung",
+  AI_ANALYTICS: "/ai-analytics",
 
   THONG_BAO: "/thong-bao",
 

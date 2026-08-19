@@ -9,7 +9,10 @@ type ButtonVariant =
   | "secondary"
   | "outline"
   | "ghost"
-  | "danger";
+  | "danger"
+  | "dangerGhost"
+  | "default"
+  | "destructive";
 
 type ButtonSize =
   | "sm"
@@ -38,6 +41,15 @@ const variants: Record<ButtonVariant, string> = {
     "bg-transparent text-[#202124] hover:bg-[#f4f4f4]",
 
   danger:
+    "bg-[#ef241c] text-white hover:bg-[#d51b16]",
+
+  dangerGhost:
+    "bg-transparent text-[#c93b33] hover:bg-[#fff0ee]",
+
+  default:
+    "bg-[#ef241c] text-white hover:bg-[#dc1f18]",
+
+  destructive:
     "bg-[#ef241c] text-white hover:bg-[#d51b16]",
 };
 

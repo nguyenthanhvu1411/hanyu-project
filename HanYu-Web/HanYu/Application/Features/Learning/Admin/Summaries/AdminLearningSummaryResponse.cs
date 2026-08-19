@@ -13,4 +13,6 @@ public sealed record AdminLearningSummaryResponse(
     short CurrentHskLevel,
     decimal OverallMasteryPercent,
     DateTimeOffset? LastLearningAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? UserDisplayName = null,
+    string? UserEmail = null);

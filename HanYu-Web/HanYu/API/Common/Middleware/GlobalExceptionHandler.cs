@@ -47,16 +47,18 @@ public sealed class GlobalExceptionHandler
                 httpContext.TraceIdentifier);
         }
 
+        var exposeDetail =
+            _environment.IsDevelopment() ||
+            _environment.IsEnvironment("IntegrationTest");
+
         var problem =
             new ProblemDetails
             {
                 Status = statusCode,
                 Title = title,
-                Detail =
-                    _environment.IsDevelopment()
-                        ? detail
-                        : GetProductionDetail(
-                            statusCode),
+                Detail = exposeDetail
+                    ? detail
+                    : GetProductionDetail(statusCode),
                 Instance =
                     httpContext.Request.Path
             };

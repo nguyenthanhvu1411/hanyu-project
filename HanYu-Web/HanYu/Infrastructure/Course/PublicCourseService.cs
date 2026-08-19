@@ -3,6 +3,7 @@ using HanYu.Application.Common.Models;
 using HanYu.Application.Features.Course.Public;
 using HanYu.Application.Interfaces.Course;
 using HanYu.Application.Interfaces.Persistence;
+using HanYu.Domain.Entities.Course;
 using HanYu.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -44,11 +45,10 @@ public sealed class PublicCourseService : IPublicCourseService
         ArgumentNullException.ThrowIfNull(request);
 
         var version = await GetCacheVersionAsync(cancellationToken);
-        
+
         var page = request.Page <= 0 ? 1 : request.Page;
         var pageSize = request.PageSize <= 0 ? DefaultPageSize : Math.Min(request.PageSize, MaxPageSize);
-        
-        // Tạo query string làm cache key (rất đơn giản)
+
         var queryKey = $"p{page}_s{pageSize}_{request.HskCode}_{request.Search?.ToLowerInvariant()}";
         var cacheKey = CourseCacheKeys.List(version, queryKey);
 
@@ -56,7 +56,10 @@ public sealed class PublicCourseService : IPublicCourseService
         if (!string.IsNullOrEmpty(cachedData))
         {
             var cachedResult = JsonSerializer.Deserialize<PagedResult<PublicCourseListItemDto>>(cachedData);
-            if (cachedResult is null) return Result.Failure<PagedResult<PublicCourseListItemDto>>(Error.Failure("Cache.Error", "Error deserializing cache"));
+            if (cachedResult is null)
+                return Result.Failure<PagedResult<PublicCourseListItemDto>>(
+                    Error.Failure("Cache.Error", "Error deserializing cache"));
+
             return Result.Success(cachedResult);
         }
 
@@ -96,14 +99,14 @@ public sealed class PublicCourseService : IPublicCourseService
                 x.CoverImageUrl,
                 x.EstimatedMinutes,
                 x.IsFeatured,
-                x.Chapters.Count(c => !c.IsDeleted && c.IsActive)))
+                x.Chapters.Count(c => c.DeletedAt == null && c.IsActive)))
             .ToListAsync(cancellationToken);
 
         var result = new PagedResult<PublicCourseListItemDto>(items, page, pageSize, total);
-        
+
         await _cache.SetStringAsync(
-            cacheKey, 
-            JsonSerializer.Serialize(result), 
+            cacheKey,
+            JsonSerializer.Serialize(result),
             new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _cacheDuration },
             cancellationToken);
 
@@ -116,7 +119,8 @@ public sealed class PublicCourseService : IPublicCourseService
     {
         if (publicId == Guid.Empty)
         {
-            return Result.Failure<PublicCourseDetailDto>(Error.Validation("Course.InvalidId", "Public ID không hợp lệ."));
+            return Result.Failure<PublicCourseDetailDto>(
+                Error.Validation("Course.InvalidId", "Public ID không hợp lệ."));
         }
 
         var version = await GetCacheVersionAsync(cancellationToken);
@@ -126,7 +130,10 @@ public sealed class PublicCourseService : IPublicCourseService
         if (!string.IsNullOrEmpty(cachedData))
         {
             var cachedResult = JsonSerializer.Deserialize<PublicCourseDetailDto>(cachedData);
-            if (cachedResult is null) return Result.Failure<PublicCourseDetailDto>(Error.Failure("Cache.Error", "Error deserializing cache"));
+            if (cachedResult is null)
+                return Result.Failure<PublicCourseDetailDto>(
+                    Error.Failure("Cache.Error", "Error deserializing cache"));
+
             return Result.Success(cachedResult);
         }
 
@@ -141,14 +148,15 @@ public sealed class PublicCourseService : IPublicCourseService
 
         if (course is null)
         {
-            return Result.Failure<PublicCourseDetailDto>(Error.NotFound("Course.NotFound", "Không tìm thấy khóa học."));
+            return Result.Failure<PublicCourseDetailDto>(
+                Error.NotFound("Course.NotFound", "Không tìm thấy khóa học."));
         }
 
         var result = CoursePublicMapper.ToDetailDto(course);
-        
+
         await _cache.SetStringAsync(
-            cacheKey, 
-            JsonSerializer.Serialize(result), 
+            cacheKey,
+            JsonSerializer.Serialize(result),
             new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _cacheDuration },
             cancellationToken);
 
@@ -161,7 +169,8 @@ public sealed class PublicCourseService : IPublicCourseService
     {
         if (string.IsNullOrWhiteSpace(slug))
         {
-            return Result.Failure<PublicCourseDetailDto>(Error.Validation("Course.InvalidSlug", "Slug không hợp lệ."));
+            return Result.Failure<PublicCourseDetailDto>(
+                Error.Validation("Course.InvalidSlug", "Slug không hợp lệ."));
         }
 
         slug = slug.Trim().ToLowerInvariant();
@@ -173,7 +182,10 @@ public sealed class PublicCourseService : IPublicCourseService
         if (!string.IsNullOrEmpty(cachedData))
         {
             var cachedResult = JsonSerializer.Deserialize<PublicCourseDetailDto>(cachedData);
-            if (cachedResult is null) return Result.Failure<PublicCourseDetailDto>(Error.Failure("Cache.Error", "Error deserializing cache"));
+            if (cachedResult is null)
+                return Result.Failure<PublicCourseDetailDto>(
+                    Error.Failure("Cache.Error", "Error deserializing cache"));
+
             return Result.Success(cachedResult);
         }
 
@@ -188,18 +200,89 @@ public sealed class PublicCourseService : IPublicCourseService
 
         if (course is null)
         {
-            return Result.Failure<PublicCourseDetailDto>(Error.NotFound("Course.NotFound", "Không tìm thấy khóa học."));
+            return Result.Failure<PublicCourseDetailDto>(
+                Error.NotFound("Course.NotFound", "Không tìm thấy khóa học."));
         }
 
         var result = CoursePublicMapper.ToDetailDto(course);
-        
+
         await _cache.SetStringAsync(
-            cacheKey, 
-            JsonSerializer.Serialize(result), 
+            cacheKey,
+            JsonSerializer.Serialize(result),
             new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _cacheDuration },
             cancellationToken);
 
         return Result.Success(result);
+    }
+
+    public async Task<Result<IReadOnlyCollection<PublicCourseLessonDto>>>
+        GetLessonsByCourseSlugAsync(
+            string slug,
+            CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            return Result.Failure<IReadOnlyCollection<PublicCourseLessonDto>>(
+                Error.Validation("Course.InvalidSlug", "Slug không hợp lệ."));
+        }
+
+        slug = slug.Trim().ToLowerInvariant();
+
+        var version = await GetCacheVersionAsync(cancellationToken);
+        var cacheKey = CourseCacheKeys.Lessons(version, slug);
+
+        var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
+        if (!string.IsNullOrEmpty(cachedData))
+        {
+            var cachedItems = JsonSerializer.Deserialize<List<PublicCourseLessonDto>>(cachedData);
+            if (cachedItems is null)
+            {
+                return Result.Failure<IReadOnlyCollection<PublicCourseLessonDto>>(
+                    Error.Failure("Cache.Error", "Error deserializing cache"));
+            }
+
+            return Result.Success<IReadOnlyCollection<PublicCourseLessonDto>>(cachedItems);
+        }
+
+        var courseId = await _dbContext.Courses
+            .AsNoTracking()
+            .Where(x =>
+                x.Slug == slug &&
+                x.Status == ContentStatus.Published &&
+                x.IsActive)
+            .Select(x => (long?)x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (!courseId.HasValue)
+        {
+            return Result.Failure<IReadOnlyCollection<PublicCourseLessonDto>>(
+                Error.NotFound("Course.NotFound", "Không tìm thấy khóa học."));
+        }
+
+        var items = await (
+            from lesson in _dbContext.Lessons.AsNoTracking()
+            join chapter in _dbContext.Set<CourseChapter>().AsNoTracking()
+                on lesson.CourseChapterId equals (long?)chapter.Id
+            where lesson.Status == ContentStatus.Published &&
+                  chapter.CourseId == courseId.Value &&
+                  chapter.DeletedAt == null &&
+                  chapter.IsActive
+            orderby chapter.SortOrder, lesson.SortOrder, lesson.Id
+            select new PublicCourseLessonDto(
+                lesson.PublicId,
+                lesson.Slug,
+                lesson.TitleVi,
+                lesson.SortOrder,
+                lesson.EstimatedMinutes))
+            .ToListAsync(cancellationToken);
+
+        await _cache.SetStringAsync(
+            cacheKey,
+            JsonSerializer.Serialize(items),
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _cacheDuration },
+            cancellationToken);
+
+        return Result.Success<IReadOnlyCollection<PublicCourseLessonDto>>(items);
     }
 
     public async Task<Result<PublicCourseCurriculumDto>> GetCurriculumAsync(
@@ -208,7 +291,8 @@ public sealed class PublicCourseService : IPublicCourseService
     {
         if (publicId == Guid.Empty)
         {
-            return Result.Failure<PublicCourseCurriculumDto>(Error.Validation("Course.InvalidId", "Public ID không hợp lệ."));
+            return Result.Failure<PublicCourseCurriculumDto>(
+                Error.Validation("Course.InvalidId", "Public ID không hợp lệ."));
         }
 
         var version = await GetCacheVersionAsync(cancellationToken);
@@ -218,7 +302,10 @@ public sealed class PublicCourseService : IPublicCourseService
         if (!string.IsNullOrEmpty(cachedData))
         {
             var cachedResult = JsonSerializer.Deserialize<PublicCourseCurriculumDto>(cachedData);
-            if (cachedResult is null) return Result.Failure<PublicCourseCurriculumDto>(Error.Failure("Cache.Error", "Error deserializing cache"));
+            if (cachedResult is null)
+                return Result.Failure<PublicCourseCurriculumDto>(
+                    Error.Failure("Cache.Error", "Error deserializing cache"));
+
             return Result.Success(cachedResult);
         }
 
@@ -256,7 +343,8 @@ public sealed class PublicCourseService : IPublicCourseService
 
         if (course is null)
         {
-            return Result.Failure<PublicCourseCurriculumDto>(Error.NotFound("Course.NotFound", "Không tìm thấy khóa học."));
+            return Result.Failure<PublicCourseCurriculumDto>(
+                Error.NotFound("Course.NotFound", "Không tìm thấy khóa học."));
         }
 
         var lessonCount = course.Chapters.Sum(x => x.LessonCount);
@@ -271,8 +359,8 @@ public sealed class PublicCourseService : IPublicCourseService
             course.Chapters);
 
         await _cache.SetStringAsync(
-            cacheKey, 
-            JsonSerializer.Serialize(result), 
+            cacheKey,
+            JsonSerializer.Serialize(result),
             new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _cacheDuration },
             cancellationToken);
 

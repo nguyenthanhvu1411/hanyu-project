@@ -1,1 +1,46 @@
-export default function Page() { return <main style={{"padding":"24px"}}><h1>Chinh Sua</h1></main>; }
+"use client";
+
+import { useParams } from "next/navigation";
+import { useState } from "react";
+
+import { ErrorState } from "@/components/common/error-state";
+import { PageContainer } from "@/components/layout/page-container";
+import { PageHeader } from "@/components/layout/page-header";
+import { PERMISSIONS } from "@/constants/permission.constants";
+import { LessonEditor } from "@/features/lesson/components/lesson-editor";
+import { LessonEditorWorkflowGuard } from "@/features/lesson/components/lesson-editor-workflow-guard";
+import { PermissionGuard } from "@/security/permission-guard";
+
+export default function EditLessonPage() {
+  const params = useParams<{ id: string }>();
+  const lessonId = Number(params.id);
+  const [editorRevision, setEditorRevision] = useState(0);
+
+  if (!Number.isSafeInteger(lessonId) || lessonId <= 0) {
+    return (
+      <PageContainer>
+        <ErrorState
+          title="Bài giảng không hợp lệ"
+          description="ID bài giảng không đúng định dạng."
+        />
+      </PageContainer>
+    );
+  }
+
+  return (
+    <PermissionGuard permission={PERMISSIONS.LESSONS.UPDATE}>
+      <PageContainer>
+        <PageHeader
+          title="Metadata & Workflow"
+          description="Chỉnh thông tin bài giảng và quản lý Review / Approve / Publish. Nội dung, media và liên kết được quản lý ở workspace riêng."
+        />
+        <LessonEditorWorkflowGuard
+          lessonId={lessonId}
+          onCompleted={() => setEditorRevision((current) => current + 1)}
+        >
+          <LessonEditor key={editorRevision} lessonId={lessonId} />
+        </LessonEditorWorkflowGuard>
+      </PageContainer>
+    </PermissionGuard>
+  );
+}

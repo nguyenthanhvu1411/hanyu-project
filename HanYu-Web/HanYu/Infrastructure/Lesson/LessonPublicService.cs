@@ -256,6 +256,36 @@ public sealed class LessonPublicService
                         cancellationToken);
         }
 
+        var sectionIds = entity.Sections
+            .Select(x => x.Id)
+            .ToArray();
+
+        var sectionMediaEntities = sectionIds.Length == 0
+            ? Array.Empty<LessonSectionAsset>()
+            : await _db.Set<LessonSectionAsset>()
+                .AsNoTracking()
+                .Include(x => x.LessonAsset)
+                    .ThenInclude(x => x.AudioAsset)
+                .Where(x => sectionIds.Contains(x.LessonSectionId))
+                .OrderBy(x => x.SortOrder)
+                .ThenBy(x => x.Id)
+                .ToArrayAsync(cancellationToken);
+
+        var sectionMedia = sectionMediaEntities
+            .GroupBy(x => x.LessonSectionId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyCollection<LessonSectionMediaResponse>)group
+                    .Select(x => new LessonSectionMediaResponse(
+                        x.PublicId,
+                        x.LessonAsset.PublicId,
+                        x.LessonAsset.AssetType,
+                        x.LessonAsset.AudioAsset?.PublicUrl ?? x.LessonAsset.Url,
+                        x.CaptionVi ?? x.LessonAsset.CaptionVi,
+                        x.SortOrder,
+                        x.IsRequired))
+                    .ToArray());
+
         var response =
             new LessonDetailResponse(
                 entity.PublicId,
@@ -282,7 +312,11 @@ public sealed class LessonPublicService
                         lastSectionPublicId),
                 entity.Sections
                     .OrderBy(x => x.SortOrder)
-                    .Select(LessonMapper.ToSection)
+                    .Select(x => LessonMapper.ToSection(
+                        x,
+                        sectionMedia.TryGetValue(x.Id, out var media)
+                            ? media
+                            : Array.Empty<LessonSectionMediaResponse>()))
                     .ToArray(),
                 entity.LessonVocabularies
                     .Where(

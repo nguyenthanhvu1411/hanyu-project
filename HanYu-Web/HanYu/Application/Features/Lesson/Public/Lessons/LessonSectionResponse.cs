@@ -2,6 +2,15 @@ using HanYu.Domain.Enums;
 
 namespace HanYu.Application.Features.Lesson.Public.Lessons;
 
+public sealed record LessonSectionMediaResponse(
+    Guid PublicId,
+    Guid AssetPublicId,
+    LessonAssetType AssetType,
+    string? Url,
+    string? CaptionVi,
+    int SortOrder,
+    bool IsRequired);
+
 public sealed record LessonSectionResponse(
     Guid PublicId,
     LessonSectionType SectionType,
@@ -9,4 +18,5 @@ public sealed record LessonSectionResponse(
     string? ContentVi,
     int SortOrder,
     bool IsRequired,
-    int? EstimatedSeconds);
+    int? EstimatedSeconds,
+    IReadOnlyCollection<LessonSectionMediaResponse> Media);

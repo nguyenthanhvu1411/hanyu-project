@@ -56,6 +56,19 @@ public sealed class CoursesController : ControllerBase
         return this.ToActionResult(result);
     }
 
+    [HttpGet("{slug}/lessons")]
+    public async Task<IActionResult> GetLessonsBySlug(
+        string slug,
+        CancellationToken cancellationToken)
+    {
+        var result =
+            await _service.GetLessonsByCourseSlugAsync(
+                slug,
+                cancellationToken);
+
+        return this.ToActionResult(result);
+    }
+
     [HttpGet("{publicId:guid}/curriculum")]
     public async Task<IActionResult> GetCurriculum(
         Guid publicId,

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using HanYu.Domain.Entities.AI;
 using HanYu.Domain.Entities.Analytics;
 using HanYu.Domain.Entities.Gamification;
@@ -9,6 +10,7 @@ using HanYu.Domain.Entities.Operations;
 using HanYu.Domain.Entities.Quiz;
 using HanYu.Domain.Entities.Review;
 using HanYu.Domain.Entities.Vocabulary;
+using HanYu.Domain.Enums;
 using HanYu.Infrastructure.Configurations.Common;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -40,11 +42,17 @@ public class HanYuDbContext : IdentityDbContext<User, Role, Guid>, HanYu.Applica
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
     // ==========================================
-    // 2. Vocabulary Module
+    // 2. Shared taxonomy
+    // ==========================================
+    // Topic is shared by Lesson/Vocabulary. The CLR namespace remains under
+    // Vocabulary for migration compatibility, but it is no longer vocabulary-only.
+    public DbSet<Topic> Topics => Set<Topic>();
+
+    // ==========================================
+    // 3. Vocabulary Module
     // ==========================================
     public DbSet<HskLevel> HskLevels => Set<HskLevel>();
     public DbSet<PartOfSpeech> PartsOfSpeech => Set<PartOfSpeech>();
-    public DbSet<Topic> Topics => Set<Topic>();
     public DbSet<VocabularyEntity> Vocabularies => Set<VocabularyEntity>();
     public DbSet<VocabularyExample> VocabularyExamples => Set<VocabularyExample>();
     public DbSet<VocabularyMeaning> VocabularyMeanings => Set<VocabularyMeaning>();
@@ -53,7 +61,7 @@ public class HanYuDbContext : IdentityDbContext<User, Role, Guid>, HanYu.Applica
     public DbSet<UserVocabularyNote> UserVocabularyNotes => Set<UserVocabularyNote>();
 
     // ==========================================
-    // 3. Quiz Module
+    // 4. Quiz Module
     // ==========================================
     public DbSet<QuizEntity> Quizzes => Set<QuizEntity>();
     public DbSet<QuizQuestion> QuizQuestions => Set<QuizQuestion>();
@@ -65,7 +73,7 @@ public class HanYuDbContext : IdentityDbContext<User, Role, Guid>, HanYu.Applica
     public DbSet<QuizQuestionBankItem> QuizQuestionBankItems => Set<QuizQuestionBankItem>();
 
     // ==========================================
-    // 4. Review Module
+    // 5. Review Module
     // ==========================================
     public DbSet<FlashcardSession> FlashcardSessions => Set<FlashcardSession>();
     public DbSet<FlashcardSessionItem> FlashcardSessionItems => Set<FlashcardSessionItem>();
@@ -73,7 +81,7 @@ public class HanYuDbContext : IdentityDbContext<User, Role, Guid>, HanYu.Applica
     public DbSet<UserVocabularyState> UserVocabularyStates => Set<UserVocabularyState>();
 
     // ==========================================
-    // 5. Lesson Module
+    // 6. Lesson Module
     // ==========================================
     public DbSet<LessonEntity> Lessons => Set<LessonEntity>();
     public DbSet<LessonSection> LessonSections => Set<LessonSection>();
@@ -83,7 +91,7 @@ public class HanYuDbContext : IdentityDbContext<User, Role, Guid>, HanYu.Applica
     public DbSet<UserLessonSectionProgress> UserLessonSectionProgresses => Set<UserLessonSectionProgress>();
 
     // ==========================================
-    // 6. Learning Module
+    // 7. Learning Module
     // ==========================================
     public DbSet<LearningActivity> LearningActivities => Set<LearningActivity>();
     public DbSet<UserLessonBookmark> UserLessonBookmarks => Set<UserLessonBookmark>();
@@ -91,36 +99,245 @@ public class HanYuDbContext : IdentityDbContext<User, Role, Guid>, HanYu.Applica
     public DbSet<UserLearningSummary> UserLearningSummaries => Set<UserLearningSummary>();
 
     // ==========================================
-    // 7. Gamification & Analytics Module
+    // 8. Gamification & Analytics Module
     // ==========================================
     public DbSet<UserAchievement> UserAchievements => Set<UserAchievement>();
     public DbSet<UserStreak> UserStreaks => Set<UserStreak>();
 
     // ==========================================
-    // 8. Notification Module
+    // 9. Notification Module
     // ==========================================
     public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
     public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>();
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
 
     // ==========================================
-    // 9. Operations Module
+    // 10. Operations Module
     // ==========================================
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ProductEvent> ProductEvents => Set<ProductEvent>();
 
     // ==========================================
-    // 10. AI Module
+    // 11. AI Module
     // ==========================================
     public DbSet<AiConversation> AiConversations => Set<AiConversation>();
     public DbSet<AiRequest> AiRequests => Set<AiRequest>();
 
     // ==========================================
-    // 11. Course Module
+    // 12. Course Module
     // ==========================================
     public DbSet<CourseEntity> Courses => Set<CourseEntity>();
     public DbSet<CourseChapter> CourseChapters => Set<CourseChapter>();
     public DbSet<CoursePrerequisite> CoursePrerequisites => Set<CoursePrerequisite>();
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        await ValidateLessonClassificationAsync(cancellationToken);
+        AddCourseAuditEntries();
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Final persistence boundary for Course -> Chapter -> Lesson classification invariants.
+    /// This intentionally lives below controllers/services so every write path is protected.
+    /// </summary>
+    private async Task ValidateLessonClassificationAsync(CancellationToken cancellationToken)
+    {
+        var courseHskEntries = ChangeTracker
+            .Entries<CourseEntity>()
+            .Where(entry =>
+                entry.State == EntityState.Modified &&
+                entry.Entity.Id > 0 &&
+                entry.Property(nameof(CourseEntity.HskLevelId)).IsModified)
+            .ToArray();
+
+        foreach (var entry in courseHskEntries)
+        {
+            var course = entry.Entity;
+
+            if (!course.HskLevelId.HasValue)
+            {
+                continue;
+            }
+
+            var hasMismatchedLesson = await Lessons
+                .AsNoTracking()
+                .AnyAsync(
+                    lesson =>
+                        lesson.CourseChapter != null &&
+                        lesson.CourseChapter.CourseId == course.Id &&
+                        lesson.HskLevelId != course.HskLevelId.Value,
+                    cancellationToken);
+
+            if (hasMismatchedLesson)
+            {
+                throw new InvalidOperationException(
+                    "Không thể đổi HSK của Course vì đang có Lesson thuộc Course sử dụng HSK khác. Hãy đồng bộ hoặc chuyển các Lesson trước.");
+            }
+        }
+
+        var lessonEntries = ChangeTracker
+            .Entries<LessonEntity>()
+            .Where(entry =>
+                entry.State is EntityState.Added or EntityState.Modified &&
+                !entry.Entity.IsDeleted)
+            .ToArray();
+
+        if (lessonEntries.Length == 0)
+        {
+            return;
+        }
+
+        var chapterIds = lessonEntries
+            .Select(entry => entry.Entity.CourseChapterId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToArray();
+
+        var chapters = chapterIds.Length == 0
+            ? new Dictionary<long, CourseChapter>()
+            : await CourseChapters
+                .AsNoTracking()
+                .IgnoreQueryFilters()
+                .Include(chapter => chapter.Course)
+                .Where(chapter => chapterIds.Contains(chapter.Id))
+                .ToDictionaryAsync(chapter => chapter.Id, cancellationToken);
+
+        var topicIds = lessonEntries
+            .Where(entry =>
+                entry.Entity.TopicId.HasValue &&
+                entry.Entity.Status is ContentStatus.Review or ContentStatus.Approved or ContentStatus.Published)
+            .Select(entry => entry.Entity.TopicId!.Value)
+            .Distinct()
+            .ToArray();
+
+        var publishedTopicIds = topicIds.Length == 0
+            ? new HashSet<long>()
+            : (await Topics
+                .AsNoTracking()
+                .Where(topic =>
+                    topicIds.Contains(topic.Id) &&
+                    topic.Status == ContentStatus.Published &&
+                    topic.DeletedAt == null)
+                .Select(topic => topic.Id)
+                .ToArrayAsync(cancellationToken))
+                .ToHashSet();
+
+        foreach (var entry in lessonEntries)
+        {
+            var lesson = entry.Entity;
+
+            if (lesson.HskLevelId <= 0)
+            {
+                throw new InvalidOperationException(
+                    "Lesson phải có HSK Level hợp lệ.");
+            }
+
+            if (lesson.CourseChapterId.HasValue)
+            {
+                if (!chapters.TryGetValue(lesson.CourseChapterId.Value, out var chapter))
+                {
+                    throw new InvalidOperationException(
+                        "Chapter được gán cho Lesson không tồn tại.");
+                }
+
+                if (chapter.IsDeleted || !chapter.IsActive)
+                {
+                    throw new InvalidOperationException(
+                        "Không thể gán Lesson vào Chapter đã xóa hoặc đang tạm ngưng.");
+                }
+
+                if (chapter.Course.IsDeleted)
+                {
+                    throw new InvalidOperationException(
+                        "Không thể gán Lesson vào Course đã bị xóa.");
+                }
+
+                if (chapter.Course.HskLevelId.HasValue &&
+                    chapter.Course.HskLevelId.Value != lesson.HskLevelId)
+                {
+                    throw new InvalidOperationException(
+                        $"HSK của Lesson phải trùng với HSK của Course. Course dùng HSK #{chapter.Course.HskLevelId.Value}, Lesson đang dùng HSK #{lesson.HskLevelId}.");
+                }
+            }
+
+            if (lesson.TopicId.HasValue &&
+                lesson.Status is ContentStatus.Review or ContentStatus.Approved or ContentStatus.Published &&
+                !publishedTopicIds.Contains(lesson.TopicId.Value))
+            {
+                throw new InvalidOperationException(
+                    "Chủ đề của Lesson phải ở trạng thái Published trước khi Lesson được gửi duyệt hoặc xuất bản.");
+            }
+        }
+    }
+
+    private void AddCourseAuditEntries()
+    {
+        var entries = ChangeTracker
+            .Entries<CourseEntity>()
+            .Where(entry => entry.State == EntityState.Modified && entry.Entity.Id > 0)
+            .ToArray();
+
+        foreach (var entry in entries)
+        {
+            var changed = entry.Properties
+                .Where(property => property.IsModified)
+                .ToArray();
+
+            if (changed.Length == 0)
+            {
+                continue;
+            }
+
+            var oldValues = changed.ToDictionary(
+                property => property.Metadata.Name,
+                property => property.OriginalValue);
+            var newValues = changed.ToDictionary(
+                property => property.Metadata.Name,
+                property => property.CurrentValue);
+            var changedProperties = changed
+                .Select(property => property.Metadata.Name)
+                .OrderBy(name => name)
+                .ToArray();
+
+            var action = ResolveCourseAuditAction(entry.Entity, changedProperties);
+
+            AuditLogs.Add(new AuditLog(
+                entry.Entity.UpdatedById,
+                action,
+                "Course",
+                entry.Entity.Id.ToString(),
+                entry.Entity.PublicId.ToString(),
+                JsonSerializer.Serialize(oldValues),
+                JsonSerializer.Serialize(newValues),
+                JsonSerializer.Serialize(changedProperties)));
+        }
+    }
+
+    private static string ResolveCourseAuditAction(
+        CourseEntity course,
+        IReadOnlyCollection<string> changedProperties)
+    {
+        if (changedProperties.Contains(nameof(CourseEntity.DeletedAt)))
+        {
+            return course.DeletedAt.HasValue ? "deleted" : "restored";
+        }
+
+        if (changedProperties.Contains(nameof(CourseEntity.Status)))
+        {
+            return course.Status switch
+            {
+                ContentStatus.Review => "submitted-review",
+                ContentStatus.Approved => "approved",
+                ContentStatus.Published => "published",
+                ContentStatus.Archived => "archived",
+                _ => "updated"
+            };
+        }
+
+        return "updated";
+    }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {

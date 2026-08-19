@@ -94,6 +94,7 @@ public static class VocabularyAdminMapper
     {
         return new AdminHskLevelResponse(
             entity.Id,
+            entity.PublicId,
             entity.Code,
             entity.NameVi,
             entity.SortOrder,

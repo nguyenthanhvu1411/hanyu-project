@@ -98,12 +98,7 @@ public class VocabularyExample : AuditableEntity
                 nameof(difficulty));
         }
 
-        if (audioAssetId.HasValue &&
-            audioAssetId.Value <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(audioAssetId));
-        }
+        ValidateAudioAssetId(audioAssetId);
 
         Difficulty =
             difficulty;
@@ -117,6 +112,19 @@ public class VocabularyExample : AuditableEntity
                 VocabularyConstants.MaxSourceNoteLength,
                 nameof(sourceNote));
 
+        MarkUpdated();
+    }
+
+    public void ChangeAudio(long? audioAssetId)
+    {
+        ValidateAudioAssetId(audioAssetId);
+
+        if (AudioAssetId == audioAssetId)
+        {
+            return;
+        }
+
+        AudioAssetId = audioAssetId;
         MarkUpdated();
     }
 
@@ -192,6 +200,16 @@ public class VocabularyExample : AuditableEntity
             ContentStatus.Draft;
 
         MarkUpdated();
+    }
+
+    private static void ValidateAudioAssetId(long? audioAssetId)
+    {
+        if (audioAssetId.HasValue &&
+            audioAssetId.Value <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(audioAssetId));
+        }
     }
 
     private static string NormalizeRequired(

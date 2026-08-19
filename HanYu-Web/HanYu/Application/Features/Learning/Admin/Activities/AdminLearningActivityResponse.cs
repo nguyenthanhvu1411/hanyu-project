@@ -15,4 +15,9 @@ public sealed record AdminLearningActivityResponse(
     bool IsCompleted,
     string? MetadataJson,
     DateTimeOffset StartedAt,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt,
+    string? UserDisplayName = null,
+    string? UserEmail = null,
+    string? LessonTitleVi = null,
+    string? VocabularySimplified = null,
+    string? VocabularyPinyin = null);
