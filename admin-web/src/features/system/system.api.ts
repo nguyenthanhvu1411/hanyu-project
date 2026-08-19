@@ -11,7 +11,7 @@ import type {
 const AUDIT_ROOT = "/admin/audit-logs";
 const PRODUCT_EVENT_ROOT = "/admin/product-events";
 
-function buildQuery(query: Record<string, unknown>) {
+function buildQuery(query: object) {
   const params = new URLSearchParams();
   Object.entries(query)
     .filter(([, value]) => value !== undefined && value !== null && value !== "")
