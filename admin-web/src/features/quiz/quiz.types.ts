@@ -14,6 +14,17 @@ export enum QuizType {
   Custom = 4,
 }
 
+export enum QuizQuestionType {
+  MeaningChoice = 0,
+  PinyinChoice = 1,
+  HanziChoice = 2,
+  FillBlank = 3,
+  Matching = 4,
+  TrueFalse = 5,
+  SentenceOrder = 6,
+  MultipleChoice = 7,
+}
+
 export enum QuizShuffleMode {
   None = 0,
   QuestionsOnly = 1,
@@ -80,12 +91,58 @@ export interface UpdateQuizRequest extends CreateQuizRequest {
   version: number;
 }
 
+export interface AdminQuizQuestion {
+  id: number;
+  publicId: string;
+  quizId: number;
+  vocabularyId: number | null;
+  vocabularyPublicId: string | null;
+  questionType: QuizQuestionType;
+  prompt: string;
+  promptPinyin: string | null;
+  correctAnswerText: string | null;
+  explanationVi: string | null;
+  hintVi: string | null;
+  points: number;
+  sortOrder: number;
+  timeLimitSeconds: number | null;
+  isRequired: boolean;
+  status: ContentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuizQuestionRequest {
+  questionType: QuizQuestionType;
+  prompt: string;
+  promptPinyin?: string | null;
+  correctAnswerText?: string | null;
+  explanationVi?: string | null;
+  hintVi?: string | null;
+  points: number;
+  sortOrder: number;
+  timeLimitSeconds?: number | null;
+  isRequired: boolean;
+  vocabularyId?: number | null;
+}
+
 export const QUIZ_TYPE_LABELS: Record<QuizType, string> = {
   [QuizType.Lesson]: "Theo bài giảng",
   [QuizType.Vocabulary]: "Từ vựng",
   [QuizType.Review]: "Ôn tập",
   [QuizType.Placement]: "Xếp lớp",
   [QuizType.Custom]: "Tùy chỉnh",
+};
+
+export const QUIZ_QUESTION_TYPE_LABELS: Record<QuizQuestionType, string> = {
+  [QuizQuestionType.MeaningChoice]: "Chọn nghĩa",
+  [QuizQuestionType.PinyinChoice]: "Chọn Pinyin",
+  [QuizQuestionType.HanziChoice]: "Chọn Hán tự",
+  [QuizQuestionType.FillBlank]: "Điền vào chỗ trống",
+  [QuizQuestionType.Matching]: "Ghép cặp",
+  [QuizQuestionType.TrueFalse]: "Đúng / Sai",
+  [QuizQuestionType.SentenceOrder]: "Sắp xếp câu",
+  [QuizQuestionType.MultipleChoice]: "Trắc nghiệm",
 };
 
 export const QUIZ_STATUS_LABELS: Record<ContentStatus, string> = {
