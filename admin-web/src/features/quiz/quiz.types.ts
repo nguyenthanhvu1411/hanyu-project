@@ -126,6 +126,61 @@ export interface QuizQuestionRequest {
   vocabularyId?: number | null;
 }
 
+export interface AdminQuizQuestionOption {
+  id: number;
+  publicId: string;
+  questionId: number;
+  optionText: string;
+  optionPinyin: string | null;
+  isCorrect: boolean;
+  sortOrder: number;
+  explanationVi: string | null;
+}
+
+export interface QuizQuestionOptionRequest {
+  optionText: string;
+  optionPinyin?: string | null;
+  isCorrect: boolean;
+  sortOrder: number;
+  explanationVi?: string | null;
+}
+
+export interface AdminQuizMatchingPair {
+  id: number;
+  publicId: string;
+  questionId: number;
+  leftText: string;
+  rightText: string;
+  leftPinyin: string | null;
+  rightPinyin: string | null;
+  sortOrder: number;
+}
+
+export interface QuizMatchingPairRequest {
+  leftText: string;
+  rightText: string;
+  leftPinyin?: string | null;
+  rightPinyin?: string | null;
+  sortOrder: number;
+}
+
+export interface AdminQuizTag {
+  id: number;
+  publicId: string;
+  slug: string;
+  name: string;
+  nameVi: string | null;
+  descriptionVi: string | null;
+  isActive: boolean;
+}
+
+export interface QuizTagRequest {
+  slug: string;
+  name: string;
+  nameVi?: string | null;
+  descriptionVi?: string | null;
+}
+
 export interface AdminQuestionBank {
   id: number;
   publicId: string;
