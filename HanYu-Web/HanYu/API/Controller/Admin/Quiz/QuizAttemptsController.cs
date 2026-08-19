@@ -2,6 +2,8 @@ using HanYu.API.Common.Extensions;
 using HanYu.Application.Common.Models;
 using HanYu.Application.Features.Quiz.Admin.Attempts;
 using HanYu.Application.Interfaces.Quiz;
+using HanYu.Infrastructure.Persistence;
+using HanYu.Infrastructure.Quiz;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,9 +16,9 @@ public sealed class QuizAttemptsController : ControllerBase
 {
     private readonly IQuizAttemptAdminService _service;
 
-    public QuizAttemptsController(IQuizAttemptAdminService service)
+    public QuizAttemptsController(HanYuDbContext dbContext)
     {
-        _service = service;
+        _service = new QuizAttemptAdminService(dbContext);
     }
 
     [HttpGet]
