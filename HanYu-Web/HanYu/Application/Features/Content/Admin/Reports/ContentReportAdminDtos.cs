@@ -6,17 +6,11 @@ namespace HanYu.Application.Features.Content.Admin.Reports;
 public sealed record AdminContentReportQuery : PaginationRequest
 {
     public Guid? UserId { get; init; }
-
     public ContentEntityType? EntityType { get; init; }
-
     public ContentReportReason? Reason { get; init; }
-
     public ContentReportStatus? Status { get; init; }
-
     public DateTimeOffset? From { get; init; }
-
     public DateTimeOffset? To { get; init; }
-
     public string? Sort { get; init; } = "-createdAt";
 }
 
@@ -33,7 +27,10 @@ public sealed record AdminContentReportResponse(
     DateTimeOffset? ResolvedAt,
     string? ResolutionNote,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? UserDisplayName = null,
+    string? UserEmail = null,
+    string? EntityDisplayName = null,
+    string? ResolvedByDisplayName = null);
 
-public sealed record ResolveContentReportRequest(
-    string? ResolutionNote);
+public sealed record ResolveContentReportRequest(string? ResolutionNote);
