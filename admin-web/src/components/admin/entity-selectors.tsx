@@ -6,6 +6,7 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { courseApi } from "@/features/course/api/course.api";
 import { identityApi } from "@/features/identity/identity.api";
 import { lessonApi } from "@/features/lesson/api/lesson.api";
+import { quizApi } from "@/features/quiz/quiz.api";
 import { reviewApi } from "@/features/review/review.api";
 
 interface EntitySelectorProps {
@@ -39,23 +40,19 @@ function RemoteEntitySelector({
   const [loading, setLoading] = useState(false);
   const [selectedCache, setSelectedCache] = useState<ComboboxOption | null>(null);
 
-  const load = useCallback(
-    async (keyword: string) => {
-      setLoading(true);
-      try {
-        const next = await loadOptions(keyword);
-        setOptions(next);
-
-        if (value) {
-          const selected = next.find((item) => item.value === value);
-          if (selected) setSelectedCache(selected);
-        }
-      } finally {
-        setLoading(false);
+  const load = useCallback(async (keyword: string) => {
+    setLoading(true);
+    try {
+      const next = await loadOptions(keyword);
+      setOptions(next);
+      if (value) {
+        const selected = next.find((item) => item.value === value);
+        if (selected) setSelectedCache(selected);
       }
-    },
-    [loadOptions, value],
-  );
+    } finally {
+      setLoading(false);
+    }
+  }, [loadOptions, value]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(search), search ? 250 : 0);
@@ -63,9 +60,7 @@ function RemoteEntitySelector({
   }, [load, search]);
 
   const mergedOptions = useMemo(() => {
-    if (!selectedCache || options.some((item) => item.value === selectedCache.value)) {
-      return options;
-    }
+    if (!selectedCache || options.some((item) => item.value === selectedCache.value)) return options;
     return [selectedCache, ...options];
   }, [options, selectedCache]);
 
@@ -93,107 +88,62 @@ function RemoteEntitySelector({
 
 export function UserSelector(props: EntitySelectorProps) {
   const loadOptions = useCallback(async (search: string) => {
-    const result = await identityApi.users.list({
-      page: 1,
-      pageSize: 30,
-      search: search || undefined,
-      includeDeleted: false,
-    });
-
+    const result = await identityApi.users.list({ page: 1, pageSize: 30, search: search || undefined, includeDeleted: false });
     return result.items.map((user) => ({
       value: user.id,
       label: user.displayName || user.email,
       description: user.displayName ? user.email : undefined,
     }));
   }, []);
-
-  return (
-    <RemoteEntitySelector
-      {...props}
-      loadOptions={loadOptions}
-      placeholder={props.placeholder ?? "Chọn người dùng"}
-      searchPlaceholder="Tìm theo tên hoặc email..."
-      emptyText="Không tìm thấy người dùng."
-    />
-  );
+  return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn người dùng"} searchPlaceholder="Tìm theo tên hoặc email..." emptyText="Không tìm thấy người dùng." />;
 }
 
 export function VocabularySelector(props: EntitySelectorProps) {
   const loadOptions = useCallback(async (search: string) => {
     const result = await lessonApi.listVocabularyOptions(search);
-
     return result.items.map((item) => ({
       value: String(item.id),
       label: `${item.simplified} · ${item.pinyin}`,
       description: `${item.primaryMeaningVi}${item.hskCode ? ` · ${item.hskCode}` : ""}`,
     }));
   }, []);
-
-  return (
-    <RemoteEntitySelector
-      {...props}
-      loadOptions={loadOptions}
-      placeholder={props.placeholder ?? "Chọn từ vựng"}
-      searchPlaceholder="Tìm Hanzi, Pinyin hoặc nghĩa..."
-      emptyText="Không tìm thấy từ vựng."
-    />
-  );
+  return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn từ vựng"} searchPlaceholder="Tìm Hanzi, Pinyin hoặc nghĩa..." emptyText="Không tìm thấy từ vựng." />;
 }
 
 export function LessonSelector(props: EntitySelectorProps) {
   const loadOptions = useCallback(async (search: string) => {
-    const result = await lessonApi.list({
-      search: search || undefined,
-      page: 1,
-      pageSize: 30,
-      includeDeleted: false,
-    });
-
+    const result = await lessonApi.list({ search: search || undefined, page: 1, pageSize: 30, includeDeleted: false });
     return result.items.map((item) => ({
       value: String(item.id),
       label: item.titleVi,
-      description: [item.hskCode, item.courseTitleVi, item.chapterTitleVi]
-        .filter(Boolean)
-        .join(" · "),
+      description: [item.hskCode, item.courseTitleVi, item.chapterTitleVi].filter(Boolean).join(" · "),
     }));
   }, []);
-
-  return (
-    <RemoteEntitySelector
-      {...props}
-      loadOptions={loadOptions}
-      placeholder={props.placeholder ?? "Chọn bài học"}
-      searchPlaceholder="Tìm theo tiêu đề bài học..."
-      emptyText="Không tìm thấy bài học."
-    />
-  );
+  return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn bài học"} searchPlaceholder="Tìm theo tiêu đề bài học..." emptyText="Không tìm thấy bài học." />;
 }
 
 export function CourseSelector(props: EntitySelectorProps) {
   const loadOptions = useCallback(async (search: string) => {
-    const result = await courseApi.list({
-      search: search || undefined,
-      page: 1,
-      pageSize: 30,
-      includeDeleted: false,
-    });
-
+    const result = await courseApi.list({ search: search || undefined, page: 1, pageSize: 30, includeDeleted: false });
     return result.items.map((item) => ({
       value: String(item.id),
       label: item.titleVi,
       description: [item.code, item.hskCode].filter(Boolean).join(" · "),
     }));
   }, []);
+  return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn khóa học"} searchPlaceholder="Tìm theo tên hoặc mã khóa học..." emptyText="Không tìm thấy khóa học." />;
+}
 
-  return (
-    <RemoteEntitySelector
-      {...props}
-      loadOptions={loadOptions}
-      placeholder={props.placeholder ?? "Chọn khóa học"}
-      searchPlaceholder="Tìm theo tên hoặc mã khóa học..."
-      emptyText="Không tìm thấy khóa học."
-    />
-  );
+export function QuizSelector(props: EntitySelectorProps) {
+  const loadOptions = useCallback(async (search: string) => {
+    const result = await quizApi.list({ search: search || undefined, page: 1, pageSize: 30 });
+    return result.items.map((item) => ({
+      value: String(item.id),
+      label: item.titleVi,
+      description: item.lessonTitleVi ? `Bài học: ${item.lessonTitleVi}` : "Bài kiểm tra độc lập",
+    }));
+  }, []);
+  return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn bài kiểm tra"} searchPlaceholder="Tìm theo tên bài kiểm tra..." emptyText="Không tìm thấy bài kiểm tra." />;
 }
 
 interface FlashcardSessionSelectorProps extends EntitySelectorProps {
@@ -202,26 +152,12 @@ interface FlashcardSessionSelectorProps extends EntitySelectorProps {
 
 export function FlashcardSessionSelector({ userId, ...props }: FlashcardSessionSelectorProps) {
   const loadOptions = useCallback(async () => {
-    const result = await reviewApi.sessions.list({
-      userId: userId || undefined,
-      page: 1,
-      pageSize: 30,
-    });
-
+    const result = await reviewApi.sessions.list({ userId: userId || undefined, page: 1, pageSize: 30 });
     return result.items.map((item) => ({
       value: String(item.id),
       label: `Flashcard ${new Date(item.startedAt).toLocaleString("vi-VN")}`,
       description: `${item.currentIndex}/${item.totalItems} mục · chính xác ${item.accuracyPercent}%`,
     }));
   }, [userId]);
-
-  return (
-    <RemoteEntitySelector
-      {...props}
-      loadOptions={loadOptions}
-      placeholder={props.placeholder ?? "Chọn phiên flashcard"}
-      searchPlaceholder="Danh sách phiên gần nhất"
-      emptyText="Chưa có phiên flashcard phù hợp."
-    />
-  );
+  return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn phiên flashcard"} searchPlaceholder="Danh sách phiên gần nhất" emptyText="Chưa có phiên flashcard phù hợp." />;
 }
