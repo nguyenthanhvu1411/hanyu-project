@@ -27,3 +27,31 @@ export interface AdminAuditLogQuery {
   page?: number;
   pageSize?: number;
 }
+
+export interface AdminProductEvent {
+  id: number;
+  publicId: string;
+  userId: string | null;
+  sessionId: string | null;
+  eventName: string;
+  entityType: string | null;
+  entityPublicId: string | null;
+  propertiesJson: string | null;
+  pagePath: string | null;
+  referrer: string | null;
+  deviceType: string | null;
+  occurredAt: string;
+}
+
+export interface AdminProductEventQuery {
+  userId?: string;
+  sessionId?: string;
+  eventName?: string;
+  entityType?: string;
+  deviceType?: string;
+  from?: string;
+  to?: string;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+}
