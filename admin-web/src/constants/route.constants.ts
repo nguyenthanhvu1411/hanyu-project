@@ -30,6 +30,7 @@ export const ROUTES = {
   MUC_TIEU_HOC_TAP: "/muc-tieu-hoc-tap",
   HOAT_DONG_HOC_TAP: "/hoat-dong-hoc-tap",
   TONG_HOP_HOC_TAP: "/tong-hop-hoc-tap",
+  ON_TAP: "/on-tap",
 
   NGAN_HANG_CAU_HOI: "/ngan-hang-cau-hoi",
   CAU_HOI: "/cau-hoi",
