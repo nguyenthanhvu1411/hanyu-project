@@ -166,6 +166,12 @@ export const ADMIN_NAVIGATION: NavigationGroup[] = [
         href: ROUTES.TONG_HOP_HOC_TAP,
         icon: ChartNoAxesCombined,
       },
+
+      {
+        title: "Ôn tập & Flashcard",
+        href: ROUTES.ON_TAP,
+        icon: Brain,
+      },
     ],
   },
 
