@@ -11,7 +11,10 @@ namespace HanYu.Application.Features.Learning.Mapping;
 public static class LearningMapper
 {
     // Goals
-    public static AdminLearningGoalResponse ToAdminGoalResponse(UserLearningGoal goal)
+    public static AdminLearningGoalResponse ToAdminGoalResponse(
+        UserLearningGoal goal,
+        string? userDisplayName = null,
+        string? userEmail = null)
     {
         return new AdminLearningGoalResponse(
             goal.Id,
@@ -26,7 +29,9 @@ public static class LearningMapper
             goal.CompletedAt,
             goal.PausedAt,
             goal.CreatedAt,
-            goal.UpdatedAt);
+            goal.UpdatedAt,
+            userDisplayName,
+            userEmail);
     }
 
     public static LearningGoalResponse ToPublicGoalResponse(UserLearningGoal goal)
@@ -44,7 +49,13 @@ public static class LearningMapper
     }
 
     // Activities
-    public static AdminLearningActivityResponse ToAdminActivityResponse(LearningActivity activity)
+    public static AdminLearningActivityResponse ToAdminActivityResponse(
+        LearningActivity activity,
+        string? userDisplayName = null,
+        string? userEmail = null,
+        string? lessonTitleVi = null,
+        string? vocabularySimplified = null,
+        string? vocabularyPinyin = null)
     {
         return new AdminLearningActivityResponse(
             activity.Id,
@@ -59,7 +70,12 @@ public static class LearningMapper
             activity.IsCompleted,
             activity.MetadataJson,
             activity.StartedAt,
-            activity.CompletedAt);
+            activity.CompletedAt,
+            userDisplayName,
+            userEmail,
+            lessonTitleVi,
+            vocabularySimplified,
+            vocabularyPinyin);
     }
 
     public static LearningActivityResponse ToPublicActivityResponse(LearningActivity activity)
@@ -74,7 +90,10 @@ public static class LearningMapper
     }
 
     // Summaries
-    public static AdminLearningSummaryResponse ToAdminSummaryResponse(UserLearningSummary summary)
+    public static AdminLearningSummaryResponse ToAdminSummaryResponse(
+        UserLearningSummary summary,
+        string? userDisplayName = null,
+        string? userEmail = null)
     {
         return new AdminLearningSummaryResponse(
             summary.UserId,
@@ -89,13 +108,15 @@ public static class LearningMapper
             summary.CurrentHskLevel,
             summary.OverallMasteryPercent,
             summary.LastLearningAt,
-            summary.UpdatedAt);
+            summary.UpdatedAt,
+            userDisplayName,
+            userEmail);
     }
 
     public static LearningSummaryResponse ToPublicSummaryResponse(UserLearningSummary summary)
     {
         return new LearningSummaryResponse(
-            summary.TotalLearningSeconds / 60, // TotalLearningMinutes
+            summary.TotalLearningSeconds / 60,
             summary.TotalLessonsCompleted,
             summary.TotalVocabularyLearned,
             summary.TotalVocabularyMastered,
