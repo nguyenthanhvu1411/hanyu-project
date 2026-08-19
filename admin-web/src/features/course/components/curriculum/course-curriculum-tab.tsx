@@ -154,9 +154,7 @@ export function CourseCurriculumTab({ courseId }: { courseId: number }) {
                       variant="outline"
                       size="icon"
                       aria-label="Đưa chương lên"
-                      disabled={
-                        reorderMutation.isPending || activeIndex <= 0
-                      }
+                      disabled={reorderMutation.isPending || activeIndex <= 0}
                       onClick={() => moveChapter(chapter.id, -1)}
                     >
                       <ArrowUp size={14} />
@@ -182,7 +180,7 @@ export function CourseCurriculumTab({ courseId }: { courseId: number }) {
                   <ChapterItem
                     chapter={chapter}
                     courseId={courseId}
-                    courseHskLevelId={course.hskLevelId ?? 1}
+                    courseHskLevelId={course.hskLevelId ?? 0}
                     chapters={activeChapters}
                   />
                 </div>
