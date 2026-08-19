@@ -17,6 +17,33 @@ export interface AuthUser {
   permissions: string[];
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface AuthSession {
+  sessionKey: string;
+  deviceName: string | null;
+  deviceType: string | null;
+  browser: string | null;
+  operatingSystem: string | null;
+  ipAddress: string | null;
+  lastActivityAt: string;
+  revokedAt: string | null;
+  status: string;
+  isCurrent: boolean;
+}
+
+export interface SecurityEvent {
+  eventType: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  metadataJson: string | null;
+  occurredAt: string;
+}
+
 export type AuthStatus =
   | "idle"
   | "loading"
