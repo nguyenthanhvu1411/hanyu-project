@@ -15,4 +15,6 @@ public sealed record AdminLearningGoalResponse(
     DateTimeOffset? CompletedAt,
     DateTimeOffset? PausedAt,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? UserDisplayName = null,
+    string? UserEmail = null);
