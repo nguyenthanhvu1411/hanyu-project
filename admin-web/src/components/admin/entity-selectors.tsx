@@ -6,8 +6,11 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { courseApi } from "@/features/course/api/course.api";
 import { identityApi } from "@/features/identity/identity.api";
 import { lessonApi } from "@/features/lesson/api/lesson.api";
+import { quizAttemptsApi } from "@/features/quiz/quiz-attempts.api";
 import { quizApi } from "@/features/quiz/quiz.api";
 import { reviewApi } from "@/features/review/review.api";
+import { apiClient } from "@/lib/api/api-client";
+import type { PagedResult } from "@/lib/api/api-result";
 
 interface EntitySelectorProps {
   value?: string;
@@ -97,6 +100,20 @@ export function QuizSelector(props: EntitySelectorProps) {
   return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn bài kiểm tra"} searchPlaceholder="Tìm theo tên bài kiểm tra..." emptyText="Không tìm thấy bài kiểm tra." />;
 }
 
+interface QuizAttemptSelectorProps extends EntitySelectorProps { userId?: string; quizId?: number; }
+
+export function QuizAttemptSelector({ userId, quizId, ...props }: QuizAttemptSelectorProps) {
+  const loadOptions = useCallback(async () => {
+    const result = await quizAttemptsApi.list({ userId: userId || undefined, quizId, page: 1, pageSize: 30 });
+    return result.items.map((item) => ({
+      value: String(item.id),
+      label: `${item.quizTitleVi} · lượt ${item.attemptNumber}`,
+      description: `${item.userDisplayName || item.userEmail || "Học viên"}${item.percentage != null ? ` · ${Number(item.percentage).toFixed(1)}%` : ""}`,
+    }));
+  }, [quizId, userId]);
+  return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn lượt làm bài"} searchPlaceholder="Danh sách lượt làm gần nhất" emptyText="Chưa có lượt làm bài phù hợp." />;
+}
+
 interface FlashcardSessionSelectorProps extends EntitySelectorProps { userId?: string; }
 
 export function FlashcardSessionSelector({ userId, ...props }: FlashcardSessionSelectorProps) {
@@ -105,4 +122,31 @@ export function FlashcardSessionSelector({ userId, ...props }: FlashcardSessionS
     return result.items.map((item) => ({ value: String(item.id), label: `Flashcard ${new Date(item.startedAt).toLocaleString("vi-VN")}`, description: `${item.currentIndex}/${item.totalItems} mục · chính xác ${item.accuracyPercent}%` }));
   }, [userId]);
   return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn phiên flashcard"} searchPlaceholder="Danh sách phiên gần nhất" emptyText="Chưa có phiên flashcard phù hợp." />;
+}
+
+interface AudioAssetLookup {
+  id: number;
+  storagePath: string;
+  publicUrl?: string | null;
+  voice?: string | null;
+  provider?: string | null;
+  languageCode?: string | null;
+  durationMs?: number | null;
+  status: number;
+}
+
+export function AudioAssetSelector(props: EntitySelectorProps) {
+  const loadOptions = useCallback(async (search: string) => {
+    const result = await apiClient<PagedResult<AudioAssetLookup>>("/admin/audio-assets?page=1&pageSize=100");
+    const keyword = search.trim().toLocaleLowerCase();
+    return result.items
+      .filter((item) => !keyword || `${item.storagePath} ${item.voice ?? ""} ${item.provider ?? ""} ${item.languageCode ?? ""}`.toLocaleLowerCase().includes(keyword))
+      .slice(0, 30)
+      .map((item) => ({
+        value: String(item.id),
+        label: item.voice || item.storagePath.split("/").pop() || item.storagePath,
+        description: [item.languageCode, item.provider, item.durationMs ? `${Math.round(item.durationMs / 100) / 10}s` : null].filter(Boolean).join(" · "),
+      }));
+  }, []);
+  return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn audio"} searchPlaceholder="Tìm theo file, giọng đọc hoặc provider..." emptyText="Không tìm thấy audio phù hợp." />;
 }
