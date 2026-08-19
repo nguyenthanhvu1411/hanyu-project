@@ -37,6 +37,9 @@ export const ROUTES = {
   BAI_KIEM_TRA: "/bai-kiem-tra",
   LUOT_LAM_BAI: "/luot-lam-bai",
 
+  VAN_HANH_NOI_DUNG: "/van-hanh-noi-dung",
+  AI_ANALYTICS: "/ai-analytics",
+
   THONG_BAO: "/thong-bao",
 
   NHAT_KY_HE_THONG: "/nhat-ky-he-thong",
