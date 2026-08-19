@@ -9,52 +9,29 @@ import type {
 import type {
   AuthSession,
   ChangePasswordRequest,
+  DisableTwoFactorRequest,
+  EnableTwoFactorRequest,
+  PasswordConfirmationRequest,
   SecurityEvent,
+  TwoFactorRecoveryCodesResponse,
+  TwoFactorSetupResponse,
 } from "./auth.types";
 
 export const authApi = {
   async login(request: LoginRequest) {
-    const response = await apiClient.post<LoginResponseDto>(
-      AUTH_ENDPOINTS.LOGIN,
-      request,
-      {
-        skipAuthRefresh: true,
-      },
-    );
-
-    return response;
+    return apiClient.post<LoginResponseDto>(AUTH_ENDPOINTS.LOGIN, request, { skipAuthRefresh: true });
   },
 
   async currentUser() {
-    const response = await apiClient.get<CurrentUserDto>(
-      AUTH_ENDPOINTS.CURRENT_USER,
-    );
-
-    return response;
+    return apiClient.get<CurrentUserDto>(AUTH_ENDPOINTS.CURRENT_USER);
   },
 
   async logout(refreshToken: string) {
-    const response = await apiClient.post<LogoutResponseDto>(
-      AUTH_ENDPOINTS.LOGOUT,
-      { refreshToken },
-      {
-        skipAuthRefresh: true,
-      },
-    );
-
-    return response;
+    return apiClient.post<LogoutResponseDto>(AUTH_ENDPOINTS.LOGOUT, { refreshToken }, { skipAuthRefresh: true });
   },
 
   async logoutAll() {
-    const response = await apiClient.post<LogoutResponseDto>(
-      AUTH_ENDPOINTS.LOGOUT_ALL,
-      undefined,
-      {
-        skipAuthRefresh: true,
-      },
-    );
-
-    return response;
+    return apiClient.post<LogoutResponseDto>(AUTH_ENDPOINTS.LOGOUT_ALL, undefined, { skipAuthRefresh: true });
   },
 
   async changePassword(request: ChangePasswordRequest) {
@@ -75,5 +52,25 @@ export const authApi = {
 
   async securityEvents(take = 50) {
     return apiClient.get<SecurityEvent[]>(AUTH_ENDPOINTS.SECURITY_EVENTS(take));
+  },
+
+  async setupTwoFactor() {
+    return apiClient.post<TwoFactorSetupResponse>("/auth/2fa/setup");
+  },
+
+  async enableTwoFactor(request: EnableTwoFactorRequest) {
+    return apiClient.post<void>("/auth/2fa/enable", request);
+  },
+
+  async disableTwoFactor(request: DisableTwoFactorRequest) {
+    return apiClient.post<void>("/auth/2fa/disable", request);
+  },
+
+  async generateRecoveryCodes(request: PasswordConfirmationRequest) {
+    return apiClient.post<TwoFactorRecoveryCodesResponse>("/auth/2fa/recovery-codes", request);
+  },
+
+  async regenerateAuthenticatorKey(request: PasswordConfirmationRequest) {
+    return apiClient.post<TwoFactorSetupResponse>("/auth/2fa/regenerate-key", request);
   },
 };
