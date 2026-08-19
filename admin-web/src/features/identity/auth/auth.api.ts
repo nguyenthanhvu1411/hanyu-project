@@ -6,6 +6,11 @@ import type {
   LoginResponseDto,
   LogoutResponseDto,
 } from "@/dto/identity/auth.dto";
+import type {
+  AuthSession,
+  ChangePasswordRequest,
+  SecurityEvent,
+} from "./auth.types";
 
 export const authApi = {
   async login(request: LoginRequest) {
@@ -46,9 +51,29 @@ export const authApi = {
       undefined,
       {
         skipAuthRefresh: true,
-      }
+      },
     );
 
     return response;
+  },
+
+  async changePassword(request: ChangePasswordRequest) {
+    return apiClient.post<void>(AUTH_ENDPOINTS.CHANGE_PASSWORD, request);
+  },
+
+  async sessions() {
+    return apiClient.get<AuthSession[]>(AUTH_ENDPOINTS.SESSIONS);
+  },
+
+  async revokeSession(sessionKey: string) {
+    return apiClient.post<void>(AUTH_ENDPOINTS.REVOKE_SESSION(sessionKey));
+  },
+
+  async revokeOtherSessions() {
+    return apiClient.post<void>(AUTH_ENDPOINTS.REVOKE_OTHER_SESSIONS);
+  },
+
+  async securityEvents(take = 50) {
+    return apiClient.get<SecurityEvent[]>(AUTH_ENDPOINTS.SECURITY_EVENTS(take));
   },
 };
