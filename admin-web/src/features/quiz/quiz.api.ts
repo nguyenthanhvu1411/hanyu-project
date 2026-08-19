@@ -4,7 +4,9 @@ import type { PagedResult } from "@/lib/api/api-result";
 import type {
   AdminQuiz,
   AdminQuizQuery,
+  AdminQuizQuestion,
   CreateQuizRequest,
+  QuizQuestionRequest,
   UpdateQuizRequest,
 } from "./quiz.types";
 
@@ -58,5 +60,41 @@ export const quizApi = {
 
   delete(id: number) {
     return apiClient<void>(`${ROOT}/${id}`, { method: "DELETE" });
+  },
+
+  listQuestions(quizId: number) {
+    return apiClient<AdminQuizQuestion[]>(`${ROOT}/${quizId}/questions`);
+  },
+
+  createQuestion(quizId: number, request: QuizQuestionRequest) {
+    return apiClient<AdminQuizQuestion>(`${ROOT}/${quizId}/questions`, { method: "POST", body: request });
+  },
+
+  updateQuestion(quizId: number, questionId: number, request: QuizQuestionRequest) {
+    return apiClient<AdminQuizQuestion>(`${ROOT}/${quizId}/questions/${questionId}`, { method: "PUT", body: request });
+  },
+
+  deleteQuestion(quizId: number, questionId: number) {
+    return apiClient<void>(`${ROOT}/${quizId}/questions/${questionId}`, { method: "DELETE" });
+  },
+
+  submitQuestionReview(quizId: number, questionId: number) {
+    return apiClient<void>(`${ROOT}/${quizId}/questions/${questionId}/submit-review`, { method: "POST" });
+  },
+
+  approveQuestion(quizId: number, questionId: number) {
+    return apiClient<void>(`${ROOT}/${quizId}/questions/${questionId}/approve`, { method: "POST" });
+  },
+
+  publishQuestion(quizId: number, questionId: number) {
+    return apiClient<void>(`${ROOT}/${quizId}/questions/${questionId}/publish`, { method: "POST" });
+  },
+
+  archiveQuestion(quizId: number, questionId: number) {
+    return apiClient<void>(`${ROOT}/${quizId}/questions/${questionId}/archive`, { method: "POST" });
+  },
+
+  restoreQuestion(quizId: number, questionId: number) {
+    return apiClient<void>(`${ROOT}/${quizId}/questions/${questionId}/restore`, { method: "POST" });
   },
 };
