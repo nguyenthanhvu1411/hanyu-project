@@ -44,6 +44,28 @@ export interface SecurityEvent {
   occurredAt: string;
 }
 
+export interface TwoFactorSetupResponse {
+  sharedKey: string;
+  authenticatorUri: string;
+}
+
+export interface TwoFactorRecoveryCodesResponse {
+  recoveryCodes: string[];
+}
+
+export interface EnableTwoFactorRequest {
+  code: string;
+}
+
+export interface DisableTwoFactorRequest {
+  password: string;
+  code: string;
+}
+
+export interface PasswordConfirmationRequest {
+  password: string;
+}
+
 export type AuthStatus =
   | "idle"
   | "loading"
