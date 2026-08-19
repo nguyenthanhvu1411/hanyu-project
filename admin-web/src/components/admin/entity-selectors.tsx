@@ -24,17 +24,7 @@ interface RemoteEntitySelectorProps extends EntitySelectorProps {
   emptyText?: string;
 }
 
-function RemoteEntitySelector({
-  value,
-  onValueChange,
-  loadOptions,
-  disabled,
-  clearable = true,
-  className,
-  placeholder,
-  searchPlaceholder,
-  emptyText,
-}: RemoteEntitySelectorProps) {
+function RemoteEntitySelector({ value, onValueChange, loadOptions, disabled, clearable = true, className, placeholder, searchPlaceholder, emptyText }: RemoteEntitySelectorProps) {
   const [options, setOptions] = useState<ComboboxOption[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,36 +54,13 @@ function RemoteEntitySelector({
     return [selectedCache, ...options];
   }, [options, selectedCache]);
 
-  return (
-    <Combobox
-      value={value}
-      onValueChange={(next) => {
-        const selected = mergedOptions.find((item) => item.value === next) ?? null;
-        setSelectedCache(selected);
-        onValueChange(next);
-      }}
-      options={mergedOptions}
-      placeholder={placeholder}
-      searchPlaceholder={searchPlaceholder}
-      emptyText={emptyText}
-      disabled={disabled}
-      clearable={clearable}
-      className={className}
-      loading={loading}
-      remoteSearch
-      onSearchChange={setSearch}
-    />
-  );
+  return <Combobox value={value} onValueChange={(next) => { const selected = mergedOptions.find((item) => item.value === next) ?? null; setSelectedCache(selected); onValueChange(next); }} options={mergedOptions} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyText={emptyText} disabled={disabled} clearable={clearable} className={className} loading={loading} remoteSearch onSearchChange={setSearch} />;
 }
 
 export function UserSelector(props: EntitySelectorProps) {
   const loadOptions = useCallback(async (search: string) => {
     const result = await identityApi.users.list({ page: 1, pageSize: 30, search: search || undefined, includeDeleted: false });
-    return result.items.map((user) => ({
-      value: user.id,
-      label: user.displayName || user.email,
-      description: user.displayName ? user.email : undefined,
-    }));
+    return result.items.map((user) => ({ value: user.id, label: user.displayName || user.email, description: user.displayName ? user.email : undefined }));
   }, []);
   return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn người dùng"} searchPlaceholder="Tìm theo tên hoặc email..." emptyText="Không tìm thấy người dùng." />;
 }
@@ -101,11 +68,7 @@ export function UserSelector(props: EntitySelectorProps) {
 export function VocabularySelector(props: EntitySelectorProps) {
   const loadOptions = useCallback(async (search: string) => {
     const result = await lessonApi.listVocabularyOptions(search);
-    return result.items.map((item) => ({
-      value: String(item.id),
-      label: `${item.simplified} · ${item.pinyin}`,
-      description: `${item.primaryMeaningVi}${item.hskCode ? ` · ${item.hskCode}` : ""}`,
-    }));
+    return result.items.map((item) => ({ value: String(item.id), label: `${item.simplified} · ${item.pinyin}`, description: `${item.primaryMeaningVi}${item.hskCode ? ` · ${item.hskCode}` : ""}` }));
   }, []);
   return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn từ vựng"} searchPlaceholder="Tìm Hanzi, Pinyin hoặc nghĩa..." emptyText="Không tìm thấy từ vựng." />;
 }
@@ -113,11 +76,7 @@ export function VocabularySelector(props: EntitySelectorProps) {
 export function LessonSelector(props: EntitySelectorProps) {
   const loadOptions = useCallback(async (search: string) => {
     const result = await lessonApi.list({ search: search || undefined, page: 1, pageSize: 30, includeDeleted: false });
-    return result.items.map((item) => ({
-      value: String(item.id),
-      label: item.titleVi,
-      description: [item.hskCode, item.courseTitleVi, item.chapterTitleVi].filter(Boolean).join(" · "),
-    }));
+    return result.items.map((item) => ({ value: String(item.id), label: item.titleVi, description: [item.hskCode, item.courseTitleVi, item.chapterTitleVi].filter(Boolean).join(" · ") }));
   }, []);
   return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn bài học"} searchPlaceholder="Tìm theo tiêu đề bài học..." emptyText="Không tìm thấy bài học." />;
 }
@@ -125,39 +84,25 @@ export function LessonSelector(props: EntitySelectorProps) {
 export function CourseSelector(props: EntitySelectorProps) {
   const loadOptions = useCallback(async (search: string) => {
     const result = await courseApi.list({ search: search || undefined, page: 1, pageSize: 30, includeDeleted: false });
-    return result.items.map((item) => ({
-      value: String(item.id),
-      label: item.titleVi,
-      description: [item.code, item.hskCode].filter(Boolean).join(" · "),
-    }));
+    return result.items.map((item) => ({ value: String(item.id), label: item.titleVi, description: [item.code, item.hskCode].filter(Boolean).join(" · ") }));
   }, []);
   return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn khóa học"} searchPlaceholder="Tìm theo tên hoặc mã khóa học..." emptyText="Không tìm thấy khóa học." />;
 }
 
 export function QuizSelector(props: EntitySelectorProps) {
   const loadOptions = useCallback(async (search: string) => {
-    const result = await quizApi.list({ search: search || undefined, page: 1, pageSize: 30 });
-    return result.items.map((item) => ({
-      value: String(item.id),
-      label: item.titleVi,
-      description: item.lessonTitleVi ? `Bài học: ${item.lessonTitleVi}` : "Bài kiểm tra độc lập",
-    }));
+    const result = await quizApi.list({ q: search || undefined, page: 1, pageSize: 30 });
+    return result.items.map((item) => ({ value: String(item.id), label: item.titleVi, description: item.lessonTitleVi ? `Bài học: ${item.lessonTitleVi}` : "Bài kiểm tra độc lập" }));
   }, []);
   return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn bài kiểm tra"} searchPlaceholder="Tìm theo tên bài kiểm tra..." emptyText="Không tìm thấy bài kiểm tra." />;
 }
 
-interface FlashcardSessionSelectorProps extends EntitySelectorProps {
-  userId?: string;
-}
+interface FlashcardSessionSelectorProps extends EntitySelectorProps { userId?: string; }
 
 export function FlashcardSessionSelector({ userId, ...props }: FlashcardSessionSelectorProps) {
   const loadOptions = useCallback(async () => {
     const result = await reviewApi.sessions.list({ userId: userId || undefined, page: 1, pageSize: 30 });
-    return result.items.map((item) => ({
-      value: String(item.id),
-      label: `Flashcard ${new Date(item.startedAt).toLocaleString("vi-VN")}`,
-      description: `${item.currentIndex}/${item.totalItems} mục · chính xác ${item.accuracyPercent}%`,
-    }));
+    return result.items.map((item) => ({ value: String(item.id), label: `Flashcard ${new Date(item.startedAt).toLocaleString("vi-VN")}`, description: `${item.currentIndex}/${item.totalItems} mục · chính xác ${item.accuracyPercent}%` }));
   }, [userId]);
   return <RemoteEntitySelector {...props} loadOptions={loadOptions} placeholder={props.placeholder ?? "Chọn phiên flashcard"} searchPlaceholder="Danh sách phiên gần nhất" emptyText="Chưa có phiên flashcard phù hợp." />;
 }
