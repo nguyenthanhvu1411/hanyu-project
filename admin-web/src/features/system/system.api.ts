@@ -1,11 +1,17 @@
 import { apiClient } from "@/lib/api/api-client";
 import type { PagedResult } from "@/lib/api/api-result";
 
-import type { AdminAuditLog, AdminAuditLogQuery } from "./system.types";
+import type {
+  AdminAuditLog,
+  AdminAuditLogQuery,
+  AdminProductEvent,
+  AdminProductEventQuery,
+} from "./system.types";
 
 const AUDIT_ROOT = "/admin/audit-logs";
+const PRODUCT_EVENT_ROOT = "/admin/product-events";
 
-function buildQuery(query: AdminAuditLogQuery) {
+function buildQuery(query: Record<string, unknown>) {
   const params = new URLSearchParams();
   Object.entries(query)
     .filter(([, value]) => value !== undefined && value !== null && value !== "")
@@ -21,5 +27,12 @@ export const systemApi = {
 
   getAuditLog(id: number) {
     return apiClient<AdminAuditLog>(`${AUDIT_ROOT}/${id}`);
+  },
+
+  listProductEvents(query: AdminProductEventQuery = {}) {
+    const queryString = buildQuery(query);
+    return apiClient<PagedResult<AdminProductEvent>>(
+      queryString ? `${PRODUCT_EVENT_ROOT}?${queryString}` : PRODUCT_EVENT_ROOT,
+    );
   },
 };
