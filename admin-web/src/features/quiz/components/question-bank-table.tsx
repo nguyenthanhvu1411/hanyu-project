@@ -48,7 +48,7 @@ export function QuestionBankTable() {
     );
   }, [items, search]);
 
-  async function toggle(item: AdminQuestionBank) {
+  const toggle = useCallback(async (item: AdminQuestionBank) => {
     setWorkingId(item.id);
     try {
       if (item.isActive) {
@@ -64,7 +64,7 @@ export function QuestionBankTable() {
     } finally {
       setWorkingId(null);
     }
-  }
+  }, [load]);
 
   const columns = useMemo<DataTableColumn<AdminQuestionBank>[]>(() => [
     {
@@ -118,7 +118,7 @@ export function QuestionBankTable() {
         />
       ),
     },
-  ], [router, workingId]);
+  ], [router, toggle, workingId]);
 
   return (
     <div className="overflow-hidden rounded-[11px] border border-[#e8e3dc] bg-white">
@@ -136,6 +136,8 @@ export function QuestionBankTable() {
         pageSize={Math.max(20, filtered.length)}
         totalItems={filtered.length}
         totalPages={1}
+        onPageChange={() => undefined}
+        onPageSizeChange={() => undefined}
       />
     </div>
   );
