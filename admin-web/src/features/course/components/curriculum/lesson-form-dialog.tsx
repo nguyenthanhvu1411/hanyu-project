@@ -79,6 +79,7 @@ export function LessonFormDialog({
     },
   });
   const isEditing = Boolean(lesson);
+  const canCreateLesson = Number.isSafeInteger(hskLevelId) && hskLevelId > 0;
 
   const mutation = useMutation({
     mutationFn: async (values: FormData) => {
@@ -101,6 +102,12 @@ export function LessonFormDialog({
           version: current.version,
         };
         return lessonApi.update(lesson.id, payload);
+      }
+
+      if (!canCreateLesson) {
+        throw new Error(
+          "Khóa học chưa được gán cấp độ HSK. Hãy cập nhật HSK của khóa học trước khi tạo bài giảng mới.",
+        );
       }
 
       const payload: CreateLessonRequest = {
@@ -126,7 +133,7 @@ export function LessonFormDialog({
     onError: (error) => {
       appToast.error(
         isEditing ? "Không thể cập nhật bài giảng" : "Không thể tạo bài giảng",
-        normalizeApiError(error).message,
+        error instanceof Error ? error.message : normalizeApiError(error).message,
       );
     },
   });
@@ -144,6 +151,7 @@ export function LessonFormDialog({
           <Button
             type="button"
             loading={mutation.isPending}
+            disabled={!isEditing && !canCreateLesson}
             onClick={form.handleSubmit((values) => mutation.mutate(values))}
           >
             Lưu
@@ -155,6 +163,12 @@ export function LessonFormDialog({
         onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
         className="space-y-4"
       >
+        {!isEditing && !canCreateLesson ? (
+          <div className="rounded-[11px] border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+            Khóa học chưa được gán cấp độ HSK. Hãy cập nhật HSK của khóa học trước khi tạo bài giảng mới.
+          </div>
+        ) : null}
+
         <FormField
           label="Tên bài giảng"
           required
