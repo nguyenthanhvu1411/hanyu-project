@@ -186,16 +186,6 @@ public sealed class CoursesController : ControllerBase
         => this.ToActionResult(
             await _service.PublishAsync(id, request, cancellationToken));
 
-    [HttpPost("{id:long}/schedule-publish")]
-    [Authorize(Roles = ContentPublishRoles)]
-    [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
-    public async Task<IActionResult> SchedulePublish(
-        long id,
-        ScheduleCoursePublishRequest request,
-        CancellationToken cancellationToken)
-        => this.ToActionResult(
-            await _service.SchedulePublishAsync(id, request, cancellationToken));
-
     [HttpPost("{id:long}/archive")]
     [Authorize(Roles = ContentPublishRoles)]
     [EnableRateLimiting(ApiFoundationExtensions.AdminWriteRateLimitPolicy)]
