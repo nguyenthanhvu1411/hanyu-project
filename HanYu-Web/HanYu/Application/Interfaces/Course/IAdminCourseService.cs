@@ -58,12 +58,6 @@ public interface IAdminCourseService
             CourseWorkflowRequest request,
             CancellationToken cancellationToken = default);
 
-    Task<Result>
-        SchedulePublishAsync(
-            long id,
-            ScheduleCoursePublishRequest request,
-            CancellationToken cancellationToken = default);
-
     Task<Result<AdminCourseDetailDto>>
         ArchiveAsync(
             long id,
