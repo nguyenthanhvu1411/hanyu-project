@@ -126,6 +126,24 @@ export interface QuizQuestionRequest {
   vocabularyId?: number | null;
 }
 
+export interface AdminQuestionBank {
+  id: number;
+  publicId: string;
+  code: string;
+  nameVi: string;
+  descriptionVi: string | null;
+  hskLevelId: number | null;
+  isActive: boolean;
+  questionCount: number;
+}
+
+export interface QuestionBankRequest {
+  code: string;
+  nameVi: string;
+  descriptionVi?: string | null;
+  hskLevelId?: number | null;
+}
+
 export const QUIZ_TYPE_LABELS: Record<QuizType, string> = {
   [QuizType.Lesson]: "Theo bài giảng",
   [QuizType.Vocabulary]: "Từ vựng",
