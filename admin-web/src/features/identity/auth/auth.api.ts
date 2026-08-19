@@ -59,7 +59,7 @@ export const authApi = {
   },
 
   async enableTwoFactor(request: EnableTwoFactorRequest) {
-    return apiClient.post<void>("/auth/2fa/enable", request);
+    return apiClient.post<TwoFactorRecoveryCodesResponse>("/auth/2fa/enable", request);
   },
 
   async disableTwoFactor(request: DisableTwoFactorRequest) {
