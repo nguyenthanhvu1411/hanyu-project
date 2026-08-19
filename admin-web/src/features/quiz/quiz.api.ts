@@ -2,15 +2,18 @@ import { apiClient } from "@/lib/api/api-client";
 import type { PagedResult } from "@/lib/api/api-result";
 
 import type {
+  AdminQuestionBank,
   AdminQuiz,
   AdminQuizQuery,
   AdminQuizQuestion,
   CreateQuizRequest,
+  QuestionBankRequest,
   QuizQuestionRequest,
   UpdateQuizRequest,
 } from "./quiz.types";
 
 const ROOT = "/admin/quizzes";
+const QUESTION_BANK_ROOT = "/admin/question-banks";
 
 function buildQuery(query: AdminQuizQuery) {
   const params = new URLSearchParams();
@@ -96,5 +99,33 @@ export const quizApi = {
 
   restoreQuestion(quizId: number, questionId: number) {
     return apiClient<void>(`${ROOT}/${quizId}/questions/${questionId}/restore`, { method: "POST" });
+  },
+
+  listQuestionBanks() {
+    return apiClient<AdminQuestionBank[]>(QUESTION_BANK_ROOT);
+  },
+
+  createQuestionBank(request: QuestionBankRequest) {
+    return apiClient<AdminQuestionBank>(QUESTION_BANK_ROOT, { method: "POST", body: request });
+  },
+
+  updateQuestionBank(id: number, request: QuestionBankRequest) {
+    return apiClient<AdminQuestionBank>(`${QUESTION_BANK_ROOT}/${id}`, { method: "PUT", body: request });
+  },
+
+  activateQuestionBank(id: number) {
+    return apiClient<void>(`${QUESTION_BANK_ROOT}/${id}/activate`, { method: "POST" });
+  },
+
+  deactivateQuestionBank(id: number) {
+    return apiClient<void>(`${QUESTION_BANK_ROOT}/${id}/deactivate`, { method: "POST" });
+  },
+
+  addQuestionToBank(id: number, questionId: number) {
+    return apiClient<void>(`${QUESTION_BANK_ROOT}/${id}/questions`, { method: "POST", body: { questionId } });
+  },
+
+  removeQuestionFromBank(id: number, questionId: number) {
+    return apiClient<void>(`${QUESTION_BANK_ROOT}/${id}/questions/${questionId}`, { method: "DELETE" });
   },
 };
